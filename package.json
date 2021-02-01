@@ -9,6 +9,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "postgres": "^1.0.2"
+    "mysql": "^2.18.1",
+    "mysql2": "^2.2.5",
+    "postgres": "^1.0.2",
+    "uuid": "^8.3.2"
   }
 }
