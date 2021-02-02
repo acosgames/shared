@@ -1,5 +1,6 @@
 const mysql = require('mysql2');
 const credutil = require('../util/credentials')
+const { utcDATETIME } = require('../util/datefns');
 
 pools = {};
 
@@ -160,10 +161,17 @@ module.exports = class MySQL {
                             throw "Missing 'table' column. Check your code!"
                         }
 
-                        row.tsupdate = Date.now();
-                        row.tsinsert = Date.now();
+                        row.tsupdate = utcDATETIME();
+                        row.tsinsert = row.tsupdate;
                         var query = conn.query('INSERT INTO ' + table + ' SET ?', row, function (error, results, fields) {
-                            if (error) throw error;
+                            if (error) {
+                                conn.rollback();
+                                console.error(error);
+                                reject(error);
+                                if (type == 2)
+                                    conn.release();
+                                return;
+                            };
                             // Neat!
 
                             resolve({ results, fields });
@@ -173,11 +181,7 @@ module.exports = class MySQL {
                         console.log(query.sql);
                     }
                     catch (e) {
-                        conn.rollback();
-                        console.error(e);
-                        reject(e);
-                        if (type == 2)
-                            conn.release();
+
                     }
                 });
             },
@@ -190,7 +194,7 @@ module.exports = class MySQL {
                         if (!row) {
                             throw "Row does not exist.  Check your code!"
                         }
-                        row.tsupdate = Date.now();
+                        row.tsupdate = utcDATETIME();
 
                         let { keys, values } = self.objToString(row);
 

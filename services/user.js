@@ -1,7 +1,7 @@
 const MySQL = require('./mysql');
 const mysql = new MySQL();
-
-const { v4: uuidv4 } = require('uuid');
+const { genUnique64, generateAPIKEY } = require('../util/idgen');
+const { utcDATETIME } = require('../util/datefns');
 
 module.exports = class UserService {
     constructor() {
@@ -12,13 +12,13 @@ module.exports = class UserService {
         let user = {};
         try {
             let db = await mysql.begin('findOrCreateUser');
-            let { results } = await db.sql('select * from person where email = ?', [user.email]);
+            let { results } = await db.sql('select * from person where email = ?', [email]);
 
             if (results.length == 0)
                 user = await this.createUser(email, db);
             else
                 user = results[0];
-            console.log(user);
+            //console.log(user);
         }
         catch (e) {
             console.error(e);
@@ -31,22 +31,32 @@ module.exports = class UserService {
     }
 
     async createUser(email, db) {
-        db = db || await mysql.db();
-        let user = {}
-        user.email = email;
-        user.displayname = "Player-" + Math.round(Math.random() * Number.MAX_VALUE / 5);
-        user.apikey = this.generateAPIKEY();
-        user.isdev = false;
+        try {
+            db = db || await mysql.db();
+            let user = {}
+            user.id = { toSqlString: () => genUnique64() }
+            user.email = email;
+            user.displayname = "";
+            user.apikey = generateAPIKEY();
+            user.isdev = false;
+            user.tsapikey = utcDATETIME();
 
-        let { results } = await db.insert('person', user);
-        console.log(results);
-        if (results.length > 0)
-            return results[0];
+            //its a github username
+            if (email.indexOf("@") == -1) {
+                user.displayname = email;
+                user.isdev = true;
+                user.github_url = 'https://github.com/' + email;
+            }
+
+
+            let { results } = await db.insert('person', user);
+            console.log(results);
+            if (results.affectedRows > 0)
+                return user;
+        }
+        catch (e) {
+            throw e;
+        }
         return null;
-    }
-
-    generateAPIKEY() {
-        let id = uuidv4().replace(/\-/ig, '').toUpperCase();
-        return id;
     }
 }
