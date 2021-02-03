@@ -190,7 +190,7 @@ module.exports = class MySQL {
 
 
             update: (table, row, where, whereValues) => {
-
+                var self = this;
                 return new Promise((resolve, reject) => {
                     try {
                         if (!row) {
@@ -203,7 +203,7 @@ module.exports = class MySQL {
                         if (whereValues && Array.isArray(whereValues)) {
                             values = values.concat(whereValues);
                         }
-                        if (where.indexOf("WHERE") == - 1) {
+                        if (where && where.indexOf("WHERE") == - 1) {
                             where = 'WHERE ' + where;
                         }
                         var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
@@ -216,6 +216,7 @@ module.exports = class MySQL {
                             if (type == 2)
                                 conn.release();
                         });
+                        console.log(query.sql);
                     }
                     catch (e) {
                         conn.rollback();
@@ -280,7 +281,7 @@ module.exports = class MySQL {
     objToString(obj) {
         let keys = [];
         let values = [];
-        for (key in obj) {
+        for (var key in obj) {
             keys.push(key + '=?')
             values.push(obj[key]);
         }

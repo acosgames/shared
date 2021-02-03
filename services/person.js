@@ -23,8 +23,18 @@ module.exports = class UserService {
 
             if (response.results.length == 0)
                 user = await this.createUser(user, db);
-            else
-                user = response.results[0];
+            else {
+                let existingUser = response.results[0];
+                if (('github' in user) && existingUser.github != user.github) {
+                    user.id = existingUser.id;
+                    user.isdev = true;
+                    user = await this.updateUser(user, db);
+                }
+                else {
+                    user = response.results[0];
+                }
+            }
+
             //console.log(user);
         }
         catch (e) {
@@ -36,15 +46,30 @@ module.exports = class UserService {
 
         return user;
     }
+    async updateUser(user, db) {
+        try {
+            db = db || await mysql.db();
+            let { results } = await db.update('person', user, 'WHERE id = ?', [user.id]);
+            console.log(results);
+            if (results.affectedRows > 0)
+                return user;
+        }
+        catch (e) {
+            throw e;
+        }
+        return null;
+    }
 
     async createUser(user, db) {
         try {
             db = db || await mysql.db();
             user.id = { toSqlString: () => genUnique64() }
             //user.email = email;
-            user.displayname = "";
+
             user.apikey = generateAPIKEY();
-            user.isdev = ('github_url' in user);
+            user.displayname = user.apikey;
+
+            user.isdev = ('github' in user);
             user.tsapikey = utcDATETIME();
 
 
