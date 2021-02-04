@@ -208,7 +208,10 @@ module.exports = class MySQL {
                         }
                         var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
 
-                            if (error) throw error;
+                            if (error) {
+                                reject(error);
+                                return;
+                            }
                             // Neat!
 
                             resolve({ results, fields });

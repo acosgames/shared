@@ -8,7 +8,40 @@ module.exports = class UserService {
 
     }
 
-    async findOrCreateUser(user) {
+    async findUser(user, session) {
+        try {
+            let db = await mysql.db();
+            let response;
+            if (user.id) {
+                response = await db.sql('select * from person where id = ?', [user.id]);
+            }
+            else if (user.email) {
+                response = await db.sql('select * from person where email = ?', [user.email]);
+            }
+            else if (user.apikey) {
+                response = await db.sql('select * from person where apikey = ?', [user.apikey]);
+            }
+            else if (session && session.user && session.user.id) {
+                response = await db.sql('select * from person where id = ?', [session.user.id]);
+            }
+            else {
+                throw { code: "E_USER_NOTFOUND", payload: user };
+            }
+
+            user = response.results[0];
+
+        }
+        catch (e) {
+            console.error(e);
+        }
+        finally {
+            await mysql.end('findOrCreateUser');
+        }
+
+        return user;
+    }
+
+    async findOrCreateUser(user, session) {
 
 
         try {
@@ -16,6 +49,15 @@ module.exports = class UserService {
             let response;
             if (user.email) {
                 response = await db.sql('select * from person where email = ?', [user.email]);
+            }
+            else if (user.id) {
+                response = await db.sql('select * from person where id = ?', [user.id]);
+            }
+            else if (user.apikey) {
+                response = await db.sql('select * from person where apikey = ?', [user.apikey]);
+            }
+            else if (session && session.user && session.user.id) {
+                response = await db.sql('select * from person where id = ?', [session.user.id]);
             }
             else {
                 throw { code: "E_USER_NOTFOUND", payload: user };
@@ -29,6 +71,7 @@ module.exports = class UserService {
                     user.id = existingUser.id;
                     user.isdev = true;
                     user = await this.updateUser(user, db);
+                    user = Object.assign({}, existingUser, user)
                 }
                 else {
                     user = response.results[0];
@@ -67,7 +110,7 @@ module.exports = class UserService {
             //user.email = email;
 
             user.apikey = generateAPIKEY();
-            user.displayname = user.apikey;
+            // user.displayname = user.id;
 
             user.isdev = ('github' in user);
             user.tsapikey = utcDATETIME();
