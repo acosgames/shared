@@ -25,7 +25,7 @@ module.exports = class UserService {
                 response = await db.sql('select * from person where id = ?', [session.user.id]);
             }
             else {
-                throw { code: "E_USER_NOTFOUND", payload: user };
+                throw { ecode: "E_USER_NOTFOUND", payload: user };
             }
 
             user = response.results[0];
@@ -60,7 +60,7 @@ module.exports = class UserService {
                 response = await db.sql('select * from person where id = ?', [session.user.id]);
             }
             else {
-                throw { code: "E_USER_NOTFOUND", payload: user };
+                throw { ecode: "E_USER_NOTFOUND", payload: user };
             }
 
             if (response.results.length == 0)

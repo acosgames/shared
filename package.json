@@ -9,10 +9,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "aws-sdk": "^2.839.0",
     "date-fns": "^2.16.1",
     "flakeid": "^1.0.0",
     "moment": "^2.29.1",
     "moment-timezone": "^0.5.32",
+    "multer": "^1.4.2",
+    "multer-s3": "^2.9.0",
     "mysql": "^2.18.1",
     "mysql2": "^2.2.5",
     "postgres": "^1.0.2",
