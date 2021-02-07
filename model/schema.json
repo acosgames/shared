@@ -1,0 +1,39 @@
+{
+    "game": {
+        "name": {
+            "label": "Game Name",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "shortdesc": {
+            "label": "Short Description",
+            "type": "string",
+            "required": true,
+            "max": 80,
+            "min": 3
+        },
+        "longdesc": {
+            "label": "Long Description",
+            "type": "string",
+            "required": true,
+            "max": 1200,
+            "min": 3
+        },
+        "clientgit": {
+            "label": "Client Git Repo",
+            "type": "string",
+            "required": true,
+            "max": 255,
+            "min": 3
+        },
+        "servergit": {
+            "label": "Server Git Repo",
+            "type": "string",
+            "required": true,
+            "max": 255,
+            "min": 3
+        }
+    }
+}

@@ -1,6 +1,7 @@
 const mysql = require('mysql2');
 const credutil = require('../util/credentials')
 const { utcDATETIME } = require('../util/datefns');
+const { SQLError } = require('../util/errorhandler');
 
 pools = {};
 
@@ -43,7 +44,8 @@ module.exports = class MySQL {
 
         }
         catch (e) {
-            console.error(e);
+            // console.error(e);
+            throw new SQLError('E_SQL_ERROR', e);
         }
 
     }
@@ -51,11 +53,14 @@ module.exports = class MySQL {
     disconnect() {
         try {
             this.pool.end((err) => {
-                throw err;
+                if (err) {
+                    throw new SQLError('E_SQL_ERROR', err);
+                }
             })
         }
         catch (e) {
-            console.error(e);
+            //console.error(e);
+            throw e;
         }
     }
 
@@ -65,14 +70,14 @@ module.exports = class MySQL {
             try {
                 self.pool.getConnection((err, conn) => {
                     if (err) {
-                        reject(err);
+                        reject(new SQLError('E_SQL_ERROR', err));
                         return;
                     }
                     resolve(conn);
                 });
             }
             catch (e) {
-                console.error(e);
+                //console.error(e);
                 reject(e);
             }
         });
@@ -82,24 +87,29 @@ module.exports = class MySQL {
         var self = this;
         return new Promise(async (resolve, reject) => {
             try {
-                if (self.connections[jobname])
-                    throw `Connection ${jobname} already exists.  Check your code!`;
+                if (self.connections[jobname]) {
+                    reject(new SQLError('E_SQL_ERROR', `Connection ${jobname} already exists.  Check your code!`));
+                    return;
+                }
 
                 self.pool.getConnection((err, conn) => {
                     if (err) {
-                        reject(err);
+                        reject(new SQLError('E_SQL_ERROR', err));
                         return;
                     }
                     self.connections[jobname] = conn;
 
                     conn.beginTransaction(async (err) => {
-                        if (err) throw err;
+                        if (err) {
+                            reject(new SQLError('E_SQL_ERROR', err));
+                            return;
+                        }
                         resolve(self.db(conn));
                     });
                 });
             }
             catch (e) {
-                console.error(e);
+                //console.error(e);
                 if (jobname in self.connections) {
                     delete self.connections[jobname];
                 }
@@ -114,168 +124,189 @@ module.exports = class MySQL {
 
         try {
             this.connections[jobname].commit((err) => {
-                if (err) throw err;
+                if (err) {
+                    reject(new SQLError('E_SQL_ERROR', err));
+                    return;
+                }
                 this.connections[jobname].release();
                 delete this.connections[jobname];
             });
 
         }
         catch (e) {
-            console.error(e);
+            //console.error(e);
             this.connections[jobname].release();
             delete this.connections[jobname];
+            reject(e);
         }
     }
 
     async db(conn) {
-        let type = 0; //transaction query
-        if (!conn) {
-            conn = await this.getConnection();
-            type = 2; //single use query
-        }
+        try {
+            let type = 0; //transaction query
+            if (!conn) {
+                conn = await this.getConnection();
+                type = 2; //single use query
+            }
 
-        conn = conn || await this.getConnection();
-        return {
-            commit: () => {
-                conn.commit((err) => {
-                    if (err) throw err;
+            conn = conn || await this.getConnection();
+            return {
+                commit: () => {
+                    conn.commit((err) => {
+                        if (err) throw new SQLError('E_SQL_ERROR', err);
 
-                })
-            },
-            rollback: () => {
-                conn.rollback((err) => {
-                    if (err) throw err;
-                })
-            },
-            insert: (table, row) => {
+                    })
+                },
+                rollback: () => {
+                    conn.rollback((err) => {
+                        if (err) throw new SQLError('E_SQL_ERROR', err);
+                    })
+                },
+                insert: (table, row) => {
 
-                return new Promise((resolve, reject) => {
-                    try {
-                        if (!conn)
-                            throw "No defined connection";
-
-                        // var post = { id: 1, title: 'Hello MySQL' };
-                        if (!row) {
-                            throw "Row does not exist.  Check your code!"
-                        }
-
-                        if (!table) {
-                            throw "Missing 'table' column. Check your code!"
-                        }
-
-                        row.tsupdate = utcDATETIME();
-                        row.tsinsert = row.tsupdate;
-                        var query = conn.query('INSERT INTO ' + table + ' SET ?', row, function (error, results, fields) {
-                            if (error) {
-                                conn.rollback();
-                                console.error(error);
-                                reject(error);
-                                if (type == 2)
-                                    conn.release();
-                                return;
-                            };
-                            // Neat!
-
-                            resolve({ results, fields });
-                            if (type == 2)
-                                conn.release();
-                        });
-                        console.log(query.sql);
-                    }
-                    catch (e) {
-
-                    }
-                });
-            },
-
-
-            update: (table, row, where, whereValues) => {
-                var self = this;
-                return new Promise((resolve, reject) => {
-                    try {
-                        if (!row) {
-                            throw "Row does not exist.  Check your code!"
-                        }
-                        row.tsupdate = utcDATETIME();
-
-                        let { keys, values } = self.objToString(row);
-
-                        if (whereValues && Array.isArray(whereValues)) {
-                            values = values.concat(whereValues);
-                        }
-                        if (where && where.indexOf("WHERE") == - 1) {
-                            where = 'WHERE ' + where;
-                        }
-                        var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
-
-                            if (error) {
-                                reject(error);
+                    return new Promise((resolve, reject) => {
+                        try {
+                            if (!conn) {
+                                reject(new SQLError('E_SQL_ERROR', "No defined connection"));
                                 return;
                             }
-                            // Neat!
 
-                            resolve({ results, fields });
+                            // var post = { id: 1, title: 'Hello MySQL' };
+                            if (!row) {
+                                reject(new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!"));
+                                return;
+                            }
 
+                            if (!table) {
+                                reject(new SQLError('E_SQL_ERROR', "Missing 'table' column. Check your code!"));
+                                return;
+                            }
+
+                            row.tsupdate = utcDATETIME();
+                            row.tsinsert = row.tsupdate;
+                            var query = conn.query('INSERT INTO ' + table + ' SET ?', row, function (error, results, fields) {
+                                if (error) {
+                                    conn.rollback();
+                                    //console.error(error);
+                                    reject(new SQLError('E_SQL_ERROR', error));
+                                    if (type == 2)
+                                        conn.release();
+                                    return;
+                                };
+                                // Neat!
+
+                                resolve({ results, fields });
+                                if (type == 2)
+                                    conn.release();
+                            });
+                            console.log(query.sql);
+                        }
+                        catch (e) {
+                            reject(new SQLError('E_SQL_ERROR', e));
+                        }
+                    });
+                },
+
+
+                update: (table, row, where, whereValues) => {
+                    var self = this;
+                    return new Promise((resolve, reject) => {
+                        try {
+                            if (!row) {
+                                throw new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!");
+                            }
+                            row.tsupdate = utcDATETIME();
+
+                            let { keys, values } = self.objToString(row);
+
+                            if (whereValues && Array.isArray(whereValues)) {
+                                values = values.concat(whereValues);
+                            }
+                            if (where && where.indexOf("WHERE") == - 1) {
+                                where = 'WHERE ' + where;
+                            }
+                            var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
+
+                                if (error) {
+                                    reject(new SQLError('E_SQL_ERROR', error));
+                                    return;
+                                }
+                                // Neat!
+
+                                resolve({ results, fields });
+
+                                if (type == 2)
+                                    conn.release();
+                            });
+                            console.log(query.sql);
+                        }
+                        catch (e) {
+                            conn.rollback();
+                            //console.error(e);
+                            reject(new SQLError('E_SQL_ERROR', e));
                             if (type == 2)
                                 conn.release();
-                        });
-                        console.log(query.sql);
-                    }
-                    catch (e) {
-                        conn.rollback();
-                        console.error(e);
-                        reject(e);
-                        if (type == 2)
-                            conn.release();
-                    }
-                });
-            },
+                        }
+                    });
+                },
 
-            sql: (sql, values) => {
+                sql: (sql, values) => {
 
-                return new Promise((resolve, reject) => {
-                    try {
-                        values = values || [];
-                        conn.query(sql, values, function (error, results, fields) {
-                            if (error) throw error;
-                            resolve({ results, fields });
+                    return new Promise((resolve, reject) => {
+                        try {
+                            values = values || [];
+                            let query = conn.query(sql, values, function (error, results, fields) {
+                                if (error) {
+                                    reject(new SQLError('E_SQL_ERROR', error));
+                                    return;
+                                }
+                                resolve({ results, fields });
 
+                                if (type == 2)
+                                    conn.release();
+                            });
+                            console.log(query.sql);
+                        }
+                        catch (e) {
+                            conn.rollback();
+                            //console.error(e);
                             if (type == 2)
                                 conn.release();
-                        });
-                    }
-                    catch (e) {
-                        conn.rollback();
-                        console.error(e);
-                        if (type == 2)
-                            conn.release();
-                        reject(e);
-                    }
-                });
-            },
-
-            delete: (table, where, values) => {
-
-                return new Promise((resolve, reject) => {
-                    try {
-                        if (!row) {
-                            throw "Row does not exist.  Check your code!"
+                            reject(new SQLError('E_SQL_ERROR', e));
                         }
-                        if (where.indexOf("WHERE") == - 1) {
-                            where = 'WHERE ' + where;
+                    });
+                },
+
+                delete: (table, where, values) => {
+
+                    return new Promise((resolve, reject) => {
+                        try {
+                            if (!row) {
+                                reject(new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!"));
+                                return;
+                            }
+                            if (where.indexOf("WHERE") == - 1) {
+                                where = 'WHERE ' + where;
+                            }
+                            var query = conn.query('DELETE FROM ' + table + ' ' + where, values, function (error, results, fields) {
+                                if (error) {
+                                    reject(new SQLError('E_SQL_ERROR', error));
+                                    return;
+                                }
+                                // Neat!
+                                resolve({ results, fields });
+                            });
                         }
-                        var query = conn.query('DELETE FROM ' + table + ' ' + where, values, function (error, results, fields) {
-                            if (error) throw error;
-                            // Neat!
-                            resolve({ results, fields });
-                        });
-                    }
-                    catch (e) {
-                        console.error(e);
-                        reject(e);
-                    }
-                });
+                        catch (e) {
+                            console.error(e);
+                            reject(new SQLError('E_SQL_ERROR', e));
+                        }
+                    });
+                }
             }
+        }
+        catch (e) {
+            throw e;
         }
     }
 

@@ -2,15 +2,16 @@ const MySQL = require('./mysql');
 const mysql = new MySQL();
 const { genUnique64, generateAPIKEY } = require('../util/idgen');
 const { utcDATETIME } = require('../util/datefns');
+const { GeneralError } = require('../util/errorhandler');
 
 module.exports = class UserService {
     constructor() {
 
     }
 
-    async findUser(user, session) {
+    async findUser(user, db) {
         try {
-            let db = await mysql.db();
+            db = db || await mysql.db();
             let response;
             if (user.id) {
                 response = await db.sql('select * from person where id = ?', [user.id]);
@@ -21,52 +22,31 @@ module.exports = class UserService {
             else if (user.apikey) {
                 response = await db.sql('select * from person where apikey = ?', [user.apikey]);
             }
-            else if (session && session.user && session.user.id) {
-                response = await db.sql('select * from person where id = ?', [session.user.id]);
-            }
             else {
-                throw { ecode: "E_USER_NOTFOUND", payload: user };
+                throw new GeneralError('E_PERSON_MISSINGINFO', user);
             }
 
-            user = response.results[0];
+            if (response && response.results.length == 0) {
+                throw new GeneralError('E_PERSON_NOTFOUND', user);
+            } else {
+                user = response.results[0];
+            }
 
+            return user;
         }
         catch (e) {
-            console.error(e);
+            //console.error(e);
+            throw e;
         }
-        finally {
-            await mysql.end('findOrCreateUser');
-        }
-
-        return user;
     }
 
     async findOrCreateUser(user, session) {
 
-
         try {
             let db = await mysql.begin('findOrCreateUser');
-            let response;
-            if (user.email) {
-                response = await db.sql('select * from person where email = ?', [user.email]);
-            }
-            else if (user.id) {
-                response = await db.sql('select * from person where id = ?', [user.id]);
-            }
-            else if (user.apikey) {
-                response = await db.sql('select * from person where apikey = ?', [user.apikey]);
-            }
-            else if (session && session.user && session.user.id) {
-                response = await db.sql('select * from person where id = ?', [session.user.id]);
-            }
-            else {
-                throw { ecode: "E_USER_NOTFOUND", payload: user };
-            }
 
-            if (response.results.length == 0)
-                user = await this.createUser(user, db);
-            else {
-                let existingUser = response.results[0];
+            try {
+                let existingUser = await this.findUser(user, db);
                 if (('github' in user) && existingUser.github != user.github) {
                     user.id = existingUser.id;
                     user.isdev = true;
@@ -74,33 +54,40 @@ module.exports = class UserService {
                     user = Object.assign({}, existingUser, user)
                 }
                 else {
-                    user = response.results[0];
+                    user = existingUser;
                 }
             }
+            catch (e) {
+                user = await this.createUser(user, db);
+            }
 
+            await mysql.end('findOrCreateUser');
             //console.log(user);
+            return user;
         }
         catch (e) {
-            console.error(e);
-        }
-        finally {
+            //console.error(e);
             await mysql.end('findOrCreateUser');
+            throw e;
         }
-
-        return user;
     }
+
     async updateUser(user, db) {
         try {
             db = db || await mysql.db();
             let { results } = await db.update('person', user, 'WHERE id = ?', [user.id]);
             console.log(results);
-            if (results.affectedRows > 0)
-                return user;
+            if (results.affectedRows == 0)
+                throw new GeneralError('E_PERSON_UPDATEFAILED', user);
+            return user;
         }
         catch (e) {
+            if (e.errno == 1062) {
+                throw new GeneralError("E_PERSON_DUPENAME", user);
+            }
+
             throw e;
         }
-        return null;
     }
 
     async createUser(user, db) {
@@ -118,12 +105,12 @@ module.exports = class UserService {
 
             let { results } = await db.insert('person', user);
             console.log(results);
-            if (results.affectedRows > 0)
-                return user;
+            if (results.affectedRows == 0)
+                throw new GeneralError('E_PERSON_CREATEFAILED', user);
+            return user;
         }
         catch (e) {
             throw e;
         }
-        return null;
     }
 }
