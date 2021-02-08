@@ -1,7 +1,7 @@
 const MySQL = require('./mysql');
 const mysql = new MySQL();
 const credutil = require('../util/credentials')
-const { genUnique64 } = require('../util/idgen');
+const { genUnique64string } = require('../util/idgen');
 const { utcDATETIME } = require('../util/datefns');
 const { GeneralError, CodeError, SQLError } = require('../util/errorhandler');
 
@@ -34,26 +34,35 @@ module.exports = class DevGameService {
             return game;
         }
         catch (e) {
+            if (e instanceof GeneralError)
+                return e;
             throw new CodeError(e);
         }
     }
 
-    updateImages(gameid, user, images) {
+    uploadImages(gameid, user, images) {
 
     }
 
-    async updateGame(game, user) {
+    async updateGame(game, user, db) {
         console.log(game);
         try {
             db = db || await mysql.db();
+            let gameid = game.gameid;
+            delete game['gameid'];
+
+            let ownerid = game.ownerid;
+            delete game['ownerid'];
+
             game.version = 1;
             game.ownerid = user.id;
 
-            let { results } = await db.update('dev_game', game, 'gameid=?', [game.gameid]);
+            let { results } = await db.update('dev_game', game, 'gameid=? AND ownerid=?', [gameid, ownerid]);
             console.log(results);
 
             if (results.affectedRows > 0) {
-                game.gameid = game.gameid.toSqlString();
+                game.gameid = gameid;
+                game.ownerid = ownerid;
                 return game;
             }
 
@@ -77,7 +86,14 @@ module.exports = class DevGameService {
         console.log(game);
         try {
             db = db || await mysql.db();
-            game.gameid = { toSqlString: () => genUnique64() }
+            let newid = genUnique64string({
+                datacenter: this.credentials.datacenter.index || 0,
+                worker: this.credentials.datacenter.worker || 0
+            });
+
+            game.gameid = {
+                toSqlString: () => newid
+            }
             game.version = 1;
             game.ownerid = user.id;
 

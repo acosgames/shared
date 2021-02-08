@@ -1,14 +1,27 @@
-const FlakeId = require('flakeid');
+var FlakeId = require('flake-idgen');
 const { v4: uuidv4 } = require('uuid');
-
-module.exports = {
-    genUnique64(mid) {
-        mid = mid || 0;
+var intformat = require('biguint-format')
+module.exports = IdGen = {
+    genUnique64({ datacenter, worker }) {
+        datacenter = datacenter || 0;
+        worker = worker || 0;
+        //mid = mid || 0;
         const flake = new FlakeId({
-            mid, //optional, define machine id
-            timeOffset: (2020 - 1970) * 31536000 * 1000 //optional, define a offset time
+            datacenter,
+            worker
+            //mid, //optional, define machine id
+            //timeOffset: (2020 - 1970) * 31536000 * 1000 //optional, define a offset time
         });
-        return flake.gen();
+        return flake.next();
+    },
+
+    genUnique64string({ datacenter, worker }) {
+        let id = IdGen.genUnique64({ datacenter, worker });
+        return IdGen.int64string(id);
+    },
+
+    int64string(buff) {
+        return intformat(buff, 'dec');
     },
 
     generateAPIKEY() {

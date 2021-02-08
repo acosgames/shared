@@ -215,6 +215,10 @@ module.exports = class MySQL {
                             if (!row) {
                                 throw new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!");
                             }
+
+                            if (row.tsinsert) {
+                                delete row['tsinsert'];
+                            }
                             row.tsupdate = utcDATETIME();
 
                             let { keys, values } = self.objToString(row);

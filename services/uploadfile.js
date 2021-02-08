@@ -11,7 +11,7 @@ module.exports = class UploadFile {
     constructor(credentials) {
         this.credentials = credentials || credutil();
 
-        //this.s3cred = new AWS.SharedIniFileCredentials({ profile: 'b2' });
+        this.s3cred = new AWS.SharedIniFileCredentials({ profile: 'b2' });
         //AWS.config.credentials = credentials;
         //var ep = new AWS.Endpoint('s3.us-west-002.backblazeb2.com');
         this.s3 = new AWS.S3(this.credentials.backblaze);
@@ -24,6 +24,8 @@ module.exports = class UploadFile {
         const storage = multerS3({
             s3: this.s3,
             bucket: bucketName,
+            acl: 'public-read',
+            contentType: multerS3.AUTO_CONTENT_TYPE,
             metadata: metadataCB || function (req, file, cb) {
                 cb(null, { fieldName: file.fieldname });
             },
@@ -32,6 +34,13 @@ module.exports = class UploadFile {
             }
         });
         const fileFilter = (req, file, cb) => {
+            var key = file.originalname;
+            var fileExt = key.split('.').pop();
+            if (fileExt.length == key.length) {
+                cb(null, false);
+                return;
+            }
+
             if (mimetypes.includes(file.mimetype)) {
                 cb(null, true);
             } else {

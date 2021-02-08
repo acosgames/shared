@@ -1,6 +1,6 @@
 const MySQL = require('./mysql');
 const mysql = new MySQL();
-const { genUnique64, generateAPIKEY } = require('../util/idgen');
+const { genUnique64string, generateAPIKEY } = require('../util/idgen');
 const { utcDATETIME } = require('../util/datefns');
 const { GeneralError } = require('../util/errorhandler');
 
@@ -93,7 +93,11 @@ module.exports = class UserService {
     async createUser(user, db) {
         try {
             db = db || await mysql.db();
-            user.id = { toSqlString: () => genUnique64() }
+            let newid = genUnique64string({
+                datacenter: this.credentials.datacenter.index || 0,
+                worker: this.credentials.datacenter.worker || 0
+            });
+            user.id = { toSqlString: () => newid }
             //user.email = email;
 
             user.apikey = generateAPIKEY();
