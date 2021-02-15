@@ -11,6 +11,7 @@
   "dependencies": {
     "aws-sdk": "^2.839.0",
     "biguint-format": "^1.0.2",
+    "busboy": "^0.3.1",
     "date-fns": "^2.16.1",
     "flake-idgen": "^1.4.0",
     "flakeid": "^1.0.0",
@@ -20,6 +21,7 @@
     "multer-s3": "^2.9.0",
     "mysql": "^2.18.1",
     "mysql2": "^2.2.5",
+    "nanoid": "^3.1.20",
     "postgres": "^1.0.2",
     "uuid": "^8.3.2"
   }

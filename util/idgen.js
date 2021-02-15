@@ -1,6 +1,9 @@
 var FlakeId = require('flake-idgen');
 const { v4: uuidv4 } = require('uuid');
 var intformat = require('biguint-format')
+
+var { nanoid } = require('nanoid');
+
 module.exports = IdGen = {
     genUnique64({ datacenter, worker }) {
         datacenter = datacenter || 0;
@@ -27,5 +30,10 @@ module.exports = IdGen = {
     generateAPIKEY() {
         let id = uuidv4().replace(/\-/ig, '').toUpperCase();
         return id;
+    },
+
+    genShortId(len) {
+        len = len || 6;
+        return nanoid(len);
     }
 }

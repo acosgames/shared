@@ -5,6 +5,7 @@ const { utcDATETIME } = require('../util/datefns');
 const AWS = require('aws-sdk');
 const multer = require('multer');
 const multerS3 = require('multer-s3');
+// const busboy = require('busboy');
 
 module.exports = class UploadFile {
 
@@ -18,6 +19,69 @@ module.exports = class UploadFile {
 
         this.upload = null;
     }
+
+    async deletePreviews(game) {
+        // var params = {
+        //     Bucket: 'fivesecondgames',
+        //     Prefix: gameid + '/preview/'
+        // };
+        try {
+            // let data = await this.s3.listObjects(params).promise();
+
+            // console.log(data);
+            let deleted = [];
+            let previews = game.preview_images.split(',');
+
+            for (var i = 0; i < previews.length; i++) {
+                let filename = previews[i];
+                var params2 = {
+                    Bucket: "fivesecondgames",
+                    Key: game.gameid + '/preview/' + filename
+                };
+                let del = await this.s3.deleteObject(params2).promise();
+                console.log(del);
+                deleted.push(del);
+            }
+
+            return deleted;
+        }
+        catch (e) {
+            console.error(e, e.stack);
+        }
+        return [];
+    }
+
+
+
+    // busboyMiddleware({ onFile, onField, onFinish, onFileData, onFileEnd }) {
+    //     return (req, res, next) => {
+    //         var busboy = new Busboy({ headers: req.headers });
+    //         busboy.on('file', function (fieldname, file, filename, encoding, mimetype) {
+    //             if (onFile) onFile(fieldname, file, filename, encoding, mimetype);
+    //             console.log('File [' + fieldname + ']: filename: ' + filename + ', encoding: ' + encoding + ', mimetype: ' + mimetype);
+    //             file.on('data', function (data) {
+    //                 if (onFileData) onFileData(data);
+    //                 console.log('File [' + fieldname + '] got ' + data.length + ' bytes');
+    //             });
+    //             file.on('end', function () {
+    //                 if (onFileEnd) onFileEnd();
+    //                 console.log('File [' + fieldname + '] Finished');
+    //             });
+    //         });
+    //         busboy.on('field', function (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
+    //             if (onField) onField(fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype);
+    //             console.log('Field [' + fieldname + ']: value: ' + val);
+
+    //         });
+    //         busboy.on('finish', function () {
+    //             if (onFinish) onFinish();
+    //             console.log('Done parsing form!');
+    //             // res.writeHead(303, { Connection: 'close', Location: '/' });
+    //             // res.end();
+    //         });
+    //         req.pipe(busboy);
+    //     }
+    // }
 
     middleware(bucketName, mimetypes, metadataCB, keyCB) {
         mimetypes = mimetypes || ['image/jpeg', 'image/png'];
@@ -34,6 +98,8 @@ module.exports = class UploadFile {
             }
         });
         const fileFilter = (req, file, cb) => {
+
+
             var key = file.originalname;
             var fileExt = key.split('.').pop();
             if (fileExt.length == key.length) {

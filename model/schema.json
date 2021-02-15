@@ -21,14 +21,14 @@
             "max": 1200,
             "min": 3
         },
-        "clientgit": {
+        "git_client": {
             "label": "Client Git Repo",
             "type": "string",
             "required": true,
             "max": 255,
             "min": 3
         },
-        "servergit": {
+        "git_server": {
             "label": "Server Git Repo",
             "type": "string",
             "required": true,
