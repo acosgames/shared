@@ -234,7 +234,7 @@ module.exports = class DevGameService {
                 worker: this.credentials.datacenter.worker || 0
             });
 
-            client.gameid = {
+            client.id = {
                 toSqlString: () => newid
             }
 
@@ -248,7 +248,7 @@ module.exports = class DevGameService {
             console.log(results);
 
             if (results.affectedRows > 0) {
-                client.gameid = client.gameid.toSqlString();
+                client.id = client.id.toSqlString();
                 return client;
             }
 
@@ -275,7 +275,7 @@ module.exports = class DevGameService {
                 worker: this.credentials.datacenter.worker || 0
             });
 
-            server.gameid = {
+            server.id = {
                 toSqlString: () => newid
             }
 
@@ -289,7 +289,7 @@ module.exports = class DevGameService {
             console.log(results);
 
             if (results.affectedRows > 0) {
-                server.gameid = server.gameid.toSqlString();
+                server.id = server.id.toSqlString();
                 return server;
             }
 
