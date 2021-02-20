@@ -29,11 +29,14 @@ module.exports = class DevGameService {
                 response = await db.sql('select * from game_info where shortid = ? AND ownerid = ?', [game.shortid, { toSqlString: () => user.id }]);
             }
 
-            if (response && response.results.length > 0)
-                game = response.results[0];
-            else
-                return null;
-            return game;
+            var foundGame = null;
+            if (response && response.results.length > 0) {
+                foundGame = response.results[0];
+                foundGame.clients = await this.findClient({ gameid: foundGame.gameid }, user, db);
+                foundGame.servers = await this.findServer({ gameid: foundGame.gameid }, user, db);
+            }
+
+            return foundGame;
         }
         catch (e) {
             if (e instanceof GeneralError)
@@ -45,22 +48,22 @@ module.exports = class DevGameService {
     async findClient(client, user, db) {
         try {
             if (client.id == 'undefined')
-                return null;
+                return [];
             db = db || await mysql.db();
             var response;
             console.log("Searching for client: ", client);
             if (client.id) {
-                response = await db.sql('select * from game_client where gameid = ? AND ownerid = ? order by clientversion desc limit 1', [{ toSqlString: () => client.id }, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_client where id = ? AND ownerid = ? order by name desc', [{ toSqlString: () => client.id }, { toSqlString: () => user.id }]);
             }
             else if (client.gameid) {
-                response = await db.sql('select * from game_client where gameid = ? AND ownerid = ? order by clientversion desc limit 1', [{ toSqlString: () => client.gameid }, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_client where gameid = ? order by name desc', [{ toSqlString: () => client.gameid }, { toSqlString: () => user.id }]);
             }
 
+            var clients = [];
             if (response && response.results.length > 0)
-                client = response.results[0];
-            else
-                return null;
-            return client;
+                clients = response.results;
+
+            return clients;
         }
         catch (e) {
             if (e instanceof GeneralError)
@@ -72,7 +75,7 @@ module.exports = class DevGameService {
     async findServer(server, user, db) {
         try {
             if (server.id == 'undefined')
-                return null;
+                return [];
             db = db || await mysql.db();
             var response;
             console.log("Searching for server: ", server);
@@ -83,11 +86,11 @@ module.exports = class DevGameService {
                 response = await db.sql('select * from game_server where gameid = ? AND ownerid = ? order by serverversion desc limit 1', [{ toSqlString: () => server.gameid }, { toSqlString: () => user.id }]);
             }
 
-            if (response && response.results.length > 0)
-                server = response.results[0];
-            else
-                return null;
-            return server;
+            var servers = [];
+            if (response && response.results.length > 0) {
+                servers = response.results;
+            }
+            return servers;
         }
         catch (e) {
             if (e instanceof GeneralError)
