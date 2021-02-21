@@ -99,6 +99,63 @@ module.exports = class DevGameService {
         }
     }
 
+    async updateClientPreviewImages(clientid, user, images) {
+
+        try {
+            let db = await mysql.db();
+
+            let ownerid = user.id;
+
+            let client = {};
+            client.preview_images = images.join(',');
+
+            let { results } = await db.update('game_client', client, 'id=? AND ownerid=?', [clientid, ownerid]);
+            console.log(results);
+
+            if (results.affectedRows > 0) {
+                client.id = clientid;
+                client.ownerid = ownerid;
+                return client;
+            }
+        }
+        catch (e) {
+            //revert back to normal
+            if (e instanceof SQLError && e.payload.errno == 1062) {
+                if (e.payload.sqlMessage.indexOf("game_client.name_UNIQUE")) {
+                    throw new GeneralError("E_CLIENT_DUPENAME", client.name);
+                }
+            }
+            console.error(e);
+            throw new GeneralError("E_CLIENT_INVALID");
+        }
+        return null;
+    }
+
+    async updateClientBundle(client, user, build_client) {
+
+        try {
+            let db = await mysql.db();
+            let updateClient = { build_client: client.build_client, clientversion: client.clientversion };
+            let { results } = await db.update('game_client', updateClient, 'id=? AND ownerid=?', [client.id, user.id]);
+            console.log(results);
+
+            if (results.affectedRows > 0) {
+                return client;
+            }
+        }
+        catch (e) {
+            //revert back to normal
+            if (e instanceof SQLError && e.payload.errno == 1062) {
+                if (e.payload.sqlMessage.indexOf("game_client.name_UNIQUE")) {
+                    throw new GeneralError("E_CLIENT_DUPENAME", client.name);
+                }
+            }
+            console.error(e);
+            throw new GeneralError("E_CLIENT_INVALID");
+        }
+        return null;
+    }
+
     async updatePreviewImages(gameid, user, images) {
 
         try {

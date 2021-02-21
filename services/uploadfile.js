@@ -20,6 +20,65 @@ module.exports = class UploadFile {
         this.upload = null;
     }
 
+    async deleteBundles(client) {
+        try {
+            let deleted = [];
+            if (!client.build_client)
+                return deleted;
+
+            let filename = client.build_client;
+
+            var params2 = {
+                Bucket: "fivesecondgames",
+                Key: client.gameid + '/client/' + client.id + '/' + filename
+            };
+            let del = await this.s3.deleteObject(params2).promise();
+            console.log(del);
+
+            client.build_client = null;
+            return del;
+        }
+        catch (e) {
+            console.error(e, e.stack);
+        }
+        return [];
+    }
+
+    async deleteClientPreviews(client) {
+        // var params = {
+        //     Bucket: 'fivesecondgames',
+        //     Prefix: gameid + '/preview/'
+        // };
+        try {
+            // let data = await this.s3.listObjects(params).promise();
+
+            // console.log(data);
+            let deleted = [];
+            if (!client.preview_images)
+                return deleted;
+
+            let previews = client.preview_images.split(',');
+
+            for (var i = 0; i < previews.length; i++) {
+                let filename = previews[i];
+                var params2 = {
+                    Bucket: "fivesecondgames",
+                    Key: client.gameid + '/client/' + client.id + '/' + filename
+                };
+                let del = await this.s3.deleteObject(params2).promise();
+                console.log(del);
+                deleted.push(del);
+            }
+
+            return deleted;
+        }
+        catch (e) {
+            console.error(e, e.stack);
+        }
+        return [];
+    }
+
+
     async deletePreviews(game) {
         // var params = {
         //     Bucket: 'fivesecondgames',
