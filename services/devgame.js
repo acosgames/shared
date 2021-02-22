@@ -103,20 +103,12 @@ module.exports = class DevGameService {
 
         try {
             let db = await mysql.db();
-
-            let ownerid = user.id;
-
-            let client = {};
-            client.preview_images = images.join(',');
-
-            let { results } = await db.update('game_client', client, 'id=? AND ownerid=?', [clientid, ownerid]);
+            let newClient = { preview_images: client.preview_images };
+            let { results } = await db.update('game_client', newClient, 'id=? AND ownerid=?', [client.id, user.id]);
             console.log(results);
 
-            if (results.affectedRows > 0) {
-                client.id = clientid;
-                client.ownerid = ownerid;
+            if (results.affectedRows > 0)
                 return client;
-            }
         }
         catch (e) {
             //revert back to normal
