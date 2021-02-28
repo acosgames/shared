@@ -28,6 +28,12 @@ module.exports = class UserService {
             else if (user.apikey) {
                 response = await db.sql('select * from person where apikey = ?', [user.apikey]);
             }
+            else if (user.github) {
+                response = await db.sql('select * from person where github = ?', [user.github]);
+            }
+            else if (user.github_id) {
+                response = await db.sql('select * from person where github_id = ?', [user.github_id]);
+            }
             else {
                 throw new GeneralError('E_PERSON_MISSINGINFO', user);
             }
@@ -55,22 +61,17 @@ module.exports = class UserService {
                 let existingUser = await this.findUser(user, db);
                 if (('github' in user) && existingUser.github != user.github) {
                     user.id = existingUser.id;
-                    user.isdev = true;
+                    user.isdev = false;
                     user = await this.updateUser(user, db);
                     user = Object.assign({}, existingUser, user)
 
-                    let org = 'fivesecondgames';
-                    let name = user.github;
-                    let maintainers = ['5SG'];
-
-                    let result = await gh.teams.create({ org, name, maintainers })
-                    console.log(result);
+                    console.log(user);
                 }
                 else {
                     user = existingUser;
                 }
             }
-            catch (e) {
+            catch (e2) {
                 user = await this.createUser(user, db);
             }
 
@@ -114,10 +115,18 @@ module.exports = class UserService {
     async updateUser(user, db) {
         try {
             db = db || await mysql.db();
-            let { results } = await db.update('person', user, 'WHERE id = ?', [user.id]);
+            let id = user.id;
+            delete user['id'];
+
+            let { results } = await db.update('person', user, 'WHERE id = ?', [id]);
+
+            user.id = id;
             console.log(results);
             if (results.affectedRows == 0)
                 throw new GeneralError('E_PERSON_UPDATEFAILED', user);
+
+            this.inviteToGithub(user);
+
             return user;
         }
         catch (e) {
@@ -142,19 +151,59 @@ module.exports = class UserService {
             user.apikey = generateAPIKEY();
             // user.displayname = user.id;
 
-            user.isdev = ('github' in user);
+            user.isdev = false;
             user.tsapikey = utcDATETIME();
-
-
 
             let { results } = await db.insert('person', user);
             console.log(results);
+
+            await this.inviteToGithub(user);
+
             if (results.affectedRows == 0)
                 throw new GeneralError('E_PERSON_CREATEFAILED', user);
+
+            user.id = newid;
             return user;
         }
         catch (e) {
             throw e;
+        }
+    }
+
+
+    async inviteToGithub(user) {
+        if (!('github' in user) || !user.github) {
+            return;
+        }
+
+        if (user.isdev)
+            return;
+
+        try {
+            let orgInviteResult = await gh.orgs.createInvitation({ org: 'fivesecondgames', email: user.email, role: 'direct_member' })
+            console.log(orgInviteResult);
+        }
+        catch (e3) {
+            console.error(e3);
+        }
+    }
+
+    async createGithubUserTeam(user) {
+        if (!('github' in user) || !user.github) {
+            return;
+        }
+
+        let id_5SG = 79618222;
+        let org = 'fivesecondgames';
+        let name = user.github;
+        let maintainers = [id_5SG, user.github_id];
+
+        try {
+            let teamResult = await gh.teams.create({ org, name, maintainers })
+            console.log(teamResult);
+        }
+        catch (e3) {
+            console.error(e3);
         }
     }
 }
