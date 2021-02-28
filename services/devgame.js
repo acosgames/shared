@@ -4,12 +4,51 @@ const credutil = require('../util/credentials')
 const { genUnique64string } = require('../util/idgen');
 const { utcDATETIME } = require('../util/datefns');
 const { GeneralError, CodeError, SQLError } = require('../util/errorhandler');
+const { validateSimple } = require('../util/validation');
+
+
+const StatusByName = {
+    'Draft': 1,
+    'Test': 2,
+    'Production': 3,
+    'Archive': 4,
+    'Suspended': 5
+}
+
+const StatusById = [
+    'None',
+    'Draft',
+    'Test',
+    'Production',
+    'Archive',
+    'Suspended'
+]
 
 module.exports = class DevGameService {
 
     constructor(credentials) {
         this.credentials = credentials || credutil();
 
+    }
+
+    async findGames(userid) {
+        try {
+            if (!userid || userid == 'undefined')
+                return [];
+
+            let db = await mysql.db();
+            var response;
+            console.log("Searching for games by user: ", userid);
+            response = await db.sql('select * from game_info where ownerid = ?', [userid]);
+
+            return response.results;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+        return [];
     }
 
     async findGame(game, user, db) {
@@ -40,7 +79,7 @@ module.exports = class DevGameService {
         }
         catch (e) {
             if (e instanceof GeneralError)
-                return e;
+                throw e;
             throw new CodeError(e);
         }
     }
@@ -53,10 +92,10 @@ module.exports = class DevGameService {
             var response;
             console.log("Searching for client: ", client);
             if (client.id) {
-                response = await db.sql('select * from game_client where id = ? AND ownerid = ? order by name desc', [{ toSqlString: () => client.id }, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_client where id = ? AND ownerid = ?', [{ toSqlString: () => client.id }, { toSqlString: () => user.id }]);
             }
             else if (client.gameid) {
-                response = await db.sql('select * from game_client where gameid = ? order by name desc', [{ toSqlString: () => client.gameid }, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_client where gameid = ?', [{ toSqlString: () => client.gameid }, { toSqlString: () => user.id }]);
             }
 
             var clients = [];
@@ -113,8 +152,11 @@ module.exports = class DevGameService {
         catch (e) {
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (e.payload.sqlMessage.indexOf("game_client.name_UNIQUE")) {
+                if (e.payload.sqlMessage.indexOf("game_client.name_UNIQUE") > -1) {
                     throw new GeneralError("E_CLIENT_DUPENAME", client.name);
+                }
+                if (e.payload.sqlMessage.indexOf("game_client.shortid_UNIQUE") > -1) {
+                    throw new GeneralError("E_CLIENT_DUPESHORTNAME", client.shortid);
                 }
             }
             console.error(e);
@@ -123,12 +165,30 @@ module.exports = class DevGameService {
         return null;
     }
 
+    statusId(name) {
+        if (name in StatusByName)
+            return StatusByName[name];
+        return 1;
+    }
+
+    statusName(id) {
+        if (id > 0 && id < StatusById.length)
+            return StatusById[id];
+        return 'Draft';
+    }
+
+
+
     async updateClientBundle(client, user, build_client) {
 
         try {
             let db = await mysql.db();
-            let updateClient = { build_client: client.build_client, clientversion: client.clientversion };
-            let { results } = await db.update('game_client', updateClient, 'id=? AND ownerid=?', [client.id, user.id]);
+            let insertClient = { build_client: client.build_client, clientversion: client.clientversion };
+
+            let updateClient = { status: this.statusId('Archive') }
+            let { results } = await db.update('game_client', updateClient, 'id=? AND ownerid=? AND status=?', [client.id, user.id, this.statusId('Test')]);
+
+
             console.log(results);
 
             if (results.affectedRows > 0) {
@@ -138,7 +198,7 @@ module.exports = class DevGameService {
         catch (e) {
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (e.payload.sqlMessage.indexOf("game_client.name_UNIQUE")) {
+                if (e.payload.sqlMessage.indexOf("game_client.name_UNIQUE") > -1) {
                     throw new GeneralError("E_CLIENT_DUPENAME", client.name);
                 }
             }
@@ -170,7 +230,7 @@ module.exports = class DevGameService {
         catch (e) {
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE")) {
+                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {
                     throw new GeneralError("E_GAME_DUPENAME", game.name);
                 }
             }
@@ -204,7 +264,7 @@ module.exports = class DevGameService {
         catch (e) {
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (e.payload.sqlMessage.indexOf("game_client.gameidname_UNIQUE")) {
+                if (e.payload.sqlMessage.indexOf("game_client.gameidname_UNIQUE") > -1) {
                     throw new GeneralError("E_CLIENT_DUPENAME", client.name);
                 }
             }
@@ -267,7 +327,7 @@ module.exports = class DevGameService {
         catch (e) {
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE")) {
+                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {
                     throw new GeneralError("E_GAME_DUPENAME", game.name);
                 }
             }
@@ -294,7 +354,7 @@ module.exports = class DevGameService {
                 toSqlString: () => user.id
             }
 
-            client.status = 'draft';
+            client.status = this.statusId('Draft');
 
             let { results } = await db.insert('game_client', client);
             console.log(results);
@@ -308,7 +368,7 @@ module.exports = class DevGameService {
         catch (e) {
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE")) {
+                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {
                     throw new GeneralError("E_CLIENT_DUPENAME", client.name);
                 }
             }
@@ -349,7 +409,7 @@ module.exports = class DevGameService {
         catch (e) {
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE")) {
+                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {
                     throw new GeneralError("E_SERVER_DUPENAME", server.name);
                 }
             }
@@ -376,10 +436,31 @@ module.exports = class DevGameService {
                 toSqlString: () => user.id
             }
 
-            game.status = 'draft';
+            game.shortid = game.shortid.toLowerCase();
+
+            game.status = this.statusId('Draft');
 
             let { results } = await db.insert('game_info', game);
             console.log(results);
+
+            let errors = validateSimple('game_info', game);
+            if (errors.length > 0) {
+                throw new GeneralError("E_GAME_INVALID");
+            }
+
+            game.clients = [null, null];
+            let testClient = {
+                gameid: game.gameid,
+                ownerid: user.id,
+                clientversion: 1,
+                serverversion: 1,
+                env: 0,
+                status: this.statusId('Draft')
+            };
+            testClient = await this.createClient(testClient, user, db);
+
+            game.clients[testClient.env] = testClient;
+
 
             if (results.affectedRows > 0) {
                 game.gameid = game.gameid.toSqlString();
@@ -392,8 +473,11 @@ module.exports = class DevGameService {
 
 
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE")) {
+                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {
                     throw new GeneralError("E_GAME_DUPENAME", game.name);
+                }
+                if (e.payload.sqlMessage.indexOf("game_info.shortid_UNIQUE") > -1) {
+                    throw new GeneralError("E_GAME_DUPESHORTNAME", game.shortid);
                 }
             }
             console.error(e);
@@ -455,8 +539,21 @@ module.exports = class DevGameService {
 
             let existing = await this.findGame(game, user, db);
 
-            if (!existing)
+            if (!existing) {
                 game = await this.createGame(game, user, db);
+
+
+                // let prodClient = {
+                //     gameid: game.gameid,
+                //     ownerid: user.id,
+                //     clientversion: 1,
+                //     serverversion: 1,
+                //     env: 1,
+                //     status: this.statusId('Draft')
+                // };
+                // prodClient = await this.createClient(prodClient, user, db);
+                // game.clients[prodClient.env] = testClient;
+            }
             else {
                 game = await this.updateGame(game, user, db);
                 game = Object.assign({}, existing, game)

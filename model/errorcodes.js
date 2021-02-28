@@ -15,15 +15,20 @@ const ErrorCodes = {
     "E_FIELD_INVALIDTYPE": "$1 has invalid type",
     "E_FIELD_TOOLONG": "$1 is too long, must be under $2 characters.",
     "E_FIELD_TOOSHORT": "$1 is too short, must be more than $2 characters.",
-
+    "E_ERROR": "An unknown error occurred"
 }
 
 export default function errorMessage(error) {
-    if (!(error.ecode in ErrorCodes)) {
-        return "";
-    }
+    let ecode = error.ecode;
 
-    var message = ErrorCodes[error.ecode];
+    if (!ecode)
+        ecode = "E_ERROR";
+
+
+    var message = ErrorCodes[ecode];
+    if (!message) {
+        return "(" + ecode + ") error was caught";
+    }
     if (error.payload) {
         if (Array.isArray(error.payload)) {
             error.payload.forEach((v, i) => {

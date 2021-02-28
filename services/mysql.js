@@ -226,7 +226,7 @@ module.exports = class MySQL {
                             if (whereValues && Array.isArray(whereValues)) {
                                 values = values.concat(whereValues);
                             }
-                            if (where && where.indexOf("WHERE") == - 1) {
+                            if (where && where.indexOf("WHERE") == -1) {
                                 where = 'WHERE ' + where;
                             }
                             var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {

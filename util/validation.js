@@ -1,6 +1,6 @@
-import schema from '../model/schema.json';
+const schema = require('../model/schema.json');
 
-export function validateSimple(tableName, fields) {
+function validateSimple(tableName, fields) {
     let results = validate(tableName, fields);
 
     let errors = [];
@@ -15,7 +15,7 @@ export function validateSimple(tableName, fields) {
     return errors;
 }
 
-export function validate(tableName, fields) {
+function validate(tableName, fields) {
 
     let table = schema[tableName];
     let results = { '_passed': true };
@@ -32,7 +32,7 @@ export function validate(tableName, fields) {
     return results;
 }
 
-export function validateField(tableName, key, value) {
+function validateField(tableName, key, value) {
     let table = schema[tableName];
     let rules = table[key];
     let errors = [];
@@ -51,11 +51,11 @@ export function validateField(tableName, key, value) {
         if (!value || value.length < 0) {
             errors.push(ValidateError('E_FIELD_REQUIRED', rules.label));
         }
-        else if (typeof value !== rules.type) {
+        else if (rules.type && typeof value !== rules.type) {
             errors.push(ValidateError('E_FIELD_INVALIDTYPE', rules.label));
         }
     }
-    else if (typeof value !== rules.type) {
+    else if (rules.type && typeof value !== rules.type) {
         errors.push(ValidateError('E_FIELD_INVALIDTYPE', rules.label));
     }
 
@@ -71,6 +71,7 @@ export function validateField(tableName, key, value) {
     return errors;
 }
 
+module.exports = { validateSimple, validateField, validate }
 
 function ValidateError(ecode, payload) {
     return { ecode, payload };
