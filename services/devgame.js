@@ -6,6 +6,7 @@ const { utcDATETIME } = require('../util/datefns');
 const { GeneralError, CodeError, SQLError } = require('../util/errorhandler');
 const { validateSimple } = require('../util/validation');
 
+const gh = require('./github');
 
 const StatusByName = {
     'Draft': 1,
@@ -51,7 +52,9 @@ module.exports = class DevGameService {
         return [];
     }
 
-    async findGame(game, user, db) {
+
+
+    async findGame(game, db) {
         try {
             if (game.id == 'undefined')
                 return null;
@@ -59,20 +62,20 @@ module.exports = class DevGameService {
             var response;
             console.log("Searching for game: ", game);
             if (game.id) {
-                response = await db.sql('select * from game_info where gameid = ? AND ownerid = ?', [{ toSqlString: () => game.id }, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_info where gameid = ?', [{ toSqlString: () => game.id }]);
             }
             else if (game.gameid) {
-                response = await db.sql('select * from game_info where gameid = ? AND ownerid = ?', [{ toSqlString: () => game.gameid }, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_info where gameid = ?', [{ toSqlString: () => game.gameid }]);
             }
             else if (game.shortid) {
-                response = await db.sql('select * from game_info where shortid = ? AND ownerid = ?', [game.shortid, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_info where shortid = ?', [game.shortid]);
             }
 
             var foundGame = null;
             if (response && response.results.length > 0) {
                 foundGame = response.results[0];
-                foundGame.clients = await this.findClient({ gameid: foundGame.gameid }, user, db);
-                foundGame.servers = await this.findServer({ gameid: foundGame.gameid }, user, db);
+                foundGame.clients = await this.findClient({ gameid: foundGame.gameid }, db);
+                foundGame.servers = await this.findServer({ gameid: foundGame.gameid }, db);
             }
 
             return foundGame;
@@ -84,7 +87,7 @@ module.exports = class DevGameService {
         }
     }
 
-    async findClient(client, user, db) {
+    async findClient(client, db) {
         try {
             if (client.id == 'undefined')
                 return [];
@@ -92,10 +95,10 @@ module.exports = class DevGameService {
             var response;
             console.log("Searching for client: ", client);
             if (client.id) {
-                response = await db.sql('select * from game_client where id = ? AND ownerid = ?', [{ toSqlString: () => client.id }, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_client where id = ?', [{ toSqlString: () => client.id }]);
             }
             else if (client.gameid) {
-                response = await db.sql('select * from game_client where gameid = ?', [{ toSqlString: () => client.gameid }, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_client where gameid = ?', [{ toSqlString: () => client.gameid }]);
             }
 
             var clients = [];
@@ -111,7 +114,7 @@ module.exports = class DevGameService {
         }
     }
 
-    async findServer(server, user, db) {
+    async findServer(server, db) {
         try {
             if (server.id == 'undefined')
                 return [];
@@ -119,10 +122,10 @@ module.exports = class DevGameService {
             var response;
             console.log("Searching for server: ", server);
             if (server.id) {
-                response = await db.sql('select * from game_server where gameid = ? AND ownerid = ? order by serverversion desc limit 1', [{ toSqlString: () => server.id }, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_server where gameid = ?', [{ toSqlString: () => server.id }]);
             }
             else if (server.gameid) {
-                response = await db.sql('select * from game_server where gameid = ? AND ownerid = ? order by serverversion desc limit 1', [{ toSqlString: () => server.gameid }, { toSqlString: () => user.id }]);
+                response = await db.sql('select * from game_server where gameid = ?', [{ toSqlString: () => server.gameid }]);
             }
 
             var servers = [];
@@ -448,19 +451,8 @@ module.exports = class DevGameService {
                 throw new GeneralError("E_GAME_INVALID");
             }
 
-            game.clients = [null, null];
-            let testClient = {
-                gameid: game.gameid,
-                ownerid: user.id,
-                clientversion: 1,
-                serverversion: 1,
-                env: 0,
-                status: this.statusId('Draft')
-            };
-            testClient = await this.createClient(testClient, user, db);
 
-            game.clients[testClient.env] = testClient;
-
+            await this.createGameBuilds(game, user, db);
 
             if (results.affectedRows > 0) {
                 game.gameid = game.gameid.toSqlString();
@@ -484,6 +476,69 @@ module.exports = class DevGameService {
             throw new GeneralError("E_GAME_INVALID");
         }
         return null;
+    }
+
+    async createGameBuilds(game, user, db) {
+        game.clients = [null, null];
+        let testClient = {
+            gameid: game.gameid,
+            ownerid: user.id,
+            clientversion: 1,
+            serverversion: 1,
+            env: 0,
+            status: this.statusId('Draft')
+        };
+        testClient = await this.createClient(testClient, user, db);
+
+        await this.createGitHubRepos(game, user, db);
+
+        game.clients[testClient.env] = testClient;
+    }
+
+    async createGitHubRepos(game, user, db) {
+        let shortid = game.shortid;
+        let username = user.displayname;
+
+        let org = 'fivesecondgames';
+        let name = shortid + '-client';
+        let description = game.shortdesc;
+        let visibility = 'public';
+        let has_issues = true;
+        let has_wiki = true;
+
+
+
+        try {
+            let clientImport = await gh.repos.createInOrg({ org, name, description, 'private': false, visibility, has_issues });
+            console.log(clientImport);
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+        try {
+            let maintainers = [];
+            let privacy = 'closed';
+            let repo_names = [name];
+            //attempt to create the team using fsg username as the team name
+            let teamResult = await gh.teams.create({ org, name, maintainers, repo_names, privacy })
+            console.log(teamResult);
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+
+        name = shortid + '-server';
+
+        try {
+            let serverImport = await gh.repos.createInOrg({ org, name, description, 'private': false, visibility, has_issues });
+            console.log(serverImport);
+        }
+        catch (e) {
+            console.error(e);
+        }
+
     }
 
     async createOrUpdateClient(client, user) {
@@ -537,7 +592,7 @@ module.exports = class DevGameService {
         try {
             let db = await mysql.begin('findOrCreateGame');
 
-            let existing = await this.findGame(game, user, db);
+            let existing = await this.findGame(game, db);
 
             if (!existing) {
                 game = await this.createGame(game, user, db);

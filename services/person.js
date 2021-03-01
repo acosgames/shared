@@ -19,14 +19,14 @@ module.exports = class UserService {
             if (user.id) {
                 response = await db.sql('select * from person where id = ?', [user.id]);
             }
-            else if (user.displayname) {
-                response = await db.sql('select * from person where LOWER(displayname) = ?', [user.displayname.toLowerCase()]);
-            }
             else if (user.email) {
                 response = await db.sql('select * from person where email = ?', [user.email]);
             }
             else if (user.apikey) {
                 response = await db.sql('select * from person where apikey = ?', [user.apikey]);
+            }
+            else if (user.displayname) {
+                response = await db.sql('select * from person where LOWER(displayname) = ?', [user.displayname.toLowerCase()]);
             }
             else if (user.github) {
                 response = await db.sql('select * from person where github = ?', [user.github]);
@@ -34,6 +34,8 @@ module.exports = class UserService {
             else if (user.github_id) {
                 response = await db.sql('select * from person where github_id = ?', [user.github_id]);
             }
+
+
             else {
                 throw new GeneralError('E_PERSON_MISSINGINFO', user);
             }
@@ -90,17 +92,24 @@ module.exports = class UserService {
         try {
             db = db || await mysql.db();
 
-            user.displayname = user.displayname.replace(/[^A-Za-z0-9\_]/ig, "");
-            let updatedUser = { displayname: user.displayname }
-            let existingUser = await this.findUser(updatedUser, db);
+            // user.displayname = user.displayname.replace(/[^A-Za-z0-9\_]/ig, "");
+            // let updatedUser = { displayname: user.displayname }
+            let existingUser = await this.findUser({ id: user.id }, db);
 
-            if (existingUser) {
-                throw new GeneralError("E_PERSON_DUPENAME", updatedUser);
+            if (existingUser.displayname) {
+                throw new GeneralError('E_PERSON_EXISTSNAME', user.displayname);
             }
+            // if (existingUser) {
+            //     throw new GeneralError("E_PERSON_DUPENAME", updatedUser);
+            // }
             let { results } = await db.update('person', user, 'WHERE id = ?', [user.id]);
             console.log(results);
             if (results.affectedRows == 0)
                 throw new GeneralError('E_PERSON_UPDATEFAILED', user);
+
+            if (!existingUser.isdev) {
+                await this.inviteToGithub(existingUser);
+            }
             return user;
         }
         catch (e) {
@@ -118,14 +127,12 @@ module.exports = class UserService {
             let id = user.id;
             delete user['id'];
 
-            let { results } = await db.update('person', user, 'WHERE id = ?', [id]);
+            let { results } = await db.update('person', user, 'WHERE id = ?', [{ toSqlString: () => id }]);
 
             user.id = id;
             console.log(results);
             if (results.affectedRows == 0)
                 throw new GeneralError('E_PERSON_UPDATEFAILED', user);
-
-            this.inviteToGithub(user);
 
             return user;
         }
@@ -195,15 +202,32 @@ module.exports = class UserService {
 
         let id_5SG = 79618222;
         let org = 'fivesecondgames';
-        let name = user.github;
-        let maintainers = [id_5SG, user.github_id];
+        let name = user.displayname;
+        let username = user.github;
+        let maintainers = [username];
+        let privacy = 'closed';
 
         try {
-            let teamResult = await gh.teams.create({ org, name, maintainers })
+            //attempt to create the team using fsg username as the team name
+            let teamResult = await gh.teams.create({ org, name, maintainers, privacy })
             console.log(teamResult);
+            return teamResult;
         }
-        catch (e3) {
-            console.error(e3);
+        catch (e) {
+            //team existed, try to add them back, incase they were removed
+            console.error(e);
+            let team_slug = name.toLowerCase();
+            team_slug = team_slug.replace(/[^a-z0-9\_\- \t]/ig, '');
+            team_slug = team_slug.replace(/[ \t]/ig, '-');
+
+            try {
+                let membershipResult = await gh.teams.addOrUpdateMembershipForUserInOrg({ org, team_slug, username });
+                console.log(membershipResult);
+            }
+            catch (e2) {
+                console.error(e2);
+            }
         }
+        return null;
     }
 }
