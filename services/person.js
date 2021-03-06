@@ -204,7 +204,7 @@ module.exports = class UserService {
         let org = 'fivesecondgames';
         let name = user.displayname;
         let username = user.github;
-        let maintainers = [username];
+        let maintainers = [];
         let privacy = 'closed';
 
         try {

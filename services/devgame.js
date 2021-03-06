@@ -6,6 +6,10 @@ const { utcDATETIME } = require('../util/datefns');
 const { GeneralError, CodeError, SQLError } = require('../util/errorhandler');
 const { validateSimple } = require('../util/validation');
 
+const simpleGit = require('simple-git');
+
+
+
 const gh = require('./github');
 
 const StatusByName = {
@@ -479,20 +483,51 @@ module.exports = class DevGameService {
     }
 
     async createGameBuilds(game, user, db) {
-        game.clients = [null, null];
-        let testClient = {
-            gameid: game.gameid,
-            ownerid: user.id,
-            clientversion: 1,
-            serverversion: 1,
-            env: 0,
-            status: this.statusId('Draft')
-        };
-        testClient = await this.createClient(testClient, user, db);
 
-        await this.createGitHubRepos(game, user, db);
+        try {
+            db = db || await mysql.db();
 
-        game.clients[testClient.env] = testClient;
+            game.clients = [null, null];
+            let testClient = {
+                gameid: game.gameid,
+                ownerid: user.id,
+                clientversion: 1,
+                serverversion: 1,
+                env: 0,
+                status: this.statusId('Draft')
+            };
+            testClient = await this.createClient(testClient, user, db);
+
+            await this.createGitHubRepos(game, user, db);
+
+            let repoName = game.shortid;
+            let templateName = 'tictactoe';
+            await this.pushGitGameTemplates(repoName, templateName, 'client');
+            await this.pushGitGameTemplates(repoName, templateName, 'server');
+
+            game.clients[testClient.env] = testClient;
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+    }
+
+    async pushGitGameTemplates(repoName, templateName, type) {
+        try {
+            let org = 'fivesecondgames';
+
+            let url = `git@github.com:${org}/${repoName}-${type}.git`;
+            let dir = `${process.cwd()}/../templates/${templateName}-${type}`;
+
+            //await git.raw('remote', 'set-url', 'origin', url)
+            console.log("Current Working Directory: " + dir);
+            const git = simpleGit(dir);
+            await git.raw('push', '--mirror', url);
+        }
+        catch (e) {
+            console.error(e);
+        }
     }
 
     async createGitHubRepos(game, user, db) {
@@ -506,7 +541,7 @@ module.exports = class DevGameService {
         let has_issues = true;
         let has_wiki = true;
 
-
+        let parent_team_id = user.github_teamid;
 
         try {
             let clientImport = await gh.repos.createInOrg({ org, name, description, 'private': false, visibility, has_issues });
@@ -516,17 +551,18 @@ module.exports = class DevGameService {
             console.error(e);
         }
 
-        try {
-            let maintainers = [];
-            let privacy = 'closed';
-            let repo_names = [name];
-            //attempt to create the team using fsg username as the team name
-            let teamResult = await gh.teams.create({ org, name, maintainers, repo_names, privacy })
-            console.log(teamResult);
-        }
-        catch (e) {
-            console.error(e);
-        }
+        // try {
+        //     let maintainers = [];
+        //     let privacy = 'closed';
+        //     let repo_names = [org + '/' + name];
+
+        //     //attempt to create the team using fsg username as the team name
+        //     let teamResult = await gh.teams.create({ org, name, maintainers, repo_names, privacy, parent_team_id })
+        //     console.log(teamResult);
+        // }
+        // catch (e) {
+        //     console.error(e);
+        // }
 
 
         name = shortid + '-server';
@@ -538,6 +574,19 @@ module.exports = class DevGameService {
         catch (e) {
             console.error(e);
         }
+
+        // try {
+        //     let maintainers = [];
+        //     let privacy = 'closed';
+        //     let repo_names = [org + '/' + name];
+        //     let team_id = user.github_teamid;
+        //     //attempt to create the team using fsg username as the team name
+        //     let teamResult = await gh.teams.create({ org, name, maintainers, repo_names, privacy, parent_team_id })
+        //     console.log(teamResult);
+        // }
+        // catch (e) {
+        //     console.error(e);
+        // }
 
     }
 
