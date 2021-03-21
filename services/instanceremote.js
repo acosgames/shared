@@ -2,6 +2,9 @@
 const credutil = require('../util/credentials')
 const { utcDATETIME } = require('../util/datefns');
 
+const { GeneralError, SQLError } = require('../util/errorhandler');
+const { genUnique64string } = require('../util/idgen');
+
 const MySQL = require('./mysql');
 const mysql = new MySQL();
 
@@ -25,35 +28,64 @@ module.exports = class InstanceRemote {
 
     }
 
-    register(params) {
+    async register(params) {
         try {
             let db = await mysql.db();
-            var response;
-            console.log("Searching for existing server by user: ", userid);
-            response = await db.sql('select * from server where public_addr = ?', [params.public_addr]);
 
-            let server = null;
-            if (!response || !response.results || response.results.length == 0) {
+            let server = await this.findServer(params, db);
+            let foundServer = server != null;
+
+
+
+            if (!foundServer) {
                 server = await this.createServer(params, db);
             }
             else {
-                let existing = response.results[0];
                 delete params['id'];
-                let merged = Object.assign({}, existing, params);
+                let merged = Object.assign({}, server, params);
                 server = await this.updateServer(merged, db);
             }
 
-            processCloudConnections();
+            server = await this.processCloudConnections(params);
+
+            return server;
         }
         catch (e) {
+            console.error(e);
             if (e instanceof GeneralError)
                 throw e;
             throw new CodeError(e);
         }
-        return [];
+        return {};
     }
 
+    async findServersByType(zone, instance_type, db) {
+        try {
+            db = db || await mysql.db();
+            var response;
+            response = await db.sql('select * from server where zone = ? AND instance_type = ?', [zone, instance_type]);
+
+            if (!response || !response.results || response.results.length == 0) {
+                return null;
+            }
+
+            return response.results;
+        }
+        catch (e) {
+            console.error("Server not found: ", e);
+        }
+
+        return null;
+    }
+
+
     async processCloudConnections(server) {
+
+        if (process.env.NODE_ENV == 'production') {
+
+        } else {
+
+        }
 
 
 
@@ -62,6 +94,9 @@ module.exports = class InstanceRemote {
             case 1: {
                 //get cloud information
                 //get websocket cluster connection
+
+                let clusters = await this.findServersByType(server.zone, 2);
+                server.clusters = clusters;
                 break;
             }
             //websocket Cluster
@@ -73,6 +108,9 @@ module.exports = class InstanceRemote {
             case 3: {
                 //get cloud information
                 //get websocket cluster connection
+
+                let clusters = await this.findServersByType(server.zone, 2);
+                server.clusters = clusters;
                 break;
             }
             //API
@@ -81,6 +119,27 @@ module.exports = class InstanceRemote {
                 break;
             }
         }
+
+        return server;
+    }
+
+    async findServer(params, db) {
+        try {
+            db = db || await mysql.db();
+            var response;
+            response = await db.sql('select * from server where public_addr = ?', [params.public_addr]);
+
+            if (!response || !response.results || response.results.length == 0) {
+                return null;
+            }
+
+            return response.results[0];
+        }
+        catch (e) {
+            console.error("Server not found: ", e);
+        }
+
+        return null;
     }
 
     async createServer(params, db) {
@@ -117,18 +176,19 @@ module.exports = class InstanceRemote {
         console.log(params);
         try {
             db = db || await mysql.db();
-            let id = params.id;
-            delete params['id'];
+            let public_addr = params.public_addr;
+            delete params['public_addr'];
 
-            let { results } = await db.update('server', params, 'id=?', [id]);
+            let { results } = await db.update('server', params, 'public_addr=?', [public_addr]);
             console.log(results);
 
             if (results.affectedRows > 0) {
-                params.id = id;
+                params.public_addr = public_addr;
                 return params;
             }
         }
         catch (e) {
+            console.error(e);
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
                 if (e.payload.sqlMessage.indexOf("server.hostname_UNIQUE") > -1) {
