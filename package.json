@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "@octokit/rest": "^18.2.1",
+    "amqplib": "^0.7.1",
     "aws-sdk": "^2.839.0",
     "axios": "^0.21.1",
     "biguint-format": "^1.0.2",

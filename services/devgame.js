@@ -320,7 +320,12 @@ module.exports = class DevGameService {
             let ownerid = game.ownerid;
             delete game['ownerid'];
 
-            game.ownerid = user.id;
+            let clients = game.clients;
+            let servers = game.servers;
+            delete game['clients'];
+            delete game['servers'];
+
+            //game.ownerid = user.id;
 
             let { results } = await db.update('game_info', game, 'gameid=? AND ownerid=?', [gameid, ownerid]);
             console.log(results);
@@ -328,10 +333,13 @@ module.exports = class DevGameService {
             if (results.affectedRows > 0) {
                 game.gameid = gameid;
                 game.ownerid = ownerid;
+                game.clients = clients;
+                game.servers = servers;
                 return game;
             }
         }
         catch (e) {
+            console.error(e);
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
                 if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {

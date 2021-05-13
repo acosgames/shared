@@ -87,6 +87,8 @@ module.exports = class UploadFile {
         try {
             // let data = await this.s3.listObjects(params).promise();
 
+            if (!game.preview_images)
+                return [];
             // console.log(data);
             let deleted = [];
             let previews = game.preview_images.split(',');

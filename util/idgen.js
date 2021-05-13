@@ -2,7 +2,10 @@ var FlakeId = require('flake-idgen');
 const { v4: uuidv4 } = require('uuid');
 var intformat = require('biguint-format')
 
-var { nanoid } = require('nanoid');
+// var { nanoid } = require('nanoid');
+
+const { customAlphabet } = require('nanoid')
+const nanoid = customAlphabet('6789BCDFGHJKLMNPQRTW', 5)
 
 module.exports = IdGen = {
     genUnique64({ datacenter, worker }) {
@@ -33,7 +36,7 @@ module.exports = IdGen = {
     },
 
     genShortId(len) {
-        len = len || 6;
+        len = len || 5;
         return nanoid(len);
     }
 }

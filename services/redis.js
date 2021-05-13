@@ -3,7 +3,7 @@ const { promisify } = require("util");
 const { GeneralError } = require("../util/errorhandler");
 
 
-module.exports = class RedisService {
+class RedisService {
     constructor(credentials) {
         this.credentials = credentials || {
             host: "127.0.0.1",
@@ -182,4 +182,4 @@ async function test() {
 
 // test();
 
-// export default new RedisService();
+module.exports = new RedisService();

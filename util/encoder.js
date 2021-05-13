@@ -39,6 +39,15 @@ function decode(raw) {
     }
     catch (e) {
         console.error(e);
+        try {
+            let jsonStr = raw.toString();
+            let json = JSON.parse(jsonStr);
+            return json;
+        }
+        catch (e) {
+            console.error(e);
+        }
+
     }
     return null;
 }
