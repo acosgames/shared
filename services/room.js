@@ -15,12 +15,12 @@ module.exports = class RoomService {
 
     }
 
-    async findRooms(gameid) {
+    async findRooms(game_slug) {
         try {
             let db = await mysql.db();
             var response;
             console.log("Getting list of rooms");
-            response = await db.sql('select r.room_slug as room_slug, m.player_count as player_count from game_room r, game_room_meta m WHERE (r.game_slug = ?) AND r.isprivate = 0', [gameid, gameid]);
+            response = await db.sql('select r.room_slug as room_slug, m.player_count as player_count from game_room r, game_room_meta m WHERE (r.game_slug = ?) AND r.isprivate = 0', [game_slug, game_slug]);
 
             return response.results;
         }
@@ -90,7 +90,7 @@ module.exports = class RoomService {
             response = await db.insert('game_room_meta', room_meta);
 
             redis.set(room.room_slug, {
-                ...room_meta,
+                state: {},
                 game_slug
             })
 

@@ -207,6 +207,100 @@ module.exports = class MySQL {
                     });
                 },
 
+                increment: (table, row, where, whereValues) => {
+                    var self = this;
+                    return new Promise((resolve, reject) => {
+                        try {
+                            if (!row) {
+                                throw new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!");
+                            }
+
+                            let keys = [];
+                            let values = [];
+                            for (var key in row) {
+                                keys.push(key + '= `' + key + '` + 1 ');
+                            }
+
+                            keys.push('tsupdate = ?');
+                            values.push(utcDATETIME());
+
+                            if (whereValues && Array.isArray(whereValues)) {
+                                values = values.concat(whereValues);
+                            }
+                            if (where && where.indexOf("WHERE") == -1) {
+                                where = 'WHERE ' + where;
+                            }
+                            var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
+
+                                if (error) {
+                                    reject(new SQLError('E_SQL_ERROR', error));
+                                    return;
+                                }
+
+                                resolve({ results, fields });
+
+                                if (type == 2)
+                                    conn.release();
+                            });
+                            console.log(query.sql);
+                        }
+                        catch (e) {
+                            conn.rollback();
+                            //console.error(e);
+                            reject(new SQLError('E_SQL_ERROR', e));
+                            if (type == 2)
+                                conn.release();
+                        }
+                    });
+                },
+
+                decrement: (table, row, where, whereValues) => {
+                    var self = this;
+                    return new Promise((resolve, reject) => {
+                        try {
+                            if (!row) {
+                                throw new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!");
+                            }
+
+                            let keys = [];
+                            let values = [];
+                            for (var key in row) {
+                                keys.push(key + ' = `' + key + '` - 1');
+                            }
+
+                            keys.push('tsupdate = ?');
+                            values.push(utcDATETIME());
+
+                            if (whereValues && Array.isArray(whereValues)) {
+                                values = values.concat(whereValues);
+                            }
+                            if (where && where.indexOf("WHERE") == -1) {
+                                where = 'WHERE ' + where;
+                            }
+                            var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values,
+                                function (error, results, fields) {
+
+                                    if (error) {
+                                        reject(new SQLError('E_SQL_ERROR', error));
+                                        return;
+                                    }
+
+                                    resolve({ results, fields });
+
+                                    if (type == 2)
+                                        conn.release();
+                                });
+                            console.log(query.sql);
+                        }
+                        catch (e) {
+                            conn.rollback();
+                            //console.error(e);
+                            reject(new SQLError('E_SQL_ERROR', e));
+                            if (type == 2)
+                                conn.release();
+                        }
+                    });
+                },
 
                 update: (table, row, where, whereValues) => {
                     var self = this;

@@ -4,6 +4,10 @@ const { GeneralError } = require("../util/errorhandler");
 
 const { generateAPIKEY } = require('../util/idgen');
 
+const NodeCache = require("node-cache");
+const cache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
+const maxNacks = 10;
+
 class RabbitMQService {
     constructor(credentials) {
         this.credentials = credentials || {
@@ -15,6 +19,8 @@ class RabbitMQService {
     }
 
     async connect(credentials) {
+
+
         if (credentials) {
             this.credentials = credentials;
         }
@@ -23,7 +29,13 @@ class RabbitMQService {
             this.out = await this.publisher.createChannel();
 
             this.subscriber = await rabbitmq.connect(this.credentials.host);
+            this.subscriber.on('error', (err) => {
+                console.error(err);
+
+            })
             this.in = await this.subscriber.createChannel();
+
+            this.queueTester = await this.subscriber.createChannel();
         }
         catch (e) {
             console.error(e);
@@ -57,10 +69,20 @@ class RabbitMQService {
                 let msgJSON;
                 if (msgStr[0] == '{' || msgStr[0] == '[') {
                     msgJSON = JSON.parse(msgStr);
-                    callback(msgJSON);
+                    if (!callback(msgJSON)) {
+                        this.nackMsg(msg);
+                    }
+                    else {
+                        this.ackMsg(msg);
+                    }
                 }
                 else {
-                    callback(msg);
+                    if (!callback(msg.content)) {
+                        this.nackMsg(msg);
+                    }
+                    else {
+                        this.ackMsg(msg);
+                    }
                 }
             });
 
@@ -71,6 +93,56 @@ class RabbitMQService {
         }
 
         return false;
+    }
+
+    nackMsg(msg) {
+        setTimeout(async () => {
+            let count = cache.get(msg.fields.consumerTag) || 0;
+            this.in.nack(msg, false, (count < maxNacks));
+            cache.set(msg.fields.consumerTag, count + 1);
+        }, 200)
+    }
+
+    ackMsg(msg) {
+        let count = cache.get(msg.fields.consumerTag) || 0;
+        if (count > 0)
+            this.in.ack(msg, false);
+        cache.del(msg.fields.consumerTag);
+    }
+
+    async checkQueue(queue) {
+        const self = this;
+        return new Promise(async (rs, rj) => {
+
+            try {
+                let queueCreated = await self.in.assertQueue(queue, { autoDelete: true });
+                if (queueCreated.consumerCount <= 0) {
+                    rs(false);
+                    return;
+                }
+
+
+                rs(queueCreated.consumerCount);
+                // let exists = self.queueTester.assertQueue(queue, (err, ok) => {
+                //     if (err) {
+                //         console.error(err);
+                //         rj(new GeneralError('E_GAME_NOT_SETUP', err));
+                //         return;
+                //     }
+
+
+                //     console.log(ok);
+                //     rs(ok);
+                // });
+            }
+            catch (e) {
+                // self.queueTester = await self.subscriber.createChannel();
+
+                console.error(e);
+                rj(false);
+            }
+
+        });
     }
 
     async subscribeQueue(queue, callback) {
@@ -91,10 +163,20 @@ class RabbitMQService {
                         let msgJSON;
                         if (msgStr[0] == '{' || msgStr[0] == '[') {
                             msgJSON = JSON.parse(msgStr);
-                            callback(msgJSON);
+                            if (!callback(msgJSON)) {
+                                this.nackMsg(msg);
+                            }
+                            else {
+                                this.ackMsg(msg);
+                            }
                         }
                         else {
-                            callback(msg);
+                            if (!callback(msg.content)) {
+                                this.nackMsg(msg);
+                            }
+                            else {
+                                this.ackMsg(msg);
+                            }
                         }
                     });
                 }
@@ -122,7 +204,7 @@ class RabbitMQService {
         }
         catch (e) {
             console.error(e);
-            throw new GeneralError('ERROR_REDIS_PUBLISH', { queue, value });
+            throw new GeneralError('ERROR_REDIS_PUBLISH', { exchange, value });
         }
 
         return false;
@@ -135,6 +217,7 @@ class RabbitMQService {
                 this.out = await this.publisher.createChannel();
             }
 
+            this.out
             let queueCreated = await this.out.assertQueue(queue, { autoDelete: true });
             if (queueCreated) {
                 if (typeof value === 'object') {
@@ -193,20 +276,30 @@ async function test() {
     // await r2.subscribeQueue('gameserver-dal', (msg) => {
     //     console.log("gameserver-dal-2 received MSG: ", msg);
     // })
+    let cnt = 0;
     await r.subscribe('gameserver', 'tictactoe', (msg) => {
-        console.log("gameserver-1 Received MSG: ", msg);
+        console.log("gameserver-1 receiving msg");
+        if (cnt++ == 0) {
+            console.log("gameserver-1 nack msg");
+            return false;
+        }
+
+        console.log("gameserver-1 received msg", msg);
+
+        return true;
     })
 
-    await r2.subscribe('gameserver', 'texasholdem', (msg) => {
-        console.log("gameserver-2 Received MSG: ", msg);
-    })
+    // await r2.subscribe('gameserver', 'texasholdem', (msg) => {
+    //     console.log("gameserver-2 Received MSG: ", msg);
+    // })
 
     console.log("Subscribed to hello");
 
-    for (var i = 0; i < 3; i++) {
-        let result = await r.publish('gameserver', 'tictactoe', { "user": "joe", "chatmsg": "hahah what was that", index: i });
+    //for (var i = 0; i < 3; i++) 
+    {
+        let result = await r.publish('gameserver', 'tictactoe', { "user": "joe", "chatmsg": "hahah what was that", index: 0 });
 
-        let result2 = await r.publish('gameserver', 'texasholdem', { "user": "joe", "chatmsg": "hahah what was that", index: i + 10 });
+        // let result2 = await r.publish('gameserver', 'texasholdem', { "user": "joe", "chatmsg": "hahah what was that", index: i + 10 });
         // console.log("Result = ", result);
         // let result2 = await r.publishQueue('gameserver-dal', { "user": "joe", "chatmsg": "hahah what was that", index: i });
         // console.log("Result = ", result);
@@ -214,6 +307,6 @@ async function test() {
     console.log("done");
 }
 
-test();
+// test();
 
 module.exports = new RabbitMQService();

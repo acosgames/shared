@@ -79,6 +79,26 @@ module.exports = class InstanceRemote {
     }
 
 
+    async findRedisMQServers(zone, db) {
+        try {
+            db = db || await mysql.db();
+            var response;
+            response = await db.sql('select * from server where zone = ? AND instance_type = 5 OR instance_type = 2', [zone]);
+
+            if (!response || !response.results || response.results.length == 0) {
+                return null;
+            }
+
+            return response.results;
+        }
+        catch (e) {
+            console.error("Server not found: ", e);
+        }
+
+        return null;
+    }
+
+
     async processCloudConnections(server) {
 
         if (process.env.NODE_ENV == 'production') {
@@ -95,7 +115,7 @@ module.exports = class InstanceRemote {
                 //get cloud information
                 //get websocket cluster connection
 
-                let clusters = await this.findServersByType(server.zone, 2);
+                let clusters = await this.findRedisMQServers(server.zone);
                 server.clusters = clusters;
                 break;
             }
@@ -109,7 +129,7 @@ module.exports = class InstanceRemote {
                 //get cloud information
                 //get websocket cluster connection
 
-                let clusters = await this.findServersByType(server.zone, 2);
+                let clusters = await this.findRedisMQServers(server.zone);
                 server.clusters = clusters;
                 break;
             }
