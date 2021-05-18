@@ -110,38 +110,24 @@ class RabbitMQService {
         cache.del(msg.fields.consumerTag);
     }
 
-    async checkQueue(queue) {
+    async assertQueue(queue, ttl) {
+        ttl = ttl || 10;
         const self = this;
         return new Promise(async (rs, rj) => {
-
             try {
-                let queueCreated = await self.in.assertQueue(queue, { autoDelete: true });
-                if (queueCreated.consumerCount <= 0) {
-                    rs(false);
+                let count = cache.get(queue) || -1;
+                if (count > 0) {
+                    rs(count);
                     return;
                 }
-
-
+                let queueCreated = await self.in.assertQueue(queue, { autoDelete: true });
+                cache.set(queue, queueCreated.consumerCount, ttl);
                 rs(queueCreated.consumerCount);
-                // let exists = self.queueTester.assertQueue(queue, (err, ok) => {
-                //     if (err) {
-                //         console.error(err);
-                //         rj(new GeneralError('E_GAME_NOT_SETUP', err));
-                //         return;
-                //     }
-
-
-                //     console.log(ok);
-                //     rs(ok);
-                // });
             }
             catch (e) {
-                // self.queueTester = await self.subscriber.createChannel();
-
                 console.error(e);
                 rj(false);
             }
-
         });
     }
 
