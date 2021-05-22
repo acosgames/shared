@@ -19,6 +19,10 @@ class RedisService {
         }
         const self = this;
         return new Promise((rs, rj) => {
+            if (self.client) {
+                rs(self.client);
+                return;
+            }
             self.client = redis.createClient(self.credentials);
             self._publish = promisify(self.client.publish).bind(self.client);
             self._set = promisify(self.client.set).bind(self.client);
