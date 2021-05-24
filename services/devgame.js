@@ -1,7 +1,7 @@
 const MySQL = require('./mysql');
 const mysql = new MySQL();
 const credutil = require('../util/credentials')
-const { genUnique64string } = require('../util/idgen');
+const { genUnique64string, generateAPIKEY } = require('../util/idgen');
 const { utcDATETIME } = require('../util/datefns');
 const { GeneralError, CodeError, SQLError } = require('../util/errorhandler');
 const { validateSimple } = require('../util/validation');
@@ -56,7 +56,28 @@ module.exports = class DevGameService {
         return [];
     }
 
+    async findGameVersions(game, db) {
+        try {
+            if (game.id == 'undefined')
+                return null;
+            db = db || await mysql.db();
+            var response;
+            console.log("Searching for game: ", game);
+            if (game.apikey) {
+                response = await db.sql('SELECT i.gameid, i.version as published_version, v.version as version, i.game_slug, i.ownerid FROM game_info i, game_version v WHERE i.apikey = ? AND i.gameid = v.gameid ORDER by v.version desc', [game.apikey]);
+            }
+            else if (game.gameid) {
+                response = await db.sql('SELECT i.gameid, i.version as published_version, v.version as version, i.game_slug, i.ownerid FROM game_info i, game_version v WHERE i.gameid = ? AND i.gameid = v.gameid ORDER by v.version desc', [{ toSqlString: () => game.gameid }]);
+            }
 
+            return response.results;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
 
     async findGame(game, db) {
         try {
@@ -74,12 +95,15 @@ module.exports = class DevGameService {
             else if (game.shortid) {
                 response = await db.sql('select * from game_info where shortid = ?', [game.shortid]);
             }
+            else if (game.apikey) {
+                response = await db.sql('select * from game_info where apikey = ?', [game.apikey]);
+            }
 
             var foundGame = null;
             if (response && response.results.length > 0) {
                 foundGame = response.results[0];
-                foundGame.clients = await this.findClient({ gameid: foundGame.gameid }, db);
-                foundGame.servers = await this.findServer({ gameid: foundGame.gameid }, db);
+                //     foundGame.clients = await this.findClient({ gameid: foundGame.gameid }, db);
+                //     foundGame.servers = await this.findServer({ gameid: foundGame.gameid }, db);
             }
 
             return foundGame;
@@ -184,7 +208,39 @@ module.exports = class DevGameService {
         return 'Draft';
     }
 
+    async createGameVersion(game) {
 
+        try {
+            let db = await mysql.db();
+
+            let gameVersion = {
+                gameid: {
+                    toSqlString: () => game.gameid
+                },
+                version: game.version,
+                status: 0,
+                gamesplayed: 0
+            }
+
+            let { results } = await db.insert('game_version', gameVersion);
+            console.log(results);
+
+            if (results.affectedRows > 0) {
+                return gameVersion;
+            }
+        }
+        catch (e) {
+            //revert back to normal
+            if (e instanceof SQLError && e.payload.errno == 1062) {
+                // if (e.payload.sqlMessage.indexOf("game_client.name_UNIQUE") > -1) {
+                //     throw new GeneralError("E_CLIENT_DUPENAME", client.name);
+                // }
+            }
+            console.error(e);
+            throw new GeneralError("E_GAMEVERSION_INVALID");
+        }
+        return null;
+    }
 
     async updateClientBundle(client, user, build_client) {
 
@@ -325,18 +381,33 @@ module.exports = class DevGameService {
             delete game['clients'];
             delete game['servers'];
 
+            let apikey = game.apikey;
+            delete game['apikey'];
             //game.ownerid = user.id;
-
-            let { results } = await db.update('game_info', game, 'gameid=? AND ownerid=?', [gameid, ownerid]);
-            console.log(results);
-
-            if (results.affectedRows > 0) {
-                game.gameid = gameid;
-                game.ownerid = ownerid;
-                game.clients = clients;
-                game.servers = servers;
+            // game.apikey = generateAPIKEY();
+            let dbresult;
+            if (apikey) {
+                let { results } = await db.update('game_info', game, 'apikey=?', [apikey]);
+                dbresult = results;
+                console.log(dbresult);
                 return game;
             }
+            else {
+                let { results } = await db.update('game_info', game, 'gameid=? AND ownerid=?', [gameid, ownerid]);
+                dbresult = results;
+                console.log(dbresult);
+                if (dbresult.affectedRows > 0) {
+                    game.gameid = gameid;
+                    game.ownerid = ownerid;
+                    game.clients = clients;
+                    game.servers = servers;
+                    return game;
+                }
+
+            }
+
+
+
         }
         catch (e) {
             console.error(e);
@@ -451,6 +522,7 @@ module.exports = class DevGameService {
                 toSqlString: () => user.id
             }
 
+            game.apikey = generateAPIKEY();
             game.shortid = game.shortid.toLowerCase();
 
             game.status = this.statusId('Draft');

@@ -44,6 +44,20 @@ module.exports = class UploadFile {
         return [];
     }
 
+    async listFiles(prefix) {
+        var params = {
+            Bucket: "fivesecondgames",
+            // Delimiter: '/',
+            Prefix: prefix
+        };
+
+        const data = await this.s3.listObjects(params).promise();
+        for (let index = 1; index < data['Contents'].length; index++) {
+            console.log(data['Contents'][index]['Key'])
+        }
+        return data;
+    }
+
     async deleteClientPreviews(client) {
         // var params = {
         //     Bucket: 'fivesecondgames',
@@ -143,8 +157,41 @@ module.exports = class UploadFile {
     //         req.pipe(busboy);
     //     }
     // }
+    middlewarePrivate(bucketName, mimetypes, metadataCB, keyCB, acl) {
+        mimetypes = mimetypes || ['image/jpeg', 'image/png'];
+        const storage = multerS3({
+            s3: this.s3,
+            bucket: bucketName,
+            acl: 'private',
+            contentType: multerS3.AUTO_CONTENT_TYPE,
+            metadata: metadataCB || function (req, file, cb) {
+                cb(null, { fieldName: file.fieldname });
+            },
+            key: keyCB || function (req, file, cb) {
+                cb(null, Date.now().toString())
+            }
+        });
+        const fileFilter = (req, file, cb) => {
 
-    middleware(bucketName, mimetypes, metadataCB, keyCB) {
+
+            var key = file.originalname;
+            var fileExt = key.split('.').pop();
+            if (fileExt.length == key.length) {
+                cb(null, false);
+                return;
+            }
+
+            if (mimetypes.includes(file.mimetype)) {
+                cb(null, true);
+            } else {
+                cb(null, false);
+            }
+        }
+        this.upload = multer({ storage: storage, fileFilter: fileFilter });
+        return this.upload;
+    }
+
+    middleware(bucketName, mimetypes, metadataCB, keyCB, acl) {
         mimetypes = mimetypes || ['image/jpeg', 'image/png'];
         const storage = multerS3({
             s3: this.s3,

@@ -7,12 +7,19 @@
             "max": 32,
             "min": 3
         },
-        "shortid": {
+        "game_slug": {
             "label": "Slug Name",
             "type": "string",
             "required": true,
             "max": 32,
             "min": 3
+        },
+        "maxplayers": {
+            "label": "Max Players",
+            "type": "numeric",
+            "required": true,
+            "max": 1000,
+            "min": 1
         },
         "shortdesc": {
             "label": "Short Description",
@@ -27,7 +34,15 @@
             "required": true,
             "max": 1200,
             "min": 3
+        },
+        "git": {
+            "label": "GitHub URL for this project (optional)",
+            "type": "string",
+            "required": false,
+            "max": 1200,
+            "min": 12
         }
+        
         
     },
 
