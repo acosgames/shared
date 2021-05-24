@@ -30,5 +30,8 @@
     "redis": "^3.1.2",
     "simple-git": "^2.35.2",
     "uuid": "^8.3.2"
+  },
+  "devDependencies": {
+    "core-js": "^3.12.1"
   }
 }
