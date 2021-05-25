@@ -163,7 +163,9 @@ module.exports = class UploadFile {
             s3: this.s3,
             bucket: bucketName,
             acl: 'private',
-            contentType: multerS3.AUTO_CONTENT_TYPE,
+            contentType: (req, file, cb) => {
+                cb(null, 'application/javascript', file.stream);
+            },
             metadata: metadataCB || function (req, file, cb) {
                 cb(null, { fieldName: file.fieldname });
             },
@@ -191,13 +193,13 @@ module.exports = class UploadFile {
         return this.upload;
     }
 
-    middleware(bucketName, mimetypes, metadataCB, keyCB, acl) {
+    middleware(bucketName, mimetypes, metadataCB, keyCB, contentType) {
         mimetypes = mimetypes || ['image/jpeg', 'image/png'];
         const storage = multerS3({
             s3: this.s3,
             bucket: bucketName,
             acl: 'public-read',
-            contentType: multerS3.AUTO_CONTENT_TYPE,
+            contentType: contentType || multerS3.AUTO_CONTENT_TYPE,
             metadata: metadataCB || function (req, file, cb) {
                 cb(null, { fieldName: file.fieldname });
             },
