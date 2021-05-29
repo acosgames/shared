@@ -4,8 +4,18 @@ const { utcDATETIME } = require('../util/datefns');
 
 const AWS = require('aws-sdk');
 const multer = require('multer');
-const multerS3 = require('multer-s3');
+const multerS3 = require('multer-s3-transform');
 // const busboy = require('busboy');
+
+var stream = require("stream");
+
+const encoder = new TextEncoder('utf-8');
+const decoder = new TextDecoder('utf-8');
+
+var iframeTop = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8" /><title>FiveSecondGames - Client Simulator</title><meta name="description" content="FiveSecondGames Client Simulator" /><meta name="author" content="fsg" /><meta http-equiv="Content-Security-Policy" content="script-src 'self' f000.backblazeb2.com 'unsafe-inline';" /></head><body><div id="root"></div><script>`;
+var iframeBottom = `</script></body></html>`
+iframeTop = encoder.encode(iframeTop);
+iframeBottom = encoder.encode(iframeBottom);
 
 module.exports = class UploadFile {
 
@@ -176,6 +186,81 @@ module.exports = class UploadFile {
         const fileFilter = (req, file, cb) => {
 
 
+            var key = file.originalname;
+            var fileExt = key.split('.').pop();
+            if (fileExt.length == key.length) {
+                cb(null, false);
+                return;
+            }
+
+            if (mimetypes.includes(file.mimetype)) {
+                cb(null, true);
+            } else {
+                cb(null, false);
+            }
+        }
+        this.upload = multer({ storage: storage, fileFilter: fileFilter });
+        return this.upload;
+    }
+
+    /*
+    
+    */
+    middlewareTransform(bucketName, mimetypes, metadataCB, keyCB, contentType) {
+
+
+
+        mimetypes = mimetypes || ['image/jpeg', 'image/png'];
+        const storage = multerS3({
+            s3: this.s3,
+            bucket: bucketName,
+            acl: 'public-read',
+            contentType: contentType || multerS3.AUTO_CONTENT_TYPE,
+            metadata: metadataCB || function (req, file, cb) {
+                cb(null, { fieldName: file.fieldname });
+            },
+            key: keyCB || function (req, file, cb) {
+                cb(null, Date.now().toString())
+            },
+            shouldTransform: function (req, file, cb) {
+                cb(null, true)
+            },
+            transforms: [{
+                id: 'html',
+                key: function (req, file, cb) {
+                    let game = req.game;
+                    var filename = file.originalname;
+                    filename = filename.replace('.js', '.' + game.version + '.html')
+                    let key = game.gameid + '/client/' + filename;
+
+                    cb(null, key)
+                },
+                transform: function (req, file, cb) {
+                    var fileStream = file.stream;
+                    var out = new stream.PassThrough();
+                    var cnt = 0;
+
+                    fileStream.on('data', (chunk) => {
+                        console.log("chunk[" + cnt + "]", chunk);
+                        cnt++;
+
+                        //prepend the iframe top html
+                        if (cnt == 1)
+                            out.write(iframeTop);
+
+                        //write the JS into the middle
+                        out.write(chunk);
+                    });
+
+                    fileStream.on('end', () => {
+                        //append the iframe bottom html
+                        out.write(iframeBottom);
+                        cb(null, out);
+                    });
+                }
+            }]
+        });
+        const fileFilter = (req, file, cb) => {
             var key = file.originalname;
             var fileExt = key.split('.').pop();
             if (fileExt.length == key.length) {
