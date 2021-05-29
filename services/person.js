@@ -1,6 +1,6 @@
 const MySQL = require('./mysql');
 const mysql = new MySQL();
-const { genUnique64string, generateAPIKEY } = require('../util/idgen');
+const { genUnique64string, generateAPIKEY, genFullShortId } = require('../util/idgen');
 const { utcDATETIME } = require('../util/datefns');
 const { GeneralError } = require('../util/errorhandler');
 const gh = require('./github');
@@ -19,6 +19,9 @@ module.exports = class UserService {
             if (user.id) {
                 response = await db.sql('select * from person where id = ?', [user.id]);
             }
+            else if (user.shortid) {
+                response = await db.sql('select * from person where shortid = ?', [user.shortid]);
+            }
             else if (user.email) {
                 response = await db.sql('select * from person where email = ?', [user.email]);
             }
@@ -34,8 +37,6 @@ module.exports = class UserService {
             else if (user.github_id) {
                 response = await db.sql('select * from person where github_id = ?', [user.github_id]);
             }
-
-
             else {
                 throw new GeneralError('E_PERSON_MISSINGINFO', user);
             }
@@ -155,6 +156,7 @@ module.exports = class UserService {
             user.id = { toSqlString: () => newid }
             //user.email = email;
 
+            user.shortid = genFullShortId();
             user.apikey = generateAPIKEY();
             // user.displayname = user.id;
 

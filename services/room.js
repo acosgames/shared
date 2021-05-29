@@ -39,7 +39,7 @@ module.exports = class RoomService {
     async checkRoomFull(room) {
         let meta = await redis.get(room.room_slug + '/meta');
         if (!meta)
-            return true;
+            return false;
         if (meta.player_count >= meta.max_players)
             return true;
 
@@ -49,7 +49,7 @@ module.exports = class RoomService {
     async findAnyRoom(game_slug, rooms, attempt) {
         try {
             attempt = attempt || 1;
-
+            rooms = rooms || [];
             //sleep if if we are checking too much
             if (attempt % 5 == 0)
                 await sleep(1000);
@@ -69,7 +69,7 @@ module.exports = class RoomService {
             let index = Math.floor(Math.random() * rooms.length);
             let room = rooms[index];
 
-            if (this.checkRoomFull(room)) {
+            if (await this.checkRoomFull(room)) {
                 return this.findAnyRoom(game_slug, rooms, attempt + 1);
             }
 

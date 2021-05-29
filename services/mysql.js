@@ -367,7 +367,7 @@ module.exports = class MySQL {
                         }
                         catch (e) {
                             conn.rollback();
-                            //console.error(e);
+                            console.error(e);
                             if (type == 2)
                                 conn.release();
                             reject(new SQLError('E_SQL_ERROR', e));

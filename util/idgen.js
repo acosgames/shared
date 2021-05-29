@@ -5,8 +5,8 @@ var intformat = require('biguint-format')
 // var { nanoid } = require('nanoid');
 
 const { customAlphabet } = require('nanoid')
-const nanoid = customAlphabet('6789BCDFGHJKLMNPQRTW', 5)
-
+const nanoid = customAlphabet('6789BCDFGHJKLMNPQRTW', 6)
+const fullNanoid = customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 5)
 module.exports = {
     genUnique64({ datacenter, worker }) {
         datacenter = datacenter || 0;
@@ -38,5 +38,9 @@ module.exports = {
     genShortId(len) {
         len = len || 5;
         return nanoid(len);
+    },
+    genFullShortId(len) {
+        len = len || 5;
+        return fullNanoid(len);
     }
 }
