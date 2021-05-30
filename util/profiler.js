@@ -33,6 +33,11 @@ module.exports = Profiler = {
         this.log(name + " Time: %ds %d ms", seconds, ms.toFixed(2));
     },
 
+    StartTime: function (name) {
+        if (!this.debug) return;
+        profiles[name] = process.hrtime.bigint();
+    },
+
     EndTime: function (name, msWarn) {
         let start = Number(profiles[name]);
         let end = process.hrtime.bigint();

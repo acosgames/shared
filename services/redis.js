@@ -27,6 +27,7 @@ class RedisService {
             self._publish = promisify(self.client.publish).bind(self.client);
             self._set = promisify(self.client.set).bind(self.client);
             self._get = promisify(self.client.get).bind(self.client);
+            self._del = promisify(self.client.del).bind(self.client);
             self.client.on("connect", self.onConnect.bind(self));
             self.client.on("end", self.onEnd.bind(self));
             self.client.on("ready", (data) => {
@@ -104,16 +105,16 @@ class RedisService {
         }
     }
     async onError(error) {
-        console.error("onError", error);
+        console.error("redis error: ", error);
     }
     async onConnect(data) {
-        console.log("onConnect", data);
+        console.log("redis connected");
     }
     async onReady(data) {
-        console.log("onReady", data);
+        console.log("redis ready");
     }
     async onEnd(data) {
-        console.log("onEnd", data);
+        console.log("redis disconnected", data);
     }
 
     async publish(key, value) {
@@ -151,8 +152,10 @@ class RedisService {
 
     async get(key) {
         try {
+            // await this._del(key);
             let data = await this._get(key);
-
+            if (!data)
+                return null;
             let firstChar = data.trim()[0];
             if (firstChar == '{' || firstChar == '[')
                 data = JSON.parse(data);

@@ -19,12 +19,31 @@ module.exports = class RoomService {
 
     }
 
+    async findRoom(room_slug) {
+        try {
+            let db = await mysql.db();
+            var response;
+            console.log("Getting list of rooms");
+            response = await db.sql('SELECT i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
+
+            if (response.results && response.results.length > 0) {
+                return response.results[0];
+            }
+            return null;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
     async findRooms(game_slug) {
         try {
             let db = await mysql.db();
             var response;
             console.log("Getting list of rooms");
-            response = await db.sql('select * from game_room WHERE game_slug = ? AND isprivate = 0 AND isfull = 0 ORDER BY version desc, rating desc', [game_slug]);
+            response = await db.sql('SELECT i.gameid, i.version as published_version, b.latest_version, i.maxplayers, r.* FROM game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.game_slug = ? AND isprivate = 0 AND isfull = 0 ORDER BY version desc, rating desc', [game_slug]);
 
             return response.results;
         }
@@ -46,7 +65,7 @@ module.exports = class RoomService {
         return false;
     }
 
-    async findAnyRoom(game_slug, rooms, attempt) {
+    async findAnyRoom(game_slug, isBeta, rooms, attempt) {
         try {
             attempt = attempt || 1;
             rooms = rooms || [];
@@ -62,17 +81,28 @@ module.exports = class RoomService {
                 rooms = rooms || await this.findRooms(game_slug);
             }
 
+            if (isBeta) {
+                let betaRooms = [];
+                for (let i = 0; i < rooms.length; i++) {
+                    let room = rooms[i];
+                    if (room.latest_version > room.published_version)
+                        betaRooms.push(room);
+                }
+                rooms = betaRooms;
+            }
+
             if (!rooms || rooms.length == 0) {
-                return await this.createRoom(game_slug);
+                return await this.createRoom(game_slug, isBeta);
             }
 
             let index = Math.floor(Math.random() * rooms.length);
             let room = rooms[index];
 
             if (await this.checkRoomFull(room)) {
-                return this.findAnyRoom(game_slug, rooms, attempt + 1);
+                return this.findAnyRoom(game_slug, isBeta, rooms, attempt + 1);
             }
 
+            redis.set(room.room_slug + '/meta', room);
             // room = await this.joinRoom(room);
             return room;
         }
@@ -98,17 +128,20 @@ module.exports = class RoomService {
         return true;
     }
 
-    async createRoom(game_slug, private_key) {
+    async createRoom(game_slug, isBeta, private_key) {
         try {
             let db = await mysql.db();
             var response;
             console.log("Getting list of rooms");
 
-            response = await db.sql('SELECT version FROM game_info WHERE game_slug = ?', [game_slug]);
+            response = await db.sql('SELECT a.version, b.latest_version FROM game_info a LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = a.gameid WHERE game_slug = ?', [game_slug]);
             if (!response.results | response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
 
-            let version = response.results[0].version;
+            let published = response.results[0];
+            let version = published.version;
+            if (isBeta)
+                version = published.latest_version;
 
             let room = {
                 room_slug: genShortId(5),
@@ -127,16 +160,13 @@ module.exports = class RoomService {
 
             }
 
-            let room_meta = {
-                room_slug: room.room_slug,
-                player_count: 0
-            }
-            response = await db.insert('game_room_meta', room_meta);
+            // let room_meta = {
+            //     room_slug: room.room_slug,
+            //     player_count: 0
+            // }
+            // response = await db.insert('game_room_meta', room_meta);
 
-            redis.set(room.room_slug, {
-                state: {},
-                game_slug
-            })
+            redis.set(room.room_slug + '/meta', room);
 
             return response.results;
         }
