@@ -150,9 +150,18 @@ class RedisService {
 
     }
 
+    async del(key) {
+        try {
+            await this._del(key);
+        }
+        catch (e) {
+            console.error(e);
+            throw new GeneralError('ERROR_REDIS_GET', { key });
+        }
+    }
+
     async get(key) {
         try {
-            // await this._del(key);
             let data = await this._get(key);
             if (!data)
                 return null;

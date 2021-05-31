@@ -222,8 +222,8 @@ module.exports = class RoomService {
             var response;
             console.log("Deleting room: " + room_slug);
 
-            response = await db.delete('game_room', 'WHERE room_slug = ?', [room_meta]);
-            response = await db.delete('game_room_meta', 'WHERE room_slug = ?', [room_meta]);
+            response = await db.delete('game_room', 'WHERE room_slug = ?', [room_slug]);
+            // response = await db.delete('game_room_meta', 'WHERE room_slug = ?', [room_meta]);
 
             return response.results;
         }

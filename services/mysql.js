@@ -379,8 +379,8 @@ module.exports = class MySQL {
 
                     return new Promise((resolve, reject) => {
                         try {
-                            if (!row) {
-                                reject(new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!"));
+                            if (!table) {
+                                reject(new SQLError('E_SQL_ERROR', "table not defined.  Check your code!"));
                                 return;
                             }
                             if (where.indexOf("WHERE") == - 1) {
