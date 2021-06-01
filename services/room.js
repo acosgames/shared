@@ -12,6 +12,8 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+const cache = require('./cache');
+
 module.exports = class RoomService {
 
     constructor(credentials) {
@@ -19,8 +21,101 @@ module.exports = class RoomService {
 
     }
 
+    async assignPlayerRoom(shortid, room_slug) {
+        try {
+            let db = await mysql.db();
+
+            console.log("Assigning player [" + shortid + "] to: ", room_slug);
+
+            let key = shortid + '/' + room_slug;
+            cache.set(key, true);
+
+            let personRoom = {
+                shortid,
+                room_slug
+            }
+            response = await db.insert('person_rooms', personRoom);
+
+            return response;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
+    async removePlayerRoom(shortid, room_slug) {
+        try {
+            let db = await mysql.db();
+
+            console.log("Removing player [" + shortid + "] from: ", room_slug);
+
+            let key = shortid + '/' + room_slug;
+            cache.del(key);
+
+            response = await db.delete('person_rooms', 'WHERE shortid = ? AND room_slug = ?', [shortid, room_slug]);
+
+            return response;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
+    async checkPlayerRoom(shortid, room_slug) {
+        try {
+
+            let key = shortid + '/' + room_slug;
+            let isInRoom = cache.get(key);
+
+            if (!isInRoom)
+                return false;
+
+            let db = await mysql.db();
+            var response;
+            console.log("Getting list of rooms");
+            response = await db.sql('SELECT a.shortid, a.room_slug FROM person_rooms a WHERE a.shortid = ? AND a.room_slug = ?', [shortid, room_slug]);
+
+            if (response.results && response.results.length > 0) {
+                return true;
+            }
+            return false;
+        }
+        catch (e) {
+            console.error(e);
+            return false;
+        }
+    }
+
+    async findPlayerRooms(shortid) {
+        try {
+            let db = await mysql.db();
+            var response;
+            console.log("Getting list of rooms");
+            response = await db.sql('SELECT a.shortid, b.* FROM person_rooms a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ?', [shortid]);
+
+            if (response.results && response.results.length > 0) {
+                return response.results;
+            }
+            return [];
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
     async findRoom(room_slug) {
         try {
+
+            let room = cache.get(room_slug);
+            if (room)
+                return room;
+
             let db = await mysql.db();
             var response;
             console.log("Getting list of rooms");
@@ -56,7 +151,8 @@ module.exports = class RoomService {
     }
 
     async checkRoomFull(room) {
-        let meta = await redis.get(room.room_slug + '/meta');
+
+        let meta = await cache.get(room.room_slug + '/meta');
         if (!meta)
             return false;
         if (meta.player_count >= meta.max_players)
@@ -134,19 +230,23 @@ module.exports = class RoomService {
             var response;
             console.log("Getting list of rooms");
 
-            response = await db.sql('SELECT a.version, b.latest_version FROM game_info a LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = a.gameid WHERE game_slug = ?', [game_slug]);
+            response = await db.sql('SELECT a.gameid, a.version, b.latest_version FROM game_info a LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = a.gameid WHERE game_slug = ?', [game_slug]);
             if (!response.results | response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
 
             let published = response.results[0];
+            let latest_version = published.latest_version;
             let version = published.version;
+            let gameid = published.gameid;
             if (isBeta)
-                version = published.latest_version;
+                version = latest_version;
 
             let room = {
                 room_slug: genShortId(5),
+
                 game_slug,
                 version,
+
                 isprivate: 0
             }
             if (private_key) {
@@ -157,18 +257,20 @@ module.exports = class RoomService {
                 response = await db.insert('game_room', room);
             }
             catch (e) {
-
+                console.error(e);
             }
 
+            room.gameid = gameid;
+            room.latest_version = latest_version;
             // let room_meta = {
             //     room_slug: room.room_slug,
             //     player_count: 0
             // }
             // response = await db.insert('game_room_meta', room_meta);
 
-            redis.set(room.room_slug + '/meta', room);
+            cache.set(room.room_slug + '/meta', room);
 
-            return response.results;
+            return room;
         }
         catch (e) {
             if (e instanceof GeneralError)
@@ -218,6 +320,9 @@ module.exports = class RoomService {
 
     async deleteRoom(room_slug) {
         try {
+            cache.del(room_slug);
+            cache.del(room_slug + '/meta');
+
             let db = await mysql.db();
             var response;
             console.log("Deleting room: " + room_slug);

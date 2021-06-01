@@ -16,6 +16,8 @@ class RabbitMQService {
         };
 
         this.callbacks = {};
+
+        this.inChannel = { exchanges: {}, queues: {} };
     }
 
     async connect(credentials) {
@@ -29,16 +31,36 @@ class RabbitMQService {
             this.out = await this.publisher.createChannel();
 
             this.subscriber = await rabbitmq.connect(this.credentials.host);
+            this.in = await this.subscriber.createChannel();
             this.subscriber.on('error', (err) => {
-                console.error(err);
+                console.error("[AMQP] ERROR: ", err);
 
             })
-            this.in = await this.subscriber.createChannel();
+            this.subscriber.on('close', () => {
+                setTimeout(this.reconnectSubscriberChannels.bind(this), 500);
+            })
 
-            this.queueTester = await this.subscriber.createChannel();
+
+            // this.queueTester = await this.subscriber.createChannel();
         }
         catch (e) {
             console.error(e);
+        }
+    }
+
+    async reconnectSubscriberChannels() {
+        console.error("[AMQP] reconnecting");
+        this.subscriber = await rabbitmq.connect(this.credentials.host);
+        this.in = await this.subscriber.createChannel();
+
+        for (var name in this.inChannel.exchanges) {
+            let exchange = this.inChannel.exchanges[name];
+            this.subscribe(name, exchange.pattern, exchange.callback);
+        }
+
+        for (var name in this.inChannel.queues) {
+            let callback = this.inChannel.queues[name];
+            this.subscribeQueue(name, callback);
         }
     }
 
@@ -63,6 +85,9 @@ class RabbitMQService {
             }
 
             let bindCreated = await this.in.bindQueue(queue, exchange, pattern);
+
+            console.log("[AMQP] Subscribed to exchange: ", exchange, pattern);
+            this.inChannel.exchanges[exchange] = { pattern, callback };
 
             await this.in.consume(queue, (msg) => {
                 let msgStr = msg.content.toString().trim();
@@ -144,6 +169,10 @@ class RabbitMQService {
 
                 let queueCreated = await self.in.assertQueue(queue, { autoDelete: true });
                 if (queueCreated) {
+
+                    this.inChannel.queues[queue] = callback;
+                    console.log("[AMQP] Subscribed to queue: ", queue);
+
                     await self.in.consume(queue, (msg) => {
                         let msgStr = msg.content.toString().trim();
                         let msgJSON;
@@ -281,7 +310,7 @@ async function test() {
 
     console.log("Subscribed to hello");
 
-    //for (var i = 0; i < 3; i++) 
+    //for   (var i = 0; i < 3; i++) 
     {
         let result = await r.publish('gameserver', 'tictactoe', { "user": "joe", "chatmsg": "hahah what was that", index: 0 });
 
