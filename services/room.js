@@ -41,7 +41,8 @@ module.exports = class RoomService {
         catch (e) {
             if (e instanceof GeneralError)
                 throw e;
-            throw new CodeError(e);
+            
+            //throw new CodeError(e);
         }
     }
 
@@ -151,7 +152,8 @@ module.exports = class RoomService {
     }
 
     async checkRoomFull(room) {
-
+        // cache.del(room.room_slug);
+        // cache.del(room.room_slug+'/meta');
         let roomState = await cache.get(room.room_slug);
         if (!roomState)
             return false;
@@ -330,6 +332,7 @@ module.exports = class RoomService {
             console.log("Deleting room: " + room_slug);
 
             response = await db.delete('game_room', 'WHERE room_slug = ?', [room_slug]);
+            response = await db.delete('person_rooms', 'WHERE room_slug = ?', [room_slug]);
             // response = await db.delete('game_room_meta', 'WHERE room_slug = ?', [room_meta]);
 
             return response.results;

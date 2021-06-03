@@ -26,12 +26,12 @@ class Cacher {
 
     set(key, value, ttl) {
         if (ttl) {
-            this.cache.set(key, true);
-            this.redis.set(key, true);
+            this.cache.set(key, value);
+            this.redis.set(key, value);
         }
         else {
-            this.cache.set(key, true, { ttl });
-            this.redis.set(key, true, ttl);
+            this.cache.set(key, value, { ttl });
+            this.redis.set(key, value, ttl);
         }
 
     }

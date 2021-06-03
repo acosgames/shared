@@ -8,6 +8,7 @@ class RedisService {
         this.credentials = credentials || {
             host: "127.0.0.1",
             port: 6379,
+            defaultExpireTime: 300
         };
 
         this.callbacks = {};
@@ -23,9 +24,10 @@ class RedisService {
                 rs(self.client);
                 return;
             }
+            
             self.client = redis.createClient(self.credentials);
             self._publish = promisify(self.client.publish).bind(self.client);
-            self._set = promisify(self.client.set).bind(self.client);
+            self._set = promisify(self.client.setex).bind(self.client);
             self._get = promisify(self.client.get).bind(self.client);
             self._del = promisify(self.client.del).bind(self.client);
             self.client.on("connect", self.onConnect.bind(self));
@@ -133,14 +135,14 @@ class RedisService {
         }
     }
 
-    async set(key, value) {
+    async set(key, value, ttl) {
         try {
-
+            ttl = ttl || this.credentials.defaultExpireTime || 300
             if (typeof value === 'object') {
                 value = JSON.stringify(value);
             }
 
-            let result = await this._set(key, value);
+            let result = await this._set(key, ttl, value);
             return result;
         }
         catch (e) {
