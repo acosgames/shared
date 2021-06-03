@@ -34,7 +34,7 @@ module.exports = class RoomService {
                 shortid,
                 room_slug
             }
-            response = await db.insert('person_rooms', personRoom);
+            let response = await db.insert('person_rooms', personRoom);
 
             return response;
         }
@@ -112,7 +112,7 @@ module.exports = class RoomService {
     async findRoom(room_slug) {
         try {
 
-            let room = cache.get(room_slug);
+            let room = await cache.get(room_slug);
             if (room)
                 return room;
 
@@ -152,10 +152,12 @@ module.exports = class RoomService {
 
     async checkRoomFull(room) {
 
-        let meta = await cache.get(room.room_slug + '/meta');
-        if (!meta)
+        let roomState = await cache.get(room.room_slug);
+        if (!roomState)
             return false;
-        if (meta.player_count >= meta.max_players)
+
+        let plist = Object.keys(roomState.players);
+        if (plist.length >= room.max_players)
             return true;
 
         return false;
@@ -198,7 +200,7 @@ module.exports = class RoomService {
                 return this.findAnyRoom(game_slug, isBeta, rooms, attempt + 1);
             }
 
-            redis.set(room.room_slug + '/meta', room);
+            cache.set(room.room_slug + '/meta', room);
             // room = await this.joinRoom(room);
             return room;
         }

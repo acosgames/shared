@@ -10,28 +10,28 @@ class Cacher {
     }
 
     async get(key) {
-        let key = shortid + '/' + room_slug;
-        let value = cache.get(key);
+        //let key = shortid + '/' + room_slug;
+        let value = this.cache.get(key);
         if (typeof value == 'undefined')
-            value = await redis.get(key);
+            value = await this.redis.get(key);
 
         return value;
     }
 
     del(key) {
-        let key = shortid + '/' + room_slug;
-        cache.del(key);
-        redis.del(key);
+        //let key = shortid + '/' + room_slug;
+        this.cache.del(key);
+        this.redis.del(key);
     }
 
     set(key, value, ttl) {
         if (ttl) {
-            cache.set(key, true);
-            redis.set(key, true);
+            this.cache.set(key, true);
+            this.redis.set(key, true);
         }
         else {
-            cache.set(key, true, { ttl });
-            redis.set(key, true, ttl);
+            this.cache.set(key, true, { ttl });
+            this.redis.set(key, true, ttl);
         }
 
     }
