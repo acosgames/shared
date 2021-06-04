@@ -8,29 +8,69 @@ const NodeCache = require("node-cache");
 const cache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
 const maxNacks = 10;
 
+const credutil = require('../util/credentials')
+
+const ServerRemoteService = require('./instanceremote');
+const remote = new ServerRemoteService();
+
 class RabbitMQService {
     constructor(credentials) {
-        this.credentials = credentials || {
-            host: "127.0.0.1",
-            port: 6379,
-        };
-
+        this.credentials = credentials || credutil();
+        this.options = null;
         this.callbacks = {};
 
         this.inChannel = { exchanges: {}, queues: {} };
+
+        this.retry();
     }
 
-    async connect(credentials) {
+    retry(options) {
+        setTimeout(() => { this.getMQServers(options) }, this.credentials.platform.retryTime);
+    }
 
+    async getMQServers(options) {
 
-        if (credentials) {
-            this.credentials = credentials;
-        }
         try {
-            this.publisher = await rabbitmq.connect(this.credentials.host);
+            if (options) {
+                this.connect(options);
+                return;
+            }
+
+            let servers = await remote.findServersByType(0, 3);
+            if (!servers) {
+                retry(options);
+                return;
+            }
+            // let clusters = this.server.clusters;
+            //choose a random Redis server within our zone
+            // let redises = servers.filter(v => v.instance_type == 2);
+            let server = servers[Math.floor(Math.random() * servers.length)];
+            let pubAddr = server.public_addr;
+            let privAddr = server.private_addr;
+            let parts = pubAddr.split(":");
+            let host = parts[0];
+            let port = parts[1];
+
+            host = "amqp://" + this.credentials.platform.mqCluster.user + ":" + this.credentials.platform.mqCluster.pass + "@" + host + ":" + port;
+            options = {
+                host
+            }
+
+            this.connect(options);
+        }
+        catch (e) {
+            retry(options);
+        }
+
+    }
+
+    async connect(options) {
+
+        try {
+            this.publisher = await rabbitmq.connect(options.host);
             this.out = await this.publisher.createChannel();
 
-            this.subscriber = await rabbitmq.connect(this.credentials.host);
+            this.subscriber = await rabbitmq.connect(options.host);
             this.in = await this.subscriber.createChannel();
             this.subscriber.on('error', (err) => {
                 console.error("[AMQP] ERROR: ", err);
@@ -40,17 +80,19 @@ class RabbitMQService {
                 setTimeout(this.reconnectSubscriberChannels.bind(this), 500);
             })
 
+            this.options = options;
 
             // this.queueTester = await this.subscriber.createChannel();
         }
         catch (e) {
             console.error(e);
+            throw e;
         }
     }
 
     async reconnectSubscriberChannels() {
         console.error("[AMQP] reconnecting");
-        this.subscriber = await rabbitmq.connect(this.credentials.host);
+        this.subscriber = await rabbitmq.connect(this.options);
         this.in = await this.subscriber.createChannel();
 
         for (var name in this.inChannel.exchanges) {

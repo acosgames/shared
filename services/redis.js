@@ -2,16 +2,57 @@ const redis = require("redis");
 const { promisify } = require("util");
 const { GeneralError } = require("../util/errorhandler");
 
+const credutil = require('../util/credentials')
+
+const ServerRemoteService = require('./instanceremote');
+const remote = new ServerRemoteService();
+
 
 class RedisService {
     constructor(credentials) {
-        this.credentials = credentials || {
-            host: "127.0.0.1",
-            port: 6379,
-            defaultExpireTime: 300
-        };
+        this.credentials = credentials || credutil();
 
         this.callbacks = {};
+
+        this.retry();
+    }
+
+    retry(options) {
+        setTimeout(() => { this.getRedisServers(options) }, this.credentials.platform.retryTime);
+    }
+
+    async getRedisServers(options) {
+
+        try {
+            if (options) {
+                this.connect(options);
+                return;
+            }
+
+            let servers = await remote.findServersByType(0, 2);
+            if (!servers) {
+                retry(options);
+                return;
+            }
+            // let clusters = this.server.clusters;
+            //choose a random Redis server within our zone
+            // let redises = servers.filter(v => v.instance_type == 2);
+            let server = servers[Math.floor(Math.random() * servers.length)];
+            let pubAddr = server.public_addr;
+            let privAddr = server.private_addr;
+            let parts = pubAddr.split(":");
+            let host = parts[0];
+            let port = parts[1];
+            options = {
+                host, port
+            }
+
+            this.connect(options);
+        }
+        catch (e) {
+            retry(options);
+        }
+
     }
 
     connect(credentials) {
@@ -24,7 +65,7 @@ class RedisService {
                 rs(self.client);
                 return;
             }
-            
+
             self.client = redis.createClient(self.credentials);
             self._publish = promisify(self.client.publish).bind(self.client);
             self._set = promisify(self.client.setex).bind(self.client);
@@ -117,6 +158,7 @@ class RedisService {
     }
     async onEnd(data) {
         console.log("redis disconnected", data);
+        this.retry();
     }
 
     async publish(key, value) {
