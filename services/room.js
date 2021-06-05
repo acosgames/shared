@@ -14,12 +14,14 @@ function sleep(ms) {
 
 const cache = require('./cache');
 
-module.exports = class RoomService {
+class RoomService {
 
     constructor(credentials) {
         this.credentials = credentials || credutil();
 
     }
+
+
 
     async assignPlayerRoom(shortid, room_slug) {
         try {
@@ -41,7 +43,7 @@ module.exports = class RoomService {
         catch (e) {
             if (e instanceof GeneralError)
                 throw e;
-            
+
             //throw new CodeError(e);
         }
     }
@@ -345,3 +347,5 @@ module.exports = class RoomService {
         return [];
     }
 }
+
+module.exports = new RoomService();

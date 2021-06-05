@@ -13,12 +13,17 @@ class RedisService {
         this.credentials = credentials || credutil();
 
         this.callbacks = {};
+        this.active = false;
 
         this.retry();
     }
 
     retry(options) {
         setTimeout(() => { this.getRedisServers(options) }, this.credentials.platform.retryTime);
+    }
+
+    isActive() {
+        return this.active;
     }
 
     async getRedisServers(options) {
@@ -148,15 +153,18 @@ class RedisService {
         }
     }
     async onError(error) {
+        this.active = false;
         console.error("redis error: ", error);
     }
     async onConnect(data) {
         console.log("redis connected");
     }
     async onReady(data) {
+        this.active = true;
         console.log("redis ready");
     }
     async onEnd(data) {
+        this.active = false;
         console.log("redis disconnected", data);
         this.retry();
     }

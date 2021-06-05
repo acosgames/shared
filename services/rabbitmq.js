@@ -21,7 +21,14 @@ class RabbitMQService {
 
         this.inChannel = { exchanges: {}, queues: {} };
 
+        this.active = false;
+
         this.retry();
+
+    }
+
+    isActive() {
+        return this.active;
     }
 
     retry(options) {
@@ -36,7 +43,7 @@ class RabbitMQService {
                 return;
             }
 
-            let servers = await remote.findServersByType(0, 3);
+            let servers = await remote.findServersByType(0, 5);
             if (!servers) {
                 retry(options);
                 return;
@@ -72,11 +79,16 @@ class RabbitMQService {
 
             this.subscriber = await rabbitmq.connect(options.host);
             this.in = await this.subscriber.createChannel();
-            this.subscriber.on('error', (err) => {
-                console.error("[AMQP] ERROR: ", err);
 
+            this.active = true;
+
+            this.subscriber.on('error', (err) => {
+                this.active = false;
+                console.error("[AMQP] ERROR: ", err);
             })
+
             this.subscriber.on('close', () => {
+                this.active = false;
                 setTimeout(this.reconnectSubscriberChannels.bind(this), 500);
             })
 
@@ -94,6 +106,7 @@ class RabbitMQService {
         console.error("[AMQP] reconnecting");
         this.subscriber = await rabbitmq.connect(this.options);
         this.in = await this.subscriber.createChannel();
+        this.active = true;
 
         for (var name in this.inChannel.exchanges) {
             let exchange = this.inChannel.exchanges[name];

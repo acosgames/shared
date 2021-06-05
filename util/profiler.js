@@ -11,6 +11,10 @@ module.exports = Profiler = {
         if (!this.debug) return;
         console.log.apply(console, arguments);
     },
+    error: function () {
+        if (!this.debug) return;
+        console.error.apply(console, arguments);
+    },
 
     info: function () {
         console.log.apply(console, arguments);
@@ -57,7 +61,7 @@ module.exports = Profiler = {
                 msElapsed = milliseconds.toFixed(4);
             }
             let elapsed = '!WARNING! ' + name + ' Time: ' + msElapsed + ' ms is over limit of ' + msWarn + ' ms.'
-            this.log('\x1b[33m%s\x1b[0m', elapsed);
+            this.error('\x1b[33m%s\x1b[0m', elapsed);
         }
     },
 

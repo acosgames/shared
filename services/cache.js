@@ -18,10 +18,10 @@ class Cacher {
         return value;
     }
 
-    del(key) {
+    async del(key) {
         //let key = shortid + '/' + room_slug;
         this.cache.del(key);
-        this.redis.del(key);
+        await this.redis.del(key);
     }
 
     set(key, value, ttl) {
