@@ -25,7 +25,7 @@ class Cacher {
     }
 
     set(key, value, ttl) {
-        if (ttl) {
+        if (!ttl) {
             this.cache.set(key, value);
             this.redis.set(key, value);
         }

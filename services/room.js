@@ -29,8 +29,8 @@ class RoomService {
 
             console.log("Assigning player [" + shortid + "] to: ", room_slug);
 
-            let key = shortid + '/' + room_slug;
-            cache.set(key, true);
+            // let key = shortid + '/' + room_slug;
+            // cache.set(key, true);
 
             let personRoom = {
                 shortid,
@@ -54,10 +54,10 @@ class RoomService {
 
             console.log("Removing player [" + shortid + "] from: ", room_slug);
 
-            let key = shortid + '/' + room_slug;
-            cache.del(key);
+            // let key = shortid + '/' + room_slug;
+            // cache.del(key);
 
-            response = await db.delete('person_rooms', 'WHERE shortid = ? AND room_slug = ?', [shortid, room_slug]);
+            let response = await db.delete('person_rooms', 'WHERE shortid = ? AND room_slug = ?', [shortid, room_slug]);
 
             return response;
         }
@@ -68,36 +68,74 @@ class RoomService {
         }
     }
 
-    async checkPlayerRoom(shortid, room_slug) {
+    async updateRoomPlayerCount(room_slug, player_count) {
         try {
-
-            let key = shortid + '/' + room_slug;
-            let isInRoom = cache.get(key);
-
-            if (!isInRoom)
-                return false;
-
             let db = await mysql.db();
-            var response;
-            console.log("Getting list of rooms");
-            response = await db.sql('SELECT a.shortid, a.room_slug FROM person_rooms a WHERE a.shortid = ? AND a.room_slug = ?', [shortid, room_slug]);
 
-            if (response.results && response.results.length > 0) {
-                return true;
+            let update = {
+                player_count
             }
-            return false;
+            let response = await db.update('game_room', update, 'WHERE room_slug = ?', [room_slug]);
+
+            return response;
         }
         catch (e) {
-            console.error(e);
-            return false;
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
         }
     }
+
+    // async checkPlayerRoom(shortid, room_slug) {
+    //     try {
+
+    //         let key = shortid + '/' + room_slug;
+    //         let isInRoom = cache.get(key);
+
+    //         if (!isInRoom)
+    //             return false;
+
+    //         let db = await mysql.db();
+    //         var response;
+    //         console.log("Getting list of rooms");
+    //         response = await db.sql('SELECT a.shortid, a.room_slug FROM person_rooms a WHERE a.shortid = ? AND a.room_slug = ?', [shortid, room_slug]);
+
+    //         if (response.results && response.results.length > 0) {
+    //             return true;
+    //         }
+    //         return false;
+    //     }
+    //     catch (e) {
+    //         console.error(e);
+    //         return false;
+    //     }
+    // }
+
+    async findPlayerRoom(shortid, game_slug) {
+        try {
+            let db = await mysql.db();
+            var response;
+            console.log("Getting list of player rooms");
+            response = await db.sql('SELECT a.shortid, b.* FROM person_rooms a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ? AND b.game_slug = ?', [shortid, game_slug]);
+
+            if (response.results && response.results.length > 0) {
+                return response.results;
+            }
+            return [];
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
 
     async findPlayerRooms(shortid) {
         try {
             let db = await mysql.db();
             var response;
-            console.log("Getting list of rooms");
+            console.log("Getting list of player rooms");
             response = await db.sql('SELECT a.shortid, b.* FROM person_rooms a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ?', [shortid]);
 
             if (response.results && response.results.length > 0) {
@@ -141,7 +179,7 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of rooms");
-            response = await db.sql('SELECT i.gameid, i.version as published_version, b.latest_version, i.maxplayers, r.* FROM game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.game_slug = ? AND isprivate = 0 AND isfull = 0 ORDER BY version desc, rating desc', [game_slug]);
+            response = await db.sql('SELECT i.gameid, i.version as published_version, b.latest_version, i.maxplayers, r.* FROM game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.game_slug = ? AND isprivate = 0 AND isfull = 0 AND r.player_count < i.maxplayers ORDER BY version desc, rating desc', [game_slug]);
 
             return response.results;
         }
@@ -156,9 +194,7 @@ class RoomService {
     async checkRoomFull(room) {
         // cache.del(room.room_slug);
         // cache.del(room.room_slug+'/meta');
-        let roomState = await cache.get(room.room_slug);
-        if (!roomState)
-            return false;
+
 
         let plist = Object.keys(roomState.players);
         if (plist.length >= room.max_players)
@@ -193,19 +229,21 @@ class RoomService {
                 rooms = betaRooms;
             }
 
-            if (!rooms || rooms.length == 0) {
+            // let roomState = await cache.get(room.room_slug);
+            // if (!roomState)
+            //     return false;
+
+            // let plist = Object.keys(roomState.players);
+            // rooms = rooms || [];
+            // rooms = rooms.filter(room => room.player_count >= room.max_players)
+
+            if (rooms.length == 0) {
                 return await this.createRoom(game_slug, isBeta);
             }
 
             let index = Math.floor(Math.random() * rooms.length);
             let room = rooms[index];
 
-            if (await this.checkRoomFull(room)) {
-                return this.findAnyRoom(game_slug, isBeta, rooms, attempt + 1);
-            }
-
-            cache.set(room.room_slug + '/meta', room);
-            // room = await this.joinRoom(room);
             return room;
         }
         catch (e) {
@@ -252,7 +290,7 @@ class RoomService {
 
                 game_slug,
                 version,
-
+                player_count: 0,
                 isprivate: 0
             }
             if (private_key) {

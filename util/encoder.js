@@ -21,6 +21,16 @@ function encode(json) {
     try {
         let jsonStr = JSON.stringify(json);
         let buffer = encoder.encode(jsonStr);
+        // let deflated = pako.deflate(buffer);
+        return buffer;
+    }
+    catch (e) {
+        console.error(e);
+    }
+
+    try {
+        let jsonStr = JSON.stringify(json);
+        let buffer = encoder.encode(jsonStr);
         let deflated = pako.deflate(buffer);
         return deflated;
     }
@@ -31,6 +41,26 @@ function encode(json) {
 }
 
 function decode(raw) {
+    try {
+        // let inflated = pako.inflate(raw);
+        let jsonStr = decoder.decode(raw);
+        let json = JSON.parse(jsonStr);
+        return json;
+    }
+    catch (e) {
+        console.error(e);
+        try {
+            let jsonStr = raw.toString();
+            let json = JSON.parse(jsonStr);
+            return json;
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+    }
+
+
     try {
         let inflated = pako.inflate(raw);
         let jsonStr = decoder.decode(inflated);

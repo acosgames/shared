@@ -199,7 +199,7 @@ module.exports = class MySQL {
                                 if (type == 2)
                                     conn.release();
                             });
-                            console.log(query.sql);
+                            // console.log(query.sql);
                         }
                         catch (e) {
                             reject(new SQLError('E_SQL_ERROR', e));
@@ -363,7 +363,7 @@ module.exports = class MySQL {
                                 if (type == 2)
                                     conn.release();
                             });
-                            console.log(query.sql);
+                            // console.log(query.sql);
                         }
                         catch (e) {
                             conn.rollback();

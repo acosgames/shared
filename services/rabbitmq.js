@@ -184,9 +184,9 @@ class RabbitMQService {
     }
 
     ackMsg(msg) {
-        let count = cache.get(msg.fields.consumerTag) || 0;
-        if (count > 0)
-            this.in.ack(msg, false);
+        //let count = cache.get(msg.fields.consumerTag) || 0;
+        //if (count > 0)
+        this.in.ack(msg, false);
         cache.del(msg.fields.consumerTag);
     }
 
@@ -202,6 +202,7 @@ class RabbitMQService {
                 }
                 let queueCreated = await self.in.assertQueue(queue, { autoDelete: true });
                 cache.set(queue, queueCreated.consumerCount, ttl);
+                console.log('Consumer count: ', queueCreated.consumerCount)
                 rs(queueCreated.consumerCount);
             }
             catch (e) {

@@ -73,7 +73,8 @@ class RedisService {
 
             self.client = redis.createClient(self.credentials);
             self._publish = promisify(self.client.publish).bind(self.client);
-            self._set = promisify(self.client.setex).bind(self.client);
+            self._setex = promisify(self.client.setex).bind(self.client);
+            self._set = promisify(self.client.set).bind(self.client);
             self._get = promisify(self.client.get).bind(self.client);
             self._del = promisify(self.client.del).bind(self.client);
             self.client.on("connect", self.onConnect.bind(self));
@@ -192,7 +193,7 @@ class RedisService {
                 value = JSON.stringify(value);
             }
 
-            let result = await this._set(key, ttl, value);
+            let result = await this._setex(key, ttl, value);
             return result;
         }
         catch (e) {
