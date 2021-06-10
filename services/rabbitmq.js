@@ -164,6 +164,8 @@ class RabbitMQService {
                         this.ackMsg(msg);
                     }
                 }
+            }, {
+                noAck: true,
             });
 
             return true;
@@ -176,18 +178,18 @@ class RabbitMQService {
     }
 
     nackMsg(msg) {
-        setTimeout(async () => {
-            let count = cache.get(msg.fields.consumerTag) || 0;
-            this.in.nack(msg, false, (count < maxNacks));
-            cache.set(msg.fields.consumerTag, count + 1);
-        }, 200)
+        // setTimeout(async () => {
+        //     let count = cache.get(msg.fields.consumerTag) || 0;
+        //     this.in.nack(msg, false, (count < maxNacks));
+        //     cache.set(msg.fields.consumerTag, count + 1);
+        // }, 200)
     }
 
     ackMsg(msg) {
         //let count = cache.get(msg.fields.consumerTag) || 0;
         //if (count > 0)
-        this.in.ack(msg, false);
-        cache.del(msg.fields.consumerTag);
+        // this.in.ack(msg, false);
+        // cache.del(msg.fields.consumerTag);
     }
 
     async assertQueue(queue, ttl) {
@@ -249,6 +251,8 @@ class RabbitMQService {
                                 this.ackMsg(msg);
                             }
                         }
+                    }, {
+                        noAck: true,
                     });
                 }
                 rs(queueCreated);
@@ -270,7 +274,7 @@ class RabbitMQService {
             if (typeof value === 'object') {
                 value = JSON.stringify(value);
 
-                return this.out.publish(exchange, pattern, Buffer.from(value));
+                return this.out.publish(exchange, pattern, Buffer.from(value), { persistent: false });
             }
         }
         catch (e) {
@@ -288,13 +292,13 @@ class RabbitMQService {
                 this.out = await this.publisher.createChannel();
             }
 
-            this.out
+            // this.out
             let queueCreated = await this.out.assertQueue(queue, { autoDelete: true });
             if (queueCreated) {
                 if (typeof value === 'object') {
                     value = JSON.stringify(value);
                 }
-                return this.out.sendToQueue(queue, Buffer.from(value));
+                return this.out.sendToQueue(queue, Buffer.from(value), { persistent: false });
             }
         }
         catch (e) {
