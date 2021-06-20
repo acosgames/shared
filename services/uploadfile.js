@@ -167,6 +167,41 @@ module.exports = class UploadFile {
     //         req.pipe(busboy);
     //     }
     // }
+    middlewarePrivateDB(bucketName, mimetypes, metadataCB, keyCB, acl) {
+        mimetypes = mimetypes || ['image/jpeg', 'image/png'];
+        const storage = multerS3({
+            s3: this.s3,
+            bucket: bucketName,
+            acl: 'private',
+            contentType: (req, file, cb) => {
+                cb(null, 'application/json', file.stream);
+            },
+            metadata: metadataCB || function (req, file, cb) {
+                cb(null, { fieldName: file.fieldname });
+            },
+            key: keyCB || function (req, file, cb) {
+                cb(null, Date.now().toString())
+            }
+        });
+        const fileFilter = (req, file, cb) => {
+
+
+            var key = file.originalname;
+            var fileExt = key.split('.').pop();
+            if (fileExt.length == key.length) {
+                cb(null, false);
+                return;
+            }
+
+            if (mimetypes.includes(file.mimetype)) {
+                cb(null, true);
+            } else {
+                cb(null, false);
+            }
+        }
+        this.upload = multer({ storage: storage, fileFilter: fileFilter });
+        return this.upload;
+    }
     middlewarePrivate(bucketName, mimetypes, metadataCB, keyCB, acl) {
         mimetypes = mimetypes || ['image/jpeg', 'image/png'];
         const storage = multerS3({

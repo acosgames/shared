@@ -208,6 +208,31 @@ module.exports = class DevGameService {
         return 'Draft';
     }
 
+    async updateGameVersion(game) {
+
+        try {
+            let db = await mysql.db();
+            let gameVersion = {
+                db: true,
+            }
+
+            let { results } = await db.update('game_version', gameVersion, 'WHERE gameid = ?', [game.gameid]);
+            console.log(results);
+            return results;
+        }
+        catch (e) {
+            //revert back to normal
+            if (e instanceof SQLError && e.payload.errno == 1062) {
+                // if (e.payload.sqlMessage.indexOf("game_client.name_UNIQUE") > -1) {
+                //     throw new GeneralError("E_CLIENT_DUPENAME", client.name);
+                // }
+            }
+            console.error(e);
+            throw new GeneralError("E_GAMEVERSION_INVALID");
+        }
+        return null;
+    }
+
     async createGameVersion(game) {
 
         try {
@@ -523,7 +548,7 @@ module.exports = class DevGameService {
             }
 
             game.apikey = generateAPIKEY();
-            game.shortid = game.shortid.toLowerCase();
+            game.game_slug = game.game_slug.toLowerCase();
 
             game.status = this.statusId('Draft');
 
@@ -536,7 +561,7 @@ module.exports = class DevGameService {
             }
 
 
-            await this.createGameBuilds(game, user, db);
+            // await this.createGameBuilds(game, user, db);
 
             if (results.affectedRows > 0) {
                 game.gameid = game.gameid.toSqlString();

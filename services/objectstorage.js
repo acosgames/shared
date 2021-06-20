@@ -54,7 +54,7 @@ module.exports = class ObjectStorage {
         });
     }
 
-    downloadServerScript(Key) {
+    downloadServerDatabase(Key) {
         return new Promise((rs, rj) => {
             try {
                 var params = {
@@ -80,6 +80,49 @@ module.exports = class ObjectStorage {
 
                     fs.mkdirSync(rootPath + folderPath, { recursive: true });
                     fs.writeFileSync('./serverScripts/' + Key, data.Body)
+                    let js = data.Body.toString('utf-8');
+                    rs(js);
+                    console.log('file downloaded successfully')
+                })
+            }
+            catch (e) {
+                console.error(e);
+            }
+        });
+    }
+
+    downloadServerScript(Key) {
+        return new Promise(async (rs, rj) => {
+            try {
+                var params = {
+                    Key,
+                    Bucket: 'fsg-server'
+                }
+
+                let rootPath = './serverScripts';
+                let folderPath = '/' + Key.split('/')[0];
+                let localPath = rootPath + '/' + Key;
+                let fileExists = false;
+                try {
+                    fileExists = await fs.promises.access(localPath);
+                } catch (e) {
+                    console.error(e);
+                }
+                if (fileExists) {
+                    let data = await fs.promises.readFile(localPath);
+                    let js = data.toString('utf-8');
+                    rs(js);
+                    console.log('file loaded from filesystem successfully')
+                    return;
+                }
+                this.s3.getObject(params, async function (err, data) {
+                    if (err) {
+                        rj(err);
+                        return;
+                    }
+
+                    await fs.promises.mkdir(rootPath + folderPath, { recursive: true });
+                    await fs.promises.writeFile('./serverScripts/' + Key, data.Body)
                     let js = data.Body.toString('utf-8');
                     rs(js);
                     console.log('file downloaded successfully')

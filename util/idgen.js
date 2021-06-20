@@ -7,7 +7,7 @@ var intformat = require('biguint-format')
 const { customAlphabet } = require('nanoid')
 const nanoid = customAlphabet('6789BCDFGHJKLMNPQRTW', 6)
 const fullNanoid = customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 5)
-module.exports = {
+module.exports = IdGen = {
     genUnique64({ datacenter, worker }) {
         datacenter = datacenter || 0;
         worker = worker || 0;

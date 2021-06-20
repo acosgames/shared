@@ -66,7 +66,7 @@ class RabbitMQService {
             this.connect(options);
         }
         catch (e) {
-            retry(options);
+            this.retry(options);
         }
 
     }
