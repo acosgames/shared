@@ -152,10 +152,12 @@ class RoomService {
 
     async findRoom(room_slug) {
         try {
-
-            let room = await cache.get(room_slug);
-            if (room)
-                return room;
+            let key = room_slug + '/meta';
+            let room = await cache.get(key);
+            if (room)                return room;
+            
+            room = await redis.get(key);
+            if( room ) return room;
 
             let db = await mysql.db();
             var response;
@@ -163,6 +165,9 @@ class RoomService {
             response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
 
             if (response.results && response.results.length > 0) {
+                let room = response.results[0];
+                cache.set(key, room)
+                await redis.set(key, room);
                 return response.results[0];
             }
             return null;
@@ -332,7 +337,7 @@ class RoomService {
             console.log("Getting room meta for:", room_slug);
             response = await db.sql('select * from game_room WHERE room_slug = ?', [room_slug]);
 
-            return response.results;
+            return response.results[0];
         }
         catch (e) {
             if (e instanceof GeneralError)
