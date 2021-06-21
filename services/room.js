@@ -179,7 +179,7 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of rooms");
-            response = await db.sql('SELECT i.db, i.gameid, i.version as published_version, b.latest_version, i.maxplayers, r.* FROM game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.game_slug = ? AND isprivate = 0 AND isfull = 0 AND r.player_count < i.maxplayers ORDER BY version desc, rating desc', [game_slug]);
+            response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, b.latest_version, i.maxplayers, r.* FROM game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.game_slug = ? AND isprivate = 0 AND isfull = 0 AND r.player_count < i.maxplayers ORDER BY version desc, rating desc', [game_slug]);
 
             return response.results;
         }
@@ -274,7 +274,7 @@ class RoomService {
             var response;
             console.log("Getting list of rooms");
 
-            response = await db.sql('SELECT a.db, a.gameid, a.version, b.latest_version FROM game_info a LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = a.gameid WHERE game_slug = ?', [game_slug]);
+            response = await db.sql('SELECT a.gameid, a.version, b.latest_version, b.db FROM game_info a LEFT JOIN (SELECT gameid, db, MAX(version) as latest_version FROM game_version GROUP BY gameid, db) b ON b.gameid = a.gameid WHERE game_slug = ?', [game_slug]);
             if (!response.results | response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
 
