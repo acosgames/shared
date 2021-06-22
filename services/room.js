@@ -156,8 +156,8 @@ class RoomService {
             let room = await cache.get(key);
             if (room)                return room;
             
-            room = await redis.get(key);
-            if( room ) return room;
+            // room = await redis.get(key);
+            // if( room ) return room;
 
             let db = await mysql.db();
             var response;
@@ -167,7 +167,7 @@ class RoomService {
             if (response.results && response.results.length > 0) {
                 let room = response.results[0];
                 cache.set(key, room)
-                await redis.set(key, room);
+                // await redis.set(key, room);
                 return response.results[0];
             }
             return null;
