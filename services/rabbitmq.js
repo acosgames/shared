@@ -204,7 +204,7 @@ class RabbitMQService {
                 }
                 let queueCreated = await self.in.assertQueue(queue, { autoDelete: true });
                 cache.set(queue, queueCreated.consumerCount, ttl);
-                console.log('Consumer count: ', queueCreated.consumerCount)
+                // console.log('Consumer count: ', queueCreated.consumerCount)
                 rs(queueCreated.consumerCount);
             }
             catch (e) {

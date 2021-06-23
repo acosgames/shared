@@ -154,8 +154,8 @@ class RoomService {
         try {
             let key = room_slug + '/meta';
             let room = await cache.get(key);
-            if (room)                return room;
-            
+            if (room) return room;
+
             // room = await redis.get(key);
             // if( room ) return room;
 
