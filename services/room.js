@@ -162,13 +162,13 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of rooms");
-            response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
+            //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
+            response = await db.sql('SELECT * from game_room WHERE room_slug = ?', [room_slug]);
 
             if (response.results && response.results.length > 0) {
                 let room = response.results[0];
-                cache.set(key, room)
-                // await redis.set(key, room);
-                return response.results[0];
+                cache.set(key, room);
+                return room;
             }
             return null;
         }
@@ -184,8 +184,8 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of rooms");
-            response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, b.latest_version, i.maxplayers, r.* FROM game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.game_slug = ? AND isprivate = 0 AND isfull = 0 AND r.player_count < i.maxplayers ORDER BY version desc, rating desc', [game_slug]);
-
+            //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, b.latest_version, i.maxplayers, r.* FROM game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.game_slug = ? AND isprivate = 0 AND isfull = 0 AND r.player_count < i.maxplayers ORDER BY version desc, rating desc', [game_slug]);
+            response = await db.sql('SELECT * from game_room r WHERE r.game_slug = ? AND isprivate = 0 AND isfull = 0 ORDER BY version desc, rating desc', [game_slug])
             return response.results;
         }
         catch (e) {
@@ -292,6 +292,8 @@ class RoomService {
                 version = latest_version;
 
             let room = {
+                gameid,
+                latest_version,
                 room_slug: genShortId(5),
                 db: database,
                 game_slug,
@@ -299,6 +301,7 @@ class RoomService {
                 player_count: 0,
                 isprivate: 0
             }
+
             if (private_key) {
                 room.isprivate = 1;
                 room.private_key = private_key;
@@ -310,8 +313,7 @@ class RoomService {
                 console.error(e);
             }
 
-            room.gameid = gameid;
-            room.latest_version = latest_version;
+
             // let room_meta = {
             //     room_slug: room.room_slug,
             //     player_count: 0
@@ -347,26 +349,26 @@ class RoomService {
         return [];
     }
 
-    async updateRoomMeta(room_meta) {
-        try {
-            let db = await mysql.db();
-            var response;
+    // async updateRoomMeta(room_meta) {
+    //     try {
+    //         let db = await mysql.db();
+    //         var response;
 
-            let room_slug = room_meta.room_slug;
-            console.log("Getting room meta for:", room_meta);
-            delete room_meta['room_slug'];
+    //         let room_slug = room_meta.room_slug;
+    //         console.log("Getting room meta for:", room_meta);
+    //         delete room_meta['room_slug'];
 
-            response = await db.update('game_room', room_meta, 'WHERE room_slug = ?', room_slug)
+    //         response = await db.update('game_room', room_meta, 'WHERE room_slug = ?', room_slug)
 
-            return response.results;
-        }
-        catch (e) {
-            if (e instanceof GeneralError)
-                throw e;
-            throw new CodeError(e);
-        }
-        return [];
-    }
+    //         return response.results;
+    //     }
+    //     catch (e) {
+    //         if (e instanceof GeneralError)
+    //             throw e;
+    //         throw new CodeError(e);
+    //     }
+    //     return [];
+    // }
 
     async deleteRoom(room_slug) {
         try {

@@ -137,7 +137,7 @@ module.exports = class MySQL {
             //console.error(e);
             this.connections[jobname].release();
             delete this.connections[jobname];
-            reject(e);
+            throw e;
         }
     }
 
