@@ -23,7 +23,7 @@ class RoomService {
 
 
 
-    async assignPlayerRoom(shortid, room_slug) {
+    async assignPlayerRoom(shortid, room_slug, game_slug) {
         try {
             let db = await mysql.db();
 
@@ -31,10 +31,15 @@ class RoomService {
 
             // let key = shortid + '/' + room_slug;
             // cache.set(key, true);
+            if (!game_slug) {
+                let meta = await this.findRoom(room_slug);
+                game_slug = meta.game_slug;
+            }
 
             let personRoom = {
                 shortid,
-                room_slug
+                room_slug,
+                game_slug
             }
             let response = await db.insert('person_rooms', personRoom);
 
@@ -70,14 +75,14 @@ class RoomService {
 
     async updateRoomPlayerCount(room_slug, player_count) {
         try {
-            let db = await mysql.db();
+            // let db = await mysql.db();
 
-            let update = {
-                player_count
-            }
-            let response = await db.update('game_room', update, 'WHERE room_slug = ?', [room_slug]);
-
-            return response;
+            // let update = {
+            //     player_count
+            // }
+            //let response = await db.update('game_room', update, 'WHERE room_slug = ?', [room_slug]);
+            cache.set(room_slug + '/p', player_count);
+            // return response;
         }
         catch (e) {
             if (e instanceof GeneralError)
@@ -161,12 +166,14 @@ class RoomService {
 
             let db = await mysql.db();
             var response;
-            console.log("Getting list of rooms");
+            console.log("Getting room info for: ", room_slug);
             //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
             response = await db.sql('SELECT * from game_room WHERE room_slug = ?', [room_slug]);
 
             if (response.results && response.results.length > 0) {
                 let room = response.results[0];
+                delete room['tsupdate'];
+                delete room['tsinsert'];
                 cache.set(key, room);
                 return room;
             }
@@ -208,7 +215,7 @@ class RoomService {
         return false;
     }
 
-    async findAnyRoom(game_slug, isBeta, rooms, attempt) {
+    async findAnyRoom(user, game_slug, isBeta, rooms, attempt) {
         try {
             attempt = attempt || 1;
             rooms = rooms || [];
@@ -228,7 +235,7 @@ class RoomService {
                 let betaRooms = [];
                 for (let i = 0; i < rooms.length; i++) {
                     let room = rooms[i];
-                    if (room.latest_version > room.published_version)
+                    if (room.istest)
                         betaRooms.push(room);
                 }
                 rooms = betaRooms;
@@ -243,7 +250,7 @@ class RoomService {
             // rooms = rooms.filter(room => room.player_count >= room.max_players)
 
             if (rooms.length == 0) {
-                return await this.createRoom(game_slug, isBeta);
+                return await this.createRoom(user, game_slug, isBeta);
             }
 
             let index = Math.floor(Math.random() * rooms.length);
@@ -262,43 +269,50 @@ class RoomService {
         return [];
     }
 
-    async joinRoom(user, room_slug) {
 
-        let room = await redis.get(room_slug);
-
-        room.player_count += 1;
-
-        await redis.set(room_slug, room);
-
-        return true;
-    }
-
-    async createRoom(game_slug, isBeta, private_key) {
+    async createRoom(user, game_slug, istest, private_key) {
         try {
             let db = await mysql.db();
             var response;
-            console.log("Getting list of rooms");
+            console.log("Getting list of game versions");
 
-            response = await db.sql('SELECT a.gameid, a.version, b.latest_version, b.db FROM game_info a LEFT JOIN (SELECT gameid, db, MAX(version) as latest_version FROM game_version GROUP BY gameid, db) b ON b.gameid = a.gameid WHERE game_slug = ?', [game_slug]);
+            response = await db.sql(`SELECT * FROM game_info WHERE game_slug = ?`, [game_slug]);
+
+            // response = await db.sql(`
+            //     SELECT a.gameid, a.version, b.latest_version, b.db 
+            //     FROM game_info a 
+            //     LEFT JOIN (
+            //         SELECT gameid, db, MAX(version) as latest_version 
+            //         FROM game_version 
+            //         GROUP BY gameid, db) b 
+            //     ON b.gameid = a.gameid 
+            //     WHERE game_slug = ?
+            // `, [game_slug]);
+
             if (!response.results | response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
 
             let published = response.results[0];
-            let latest_version = published.latest_version;
             let version = published.version;
             let gameid = published.gameid;
             let database = published.db || false;
-            if (isBeta)
-                version = latest_version;
 
+            if (istest) {
+                version = published.latest_version;
+                database = published.latest_db || false;
+            }
+
+            let rating = 0;
+            let owner = user.id;
             let room = {
-                gameid,
-                latest_version,
                 room_slug: genShortId(5),
-                db: database,
                 game_slug,
+                gameid,
                 version,
-                player_count: 0,
+                db: database,
+                istest,
+                rating,
+                owner,
                 isprivate: 0
             }
 
@@ -306,19 +320,14 @@ class RoomService {
                 room.isprivate = 1;
                 room.private_key = private_key;
             }
+
             try {
+                console.log("Creating room: ", room);
                 response = await db.insert('game_room', room);
             }
             catch (e) {
                 console.error(e);
             }
-
-
-            // let room_meta = {
-            //     room_slug: room.room_slug,
-            //     player_count: 0
-            // }
-            // response = await db.insert('game_room_meta', room_meta);
 
             cache.set(room.room_slug + '/meta', room);
 
@@ -332,7 +341,7 @@ class RoomService {
         return [];
     }
 
-    async getRoomMeta(room_slug) {
+    async getGameRoom(room_slug) {
         try {
             let db = await mysql.db();
             var response;
@@ -374,6 +383,8 @@ class RoomService {
         try {
             cache.del(room_slug);
             cache.del(room_slug + '/meta');
+            cache.del(room_slug + '/timer');
+            cache.del(room_slug + '/p');
 
             let db = await mysql.db();
             var response;

@@ -18,7 +18,7 @@ module.exports = class GameService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of games");
-            response = await db.sql('SELECT a.gameid, game_slug, version, b.latest_version, ownerid, name, shortdesc, longdesc, git, preview_images, status FROM game_info a LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON a.gameid = b.gameid');
+            response = await db.sql('SELECT gameid, game_slug, version, latest_version, ownerid, name, shortdesc, longdesc, git, preview_images, status FROM game_info');
 
             return response.results;
         }
@@ -35,7 +35,7 @@ module.exports = class GameService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of games");
-            response = await db.sql('SELECT a.gameid, game_slug, version, latest_version, ownerid, name, shortdesc, longdesc, git, preview_images, status FROM game_info a LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON a.gameid = b.gameid WHERE game_slug = ?', [game_slug]);
+            response = await db.sql('SELECT gameid, game_slug, version, latest_version, ownerid, name, shortdesc, longdesc, git, preview_images, status FROM game_info WHERE game_slug = ?', [game_slug]);
 
             return response.results;
         }

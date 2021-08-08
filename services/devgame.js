@@ -208,7 +208,7 @@ module.exports = class DevGameService {
         return 'Draft';
     }
 
-    async updateGameVersion(game) {
+    async addDBtoGameVersion(game) {
 
         try {
             let db = await mysql.db();
@@ -216,9 +216,14 @@ module.exports = class DevGameService {
                 db: true,
             }
 
-            let { results } = await db.update('game_version', gameVersion, 'WHERE gameid = ?', [game.gameid]);
+            let { results } = await db.update('game_version', gameVersion, 'WHERE gameid = ? AND version = ?', [game.gameid, game.version]);
             console.log(results);
-            return results;
+
+            //save the latest db in game_info
+            let { results2 } = await db.update('game_info', { latest_db: true }, 'WHERE gameid = ?', [game.gameid])
+            console.log(results2);
+
+            return gameVersion;
         }
         catch (e) {
             //revert back to normal
@@ -243,12 +248,17 @@ module.exports = class DevGameService {
                     toSqlString: () => game.gameid
                 },
                 version: game.version,
-                status: 0,
-                gamesplayed: 0
+                status: 2,
+                gamesplayed: 0,
+                db: 0
             }
 
             let { results } = await db.insert('game_version', gameVersion);
             console.log(results);
+
+            //save the latest version in game_info
+            let { results2 } = await db.update('game_info', { latest_version: game.version }, 'gameid = ?', [game.gameid])
+            console.log(results2);
 
             if (results.affectedRows > 0) {
                 return gameVersion;
