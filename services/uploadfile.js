@@ -6,7 +6,7 @@ const AWS = require('aws-sdk');
 const multer = require('multer');
 const multerS3 = require('multer-s3-transform');
 // const busboy = require('busboy');
-
+var zlib = require('zlib');
 var stream = require("stream");
 
 const encoder = new TextEncoder('utf-8');
@@ -246,13 +246,15 @@ module.exports = class UploadFile {
 
 
         mimetypes = mimetypes || ['image/jpeg', 'image/png'];
+        contentType = 'text/html';
         const storage = multerS3({
             s3: this.s3,
             bucket: bucketName,
             acl: 'public-read',
-            contentType: contentType || multerS3.AUTO_CONTENT_TYPE,
-            metadata: metadataCB || function (req, file, cb) {
-                cb(null, { fieldName: file.fieldname });
+
+            contentType: function (req, file, cb) { cb(null, contentType); } || multerS3.AUTO_CONTENT_TYPE,
+            metadata: function (req, file, cb) {
+                cb(null, { fieldName: file.fieldname, 'Content-Type': contentType, 'Content-Encoding': 'gzip', 'b2-content-encoding': 'gzip' });
             },
             key: keyCB || function (req, file, cb) {
                 cb(null, Date.now().toString())
@@ -273,6 +275,8 @@ module.exports = class UploadFile {
                 transform: function (req, file, cb) {
                     var fileStream = file.stream;
                     var out = new stream.PassThrough();
+                    let zipped
+                        = zlib.createGzip();
                     var cnt = 0;
 
                     fileStream.on('data', (chunk) => {
@@ -281,16 +285,20 @@ module.exports = class UploadFile {
 
                         //prepend the iframe top html
                         if (cnt == 1)
-                            out.write(iframeTop);
+                            zipped.write(iframeTop);
 
                         //write the JS into the middle
-                        out.write(chunk);
+                        zipped.write(chunk);
                     });
 
                     fileStream.on('end', () => {
                         //append the iframe bottom html
-                        out.write(iframeBottom);
-                        cb(null, out);
+                        zipped.write(iframeBottom);
+
+                        // var zipped = new stream.PassThrough();
+
+
+                        cb(null, zipped);
                     });
                 }
             }]
