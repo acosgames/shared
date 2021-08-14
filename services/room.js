@@ -41,7 +41,7 @@ class RoomService {
                 room_slug,
                 game_slug
             }
-            let response = await db.insert('person_rooms', personRoom);
+            let response = await db.insert('person_room', personRoom);
 
             return response;
         }
@@ -62,7 +62,7 @@ class RoomService {
             // let key = shortid + '/' + room_slug;
             // cache.del(key);
 
-            let response = await db.delete('person_rooms', 'WHERE shortid = ? AND room_slug = ?', [shortid, room_slug]);
+            let response = await db.delete('person_room', 'WHERE shortid = ? AND room_slug = ?', [shortid, room_slug]);
 
             return response;
         }
@@ -103,7 +103,7 @@ class RoomService {
     //         let db = await mysql.db();
     //         var response;
     //         console.log("Getting list of rooms");
-    //         response = await db.sql('SELECT a.shortid, a.room_slug FROM person_rooms a WHERE a.shortid = ? AND a.room_slug = ?', [shortid, room_slug]);
+    //         response = await db.sql('SELECT a.shortid, a.room_slug FROM person_room a WHERE a.shortid = ? AND a.room_slug = ?', [shortid, room_slug]);
 
     //         if (response.results && response.results.length > 0) {
     //             return true;
@@ -121,7 +121,7 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of player rooms");
-            response = await db.sql('SELECT a.shortid, b.* FROM person_rooms a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ? AND b.game_slug = ?', [shortid, game_slug]);
+            response = await db.sql('SELECT a.shortid, b.* FROM person_room a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ? AND b.game_slug = ?', [shortid, game_slug]);
 
             if (response.results && response.results.length > 0) {
                 return response.results;
@@ -141,7 +141,7 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of player rooms");
-            response = await db.sql('SELECT a.shortid, b.* FROM person_rooms a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ?', [shortid]);
+            response = await db.sql('SELECT a.shortid, b.* FROM person_room a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ?', [shortid]);
 
             if (response.results && response.results.length > 0) {
                 return response.results;
@@ -391,7 +391,7 @@ class RoomService {
             console.log("Deleting room: " + room_slug);
 
             response = await db.delete('game_room', 'WHERE room_slug = ?', [room_slug]);
-            response = await db.delete('person_rooms', 'WHERE room_slug = ?', [room_slug]);
+            response = await db.delete('person_room', 'WHERE room_slug = ?', [room_slug]);
             // response = await db.delete('game_room_meta', 'WHERE room_slug = ?', [room_meta]);
 
             return response.results;
