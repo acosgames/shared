@@ -91,7 +91,7 @@ module.exports = class ObjectStorage {
         });
     }
 
-    downloadServerScript(Key) {
+    downloadServerScript(Key, meta) {
         return new Promise(async (rs, rj) => {
             try {
                 var params = {
@@ -108,7 +108,7 @@ module.exports = class ObjectStorage {
                 } catch (e) {
                     console.error(e);
                 }
-                if (fileExists) {
+                if (fileExists && !meta.istest) {
                     let data = await fs.promises.readFile(localPath);
                     let js = data.toString('utf-8');
                     rs(js);

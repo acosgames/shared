@@ -155,6 +155,90 @@ class RoomService {
         }
     }
 
+    async updateAllPlayerRatings(ratings) {
+        try {
+            let db = await mysql.db();
+            var response = await db.insertBatch('person_rank', ratings, ['shortid', 'game_slug']);
+            if (response && response.results.affectedRows > 0) {
+                return true;
+            }
+            return true;
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return false;
+    }
+    async updatePlayerRating(shortid, game_slug, ratingData) {
+        try {
+            let update = {
+                rating: ratingData.rating,
+                mu: ratingData.mu,
+                sigma: ratingData.sigma
+            }
+
+            let db = await mysql.db();
+            var response = await db.update('person_rank', update, 'shortid = ? AND game_slug = ?', [shortid, game_slug]);
+            if (response && response.results.affectedRows > 0) {
+                return true;
+            }
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return false;
+    }
+
+    setPlayerRating(shortid, game_slug, rating) {
+        let key = shortid + '/' + game_slug;
+        cache.set(key, rating, 600);
+    }
+
+    async findPlayerRating(shortid, game_slug) {
+        try {
+
+            let key = shortid + '/' + game_slug;
+            let rating = await cache.get(key);
+            if (rating)
+                return rating;
+
+            let db = await mysql.db();
+            var response;
+            console.log("Getting player rating for: ", key);
+            //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
+            response = await db.sql('SELECT * from person_rank WHERE shortid = ? AND game_slug = ?', [shortid, game_slug]);
+
+            if (response.results && response.results.length > 0) {
+                rating = response.results[0];
+                delete rating.shortid;
+                delete rating.game_slug;
+                delete rating['tsupdate'];
+                delete rating['tsinsert'];
+                cache.set(key, rating, 600);
+                return rating;
+            }
+
+            rating = {
+                shortid,
+                game_slug,
+                rating: 1200,
+                mu: 12.0,
+                sigma: 1.5
+            };
+            response = await db.insert('person_rank', rating);
+
+
+            delete rating.shortid;
+            delete rating.game_slug;
+            cache.set(key, rating, 600);
+
+            return rating;
+        }
+        catch (e) {
+            console.error(e);
+        }
+    }
+
     async findRoom(room_slug) {
         try {
             let key = room_slug + '/meta';
@@ -278,17 +362,6 @@ class RoomService {
 
             response = await db.sql(`SELECT * FROM game_info WHERE game_slug = ?`, [game_slug]);
 
-            // response = await db.sql(`
-            //     SELECT a.gameid, a.version, b.latest_version, b.db 
-            //     FROM game_info a 
-            //     LEFT JOIN (
-            //         SELECT gameid, db, MAX(version) as latest_version 
-            //         FROM game_version 
-            //         GROUP BY gameid, db) b 
-            //     ON b.gameid = a.gameid 
-            //     WHERE game_slug = ?
-            // `, [game_slug]);
-
             if (!response.results | response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
 
@@ -296,13 +369,15 @@ class RoomService {
             let version = published.version;
             let gameid = published.gameid;
             let database = published.db || false;
+            let latest_tsupdate = published.tsupdate;
 
             if (istest) {
                 version = published.latest_version;
                 database = published.latest_db || false;
+                latest_tsupdate = published.latest_tsupdate;
             }
 
-            let rating = 0;
+            let rating = user.ratings[game_slug];
             let owner = user.id;
             let room = {
                 room_slug: genShortId(5),
@@ -310,6 +385,7 @@ class RoomService {
                 gameid,
                 version,
                 db: database,
+                latest_tsupdate,
                 istest,
                 rating,
                 owner,

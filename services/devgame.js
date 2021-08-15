@@ -10,6 +10,25 @@ const simpleGit = require('simple-git');
 
 
 
+/**
+ * You first need to create a formatting function to pad numbers to two digits…
+ **/
+function twoDigits(d) {
+    if (0 <= d && d < 10) return "0" + d.toString();
+    if (-10 < d && d < 0) return "-0" + (-1 * d).toString();
+    return d.toString();
+}
+
+/**
+ * …and then create the method to output the date string as desired.
+ * Some people hate using prototypes this way, but if you are going
+ * to apply this to more than one Date object, having it as a prototype
+ * makes sense.
+ **/
+function toMysqlFormat(date) {
+    return date.getUTCFullYear() + "-" + twoDigits(1 + date.getUTCMonth()) + "-" + twoDigits(date.getUTCDate()) + " " + twoDigits(date.getUTCHours()) + ":" + twoDigits(date.getUTCMinutes()) + ":" + twoDigits(date.getUTCSeconds());
+};
+
 const gh = require('./github');
 
 const StatusByName = {
@@ -64,10 +83,10 @@ module.exports = class DevGameService {
             var response;
             console.log("Searching for game: ", game);
             if (game.apikey) {
-                response = await db.sql('SELECT i.gameid, i.version as published_version, v.version as version, i.game_slug, i.ownerid FROM game_info i, game_version v WHERE i.apikey = ? AND i.gameid = v.gameid ORDER by v.version desc', [game.apikey]);
+                response = await db.sql('SELECT i.gameid, i.version as published_version, v.version as version, i.game_slug, i.ownerid, v.tsupdate as latest_tsupdate FROM game_info i, game_version v WHERE i.apikey = ? AND i.gameid = v.gameid ORDER by v.version desc', [game.apikey]);
             }
             else if (game.gameid) {
-                response = await db.sql('SELECT i.gameid, i.version as published_version, v.version as version, i.game_slug, i.ownerid FROM game_info i, game_version v WHERE i.gameid = ? AND i.gameid = v.gameid ORDER by v.version desc', [{ toSqlString: () => game.gameid }]);
+                response = await db.sql('SELECT i.gameid, i.version as published_version, v.version as version, i.game_slug, i.ownerid, v.tsupdate as latest_tsupdate FROM game_info i, game_version v WHERE i.gameid = ? AND i.gameid = v.gameid ORDER by v.version desc', [{ toSqlString: () => game.gameid }]);
             }
 
             return response.results;
@@ -238,6 +257,44 @@ module.exports = class DevGameService {
         return null;
     }
 
+    async updateGameVersion(game) {
+        try {
+            let db = await mysql.db();
+
+            let gameVersion = {
+                gameid: {
+                    toSqlString: () => game.gameid
+                },
+                version: game.version,
+                status: 2,
+                gamesplayed: 0,
+                db: 0
+            }
+
+            let { results } = await db.update('game_version', { status: 2 }, 'gameid = ? AND version = ?', [game.gameid, game.version]);
+            console.log(results);
+
+            //save the latest version in game_info
+            let { results2 } = await db.update('game_info', { latest_tsupdate: toMysqlFormat(new Date()) }, 'gameid = ?', [game.gameid])
+            console.log(results2);
+
+            if (results.affectedRows > 0) {
+                return gameVersion;
+            }
+        }
+        catch (e) {
+            //revert back to normal
+            if (e instanceof SQLError && e.payload.errno == 1062) {
+                // if (e.payload.sqlMessage.indexOf("game_client.name_UNIQUE") > -1) {
+                //     throw new GeneralError("E_CLIENT_DUPENAME", client.name);
+                // }
+            }
+            console.error(e);
+            throw new GeneralError("E_GAMEVERSION_INVALID");
+        }
+        return null;
+    }
+
     async createGameVersion(game) {
 
         try {
@@ -257,7 +314,7 @@ module.exports = class DevGameService {
             console.log(results);
 
             //save the latest version in game_info
-            let { results2 } = await db.update('game_info', { latest_version: game.version }, 'gameid = ?', [game.gameid])
+            let { results2 } = await db.update('game_info', { latest_version: game.version, latest_tsupdate: game.last_tsupdate }, 'gameid = ?', [game.gameid])
             console.log(results2);
 
             if (results.affectedRows > 0) {

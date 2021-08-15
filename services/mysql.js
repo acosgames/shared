@@ -302,6 +302,92 @@ module.exports = class MySQL {
                     });
                 },
 
+                insertBatch: (table, rows, primarykeys) => {
+                    return new Promise((resolve, reject) => {
+                        try {
+                            if (!conn) {
+                                reject(new SQLError('E_SQL_ERROR', "No defined connection"));
+                                return;
+                            }
+
+                            // var post = { id: 1, title: 'Hello MySQL' };
+                            if (!rows || rows.length == 0) {
+                                reject(new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!"));
+                                return;
+                            }
+
+                            if (!primarykeys) {
+                                reject(new SQLError('E_SQL_ERROR', "Missing 'primarykeys'.  Check your code!"));
+                                return;
+                            }
+
+                            if (!table) {
+                                reject(new SQLError('E_SQL_ERROR', "Missing 'table' name. Check your code!"));
+                                return;
+                            }
+
+
+                            // row.tsinsert = row.tsupdate;
+                            let keyList = [];
+                            let valuesList = [];
+                            let valuesProtect = [];
+                            let qmarks = [];
+                            let qmarksStr = "";
+                            let updateDateTime = utcDATETIME();
+                            for (var i = 0; i < rows.length; i++) {
+                                let row = rows[i];
+                                row.tsupdate = updateDateTime;
+                                row.tsinsert = updateDateTime;
+                                for (var key in row) {
+                                    let value = row[key];
+
+                                    valuesList.push(value);
+                                    if (i == 0) {
+                                        keyList.push(key);
+                                        qmarks.push('?');
+                                    }
+
+                                }
+
+                                if (i == 0)
+                                    qmarksStr = '(' + qmarks.join(',') + ')';
+
+                                valuesProtect.push(qmarksStr);
+                            }
+
+                            let updateColumns = [];
+                            for (var key in rows[0]) {
+                                if (primarykeys.includes(key) || key == 'tsinsert')
+                                    continue;
+                                updateColumns.push(key + '=VALUES(' + key + ')');
+                            }
+
+                            var query = conn.query(
+                                'INSERT INTO ' + table + ' (' + keyList.join(',') + ') VALUES ' + valuesProtect.join(',') + ' ON DUPLICATE KEY UPDATE ' + updateColumns.join(','),
+                                valuesList,
+                                function (error, results, fields) {
+                                    if (error) {
+                                        conn.rollback();
+                                        console.error(error);
+                                        reject(new SQLError('E_SQL_ERROR', error));
+                                        if (type == 2)
+                                            conn.release();
+                                        return;
+                                    };
+                                    // Neat!
+
+                                    resolve({ results, fields });
+                                    if (type == 2)
+                                        conn.release();
+                                });
+                            // console.log(query.sql);
+                        }
+                        catch (e) {
+                            reject(new SQLError('E_SQL_ERROR', e));
+                        }
+                    });
+                },
+
                 update: (table, row, where, whereValues) => {
                     var self = this;
                     return new Promise((resolve, reject) => {
