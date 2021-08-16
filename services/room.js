@@ -457,10 +457,10 @@ class RoomService {
 
     async deleteRoom(room_slug) {
         try {
-            cache.del(room_slug);
-            cache.del(room_slug + '/meta');
-            cache.del(room_slug + '/timer');
-            cache.del(room_slug + '/p');
+            // cache.del(room_slug);
+            // cache.del(room_slug + '/meta');
+            // cache.del(room_slug + '/timer');
+            // cache.del(room_slug + '/p');
 
             let db = await mysql.db();
             var response;
