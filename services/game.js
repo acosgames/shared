@@ -18,7 +18,7 @@ module.exports = class GameService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of games");
-            response = await db.sql('SELECT gameid, game_slug, version, latest_version, ownerid, name, shortdesc, longdesc, git, preview_images, status FROM game_info');
+            response = await db.sql('SELECT gameid, game_slug, version, latest_version, maxplayers, ownerid, name, shortdesc, longdesc, git, preview_images, status FROM game_info');
 
             return response.results;
         }
