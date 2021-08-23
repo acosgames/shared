@@ -4,12 +4,50 @@ const { genUnique64string, generateAPIKEY, genFullShortId } = require('../util/i
 const { utcDATETIME } = require('../util/datefns');
 const { GeneralError } = require('../util/errorhandler');
 const gh = require('./github');
+const jwt = require('jsonwebtoken');
 // const gh = GitHub;
 const credutil = require('../util/credentials');
+const fs = require('fs');
 
 module.exports = class UserService {
     constructor(credentials) {
         this.credentials = credentials || credutil();
+        this.publicKey = null;
+    }
+
+    encodeUserToken(user, privateKey) {
+        return new Promise((rs, rj) => {
+            jwt.sign(user, privateKey, { algorithm: 'RS256', expiresIn: '30d' }, function (err, token) {
+                if (err) {
+                    rj(err);
+                    return;
+                }
+                rs(token);
+            });
+        })
+    }
+    decodeUserToken(token, publicKey) {
+        return new Promise((rs, rj) => {
+
+            if (!publicKey) {
+                try {
+                    if (!this.publicKey)
+                        this.publicKey = fs.readFileSync('../fsg-shared/credential/jwtRS256.key.pub');
+                    publicKey = this.publicKey;
+                }
+                catch (e) {
+                    rj("Invalid JWT Public Key");
+                }
+            }
+
+            jwt.verify(token, publicKey, function (err, user) {
+                if (err) {
+                    rj(err);
+                    return;
+                }
+                rs(user);
+            });
+        })
     }
 
     async findUser(user, db) {

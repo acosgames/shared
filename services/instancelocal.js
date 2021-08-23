@@ -11,7 +11,7 @@ module.exports = class InstanceLocal {
 
         this.axiosConfig = {
             headers: {
-                'X-API-KEY': this.credentials.platform.apikey
+                'X-PLATFORM-API-KEY': this.credentials.platform.apikey
             }
         }
     }
