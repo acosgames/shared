@@ -32,11 +32,11 @@ function encode(json) {
 
         let jsonStr = JSON.stringify(json);
         let buffer = encoder.encode(jsonStr);
-        console.time("encode");
+        //console.time("encode");
         let deflated = pako.deflate(buffer);
-        console.timeEnd("encode");
-        console.log("encode json len: " + buffer.length);
-        console.log("encode byte len: ", deflated.length);
+        //console.timeEnd("encode");
+        //console.log("encode json len: " + buffer.length);
+        //console.log("encode byte len: ", deflated.length);
         return deflated;
     }
     catch (e) {
@@ -67,14 +67,14 @@ function decode(raw) {
 
 
     try {
-        console.time("decode");
+        //console.time("decode");
         let inflated = pako.inflate(raw);
-        console.timeEnd("decode");
+        //console.timeEnd("decode");
         let jsonStr = decoder.decode(inflated);
         let json = JSON.parse(jsonStr);
 
-        console.log("decode byte len: ", raw.byteLength);
-        console.log("decode json len: " + inflated.length);
+        //console.log("decode byte len: ", raw.byteLength);
+        //console.log("decode json len: " + inflated.length);
 
         return json;
     }
