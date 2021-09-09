@@ -156,6 +156,7 @@ class RedisService {
     async onError(error) {
         this.active = false;
         console.error("redis error: ", error);
+        this.retry();
     }
     async onConnect(data) {
         console.log("redis connected");
