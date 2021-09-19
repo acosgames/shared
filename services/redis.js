@@ -11,6 +11,7 @@ const remote = new ServerRemoteService();
 class RedisService {
     constructor(credentials) {
         this.credentials = credentials || credutil();
+        this.redisCredentials = this.credentials.platform.redisCluster;
 
         this.callbacks = {};
         this.active = false;
@@ -62,7 +63,7 @@ class RedisService {
 
     connect(credentials) {
         if (credentials) {
-            this.credentials = credentials;
+            this.redisCredentials = credentials;
         }
         const self = this;
         return new Promise((rs, rj) => {
@@ -71,7 +72,7 @@ class RedisService {
                 return;
             }
 
-            self.client = redis.createClient(self.credentials);
+            self.client = redis.createClient(self.redisCredentials);
             self._publish = promisify(self.client.publish).bind(self.client);
             self._setex = promisify(self.client.setex).bind(self.client);
             self._set = promisify(self.client.set).bind(self.client);
@@ -99,7 +100,7 @@ class RedisService {
             }
 
             if (!self.subscriber) {
-                self.subscriber = redis.createClient(self.credentials);
+                self.subscriber = redis.createClient(self.redisCredentials);
                 self.subscriber.on('message', self.onMessage.bind(self));
                 self.subscriber.on("connect", self.onConnect.bind(self));
                 self.subscriber.on("end", self.onEnd.bind(self));
@@ -126,7 +127,7 @@ class RedisService {
                 rj("Missing key");
             }
             if (!self.watcher) {
-                self.watcher = redis.createClient(self.credentials);
+                self.watcher = redis.createClient(self.redisCredentials);
                 self.watcher.config('set', 'notify-keyspace-events', 'KEA');
                 self.watcher.on('message', self.onMessage.bind(self));
                 self.watcher.on("connect", self.onConnect.bind(self));
