@@ -279,6 +279,7 @@ module.exports = class DevGameService {
             console.log(results2);
 
             if (results.affectedRows > 0) {
+                gameVersion.gameid = game.gameid;
                 return gameVersion;
             }
         }
@@ -318,6 +319,7 @@ module.exports = class DevGameService {
             console.log(results2);
 
             if (results.affectedRows > 0) {
+                gameVersion.gameid = game.gameid;
                 return gameVersion;
             }
         }

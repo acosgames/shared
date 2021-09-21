@@ -75,6 +75,7 @@ class RedisService {
             self.client = redis.createClient(self.redisCredentials);
             self._publish = promisify(self.client.publish).bind(self.client);
             self._setex = promisify(self.client.setex).bind(self.client);
+            self._hset = promisify(self.client.hset).bind(self.client);
             self._set = promisify(self.client.set).bind(self.client);
             self._get = promisify(self.client.get).bind(self.client);
             self._del = promisify(self.client.del).bind(self.client);
@@ -189,6 +190,23 @@ class RedisService {
     }
 
     async set(key, value, ttl) {
+        try {
+            ttl = ttl || this.credentials.defaultExpireTime || 300
+            if (typeof value === 'object') {
+                value = JSON.stringify(value);
+            }
+
+            let result = await this._setex(key, ttl, value);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            throw new GeneralError('ERROR_REDIS_SET', { key, value });
+        }
+
+    }
+
+    async hset(key, value, ttl) {
         try {
             ttl = ttl || this.credentials.defaultExpireTime || 300
             if (typeof value === 'object') {
