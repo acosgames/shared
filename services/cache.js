@@ -5,7 +5,7 @@ const RedisService = require('./redis');
 
 class Cacher {
     constructor() {
-        this.cache = new NodeCache({ stdTTL: 300, checkperiod: 150 });
+        this.cache = new NodeCache({ stdTTL: 15, checkperiod: 10 });
         this.dict = {};
         this.redis = RedisService;
     }
@@ -40,7 +40,7 @@ class Cacher {
         }
         else {
             //this.dict[key] = value;
-            this.cache.set(key, value, { ttl: Math.round(ttl * 0.7) });
+            this.cache.set(key, value);
             this.redis.set(key, value, ttl);
         }
 

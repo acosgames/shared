@@ -45,7 +45,7 @@ module.exports = class ObjectStorage {
                         return;
                     }
                     rs(data);
-                    console.log('file downloaded successfully')
+                    console.log('file downloaded successfully: ', Key)
                 })
             }
             catch (e) {
@@ -82,7 +82,7 @@ module.exports = class ObjectStorage {
                     fs.writeFileSync('./serverScripts/' + Key, data.Body)
                     let js = data.Body.toString('utf-8');
                     rs(js);
-                    console.log('file downloaded successfully')
+                    console.log('file downloaded successfully: ', Key)
                 })
             }
             catch (e) {
@@ -125,7 +125,7 @@ module.exports = class ObjectStorage {
                     await fs.promises.writeFile('./serverScripts/' + Key, data.Body)
                     let js = data.Body.toString('utf-8');
                     rs(js);
-                    console.log('file downloaded successfully')
+                    console.log('file downloaded successfully: ', Key)
                 })
             }
             catch (e) {

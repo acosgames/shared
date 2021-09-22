@@ -130,7 +130,7 @@ class RabbitMQService {
 
             let queue = generateAPIKEY();
 
-            let queueCreated = await this.in.assertQueue(queue, { autoDelete: true });
+            let queueCreated = await this.in.assertQueue(queue, { autoDelete: false });
             if (!queueCreated)
                 return false;
 
@@ -202,7 +202,7 @@ class RabbitMQService {
                     rs(count);
                     return;
                 }
-                let queueCreated = await self.in.assertQueue(queue, { autoDelete: true });
+                let queueCreated = await self.in.assertQueue(queue, { autoDelete: false });
                 cache.set(queue, queueCreated.consumerCount, ttl);
                 // console.log('Consumer count: ', queueCreated.consumerCount)
                 rs(queueCreated.consumerCount);
@@ -225,7 +225,7 @@ class RabbitMQService {
                     self.in = await self.subscriber.createChannel();
                 }
 
-                let queueCreated = await self.in.assertQueue(queue, { autoDelete: true });
+                let queueCreated = await self.in.assertQueue(queue, { autoDelete: false });
                 if (queueCreated) {
 
                     this.inChannel.queues[queue] = callback;
@@ -293,7 +293,7 @@ class RabbitMQService {
             }
 
             // this.out
-            let queueCreated = await this.out.assertQueue(queue, { autoDelete: true });
+            let queueCreated = await this.out.assertQueue(queue, { autoDelete: false });
             if (queueCreated) {
                 if (typeof value === 'object') {
                     value = JSON.stringify(value);

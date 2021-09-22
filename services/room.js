@@ -362,7 +362,7 @@ class RoomService {
 
             response = await db.sql(`SELECT * FROM game_info WHERE game_slug = ?`, [game_slug]);
 
-            if (!response.results | response.results.length == 0)
+            if (!response.results || response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
 
             let published = response.results[0];
