@@ -14,6 +14,16 @@ function sleep(ms) {
 
 const cache = require('./cache');
 
+const ModeFromID = [
+    'beta', 'rank', 'public', 'private'
+]
+const ModeFromName = {
+    'beta': 0,
+    'rank': 1,
+    'public': 2,
+    'private': 3
+}
+
 class RoomService {
 
     constructor(credentials) {
@@ -21,7 +31,13 @@ class RoomService {
 
     }
 
+    getGameModeID(name) {
+        return ModeFromName[name];
+    }
 
+    getGameModeName(id) {
+        return ModeFromID[id];
+    }
 
     async assignPlayerRoom(shortid, room_slug, game_slug) {
         try {
@@ -299,7 +315,7 @@ class RoomService {
         return false;
     }
 
-    async findAnyRoom(user, game_slug, isBeta, rooms, attempt) {
+    async findAnyRoom(user, game_slug, mode, rooms, attempt) {
         try {
             attempt = attempt || 1;
             rooms = rooms || [];
@@ -315,7 +331,7 @@ class RoomService {
                 rooms = rooms || await this.findRooms(game_slug);
             }
 
-            if (isBeta) {
+            if (mode == 'beta') {
                 let betaRooms = [];
                 for (let i = 0; i < rooms.length; i++) {
                     let room = rooms[i];
@@ -334,7 +350,7 @@ class RoomService {
             // rooms = rooms.filter(room => room.player_count >= room.max_players)
 
             if (rooms.length == 0) {
-                return await this.createRoom(user, game_slug, isBeta);
+                return await this.createRoom(user, game_slug, mode);
             }
 
             let index = Math.floor(Math.random() * rooms.length);
@@ -353,8 +369,40 @@ class RoomService {
         return [];
     }
 
+    async getGameInfo(game_slug) {
+        try {
+            let gameinfo = await cache.get(game_slug);
+            if (gameinfo) {
+                let now = (new Date()).getTime()
+                if (gameinfo.expires > now)
+                    return gameinfo;
+            }
 
-    async createRoom(user, game_slug, istest, private_key) {
+            let db = await mysql.db();
+            var response;
+            console.log("Getting list of game versions");
+
+            response = await db.sql(`SELECT * FROM game_info WHERE game_slug = ?`, [game_slug]);
+
+            if (!response.results || response.results.length == 0)
+                throw new GeneralError("E_GAMENOTEXIST");
+
+            gameinfo = response.results[0];
+
+            let now = (new Date()).getTime()
+            gameinfo.expires = now + 120;
+
+            cache.set(game_slug, gameinfo, 120);
+            return gameinfo;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
+    async createRoom(user, game_slug, mode, private_key) {
         try {
             let db = await mysql.db();
             var response;
@@ -371,14 +419,23 @@ class RoomService {
             let database = published.db || false;
             let latest_tsupdate = published.tsupdate;
 
-            if (istest) {
+            //beta uses the latest version that is not in production
+            if (mode == 'beta') {
                 version = published.latest_version;
                 database = published.latest_db || false;
                 latest_tsupdate = published.latest_tsupdate;
             }
 
+            let minplayers = published.minplayers;
+            let maxplayers = published.maxplayers;
+            let teams = published.teams;
+
             let rating = user.ratings[game_slug];
             let owner = user.id;
+
+            //use ID instead of name for database
+            mode = this.getGameModeID(mode);
+
             let room = {
                 room_slug: genShortId(5),
                 game_slug,
@@ -386,7 +443,10 @@ class RoomService {
                 version,
                 db: database,
                 latest_tsupdate,
-                istest,
+                minplayers,
+                maxplayers,
+                teams,
+                mode,
                 rating,
                 owner,
                 isprivate: 0
