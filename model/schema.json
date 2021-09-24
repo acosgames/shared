@@ -27,10 +27,29 @@
             "required": true,
             "max": 1200,
             "min": 3
-        }
-      
-        
-        
+        },
+        "maxplayers": {
+            "label": "Max players",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 1,
+            "greaterthanequal": "minplayers"
+        },
+        "minplayers": {
+            "label": "Max players",
+            "type": "number",
+            "required": true,
+            "max": 10,
+            "min": 1,
+            "lessthanequal": "maxplayers"
+        },
+        "teams": {
+            "label": "Team Names",
+            "type": "string",
+            "required": false,
+            "max": 255
+        } 
     },
 
     "game_client": {

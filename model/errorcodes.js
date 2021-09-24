@@ -15,6 +15,8 @@ const ErrorCodes = {
     "E_FIELD_INVALIDTYPE": "$1 has invalid type",
     "E_FIELD_TOOLONG": "$1 is too long, must be under $2 characters.",
     "E_FIELD_TOOSHORT": "$1 is too short, must be more than $2 characters.",
+    "E_NUMBER_TOOSMALL": "$1 must be bigger than $2.",
+    "E_NUMBER_TOOBIG": "$1 must be smaller than $2.",
     "E_ERROR": "An unknown error occurred"
 }
 
