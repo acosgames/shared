@@ -215,12 +215,14 @@ class RoomService {
 
             let key = shortid + '/' + game_slug;
             let rating = await cache.get(key);
-            if (rating)
+            if (rating) {
+                console.log("Getting player rating for: ", key, rating.rating);
                 return rating;
+            }
 
             let db = await mysql.db();
             var response;
-            console.log("Getting player rating for: ", key);
+
             //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
             response = await db.sql('SELECT * from person_rank WHERE shortid = ? AND game_slug = ?', [shortid, game_slug]);
 
@@ -231,6 +233,7 @@ class RoomService {
                 delete rating['tsupdate'];
                 delete rating['tsinsert'];
                 cache.set(key, rating, 600);
+                console.log("Getting player rating for: ", key, rating.rating);
                 return rating;
             }
 
@@ -248,7 +251,7 @@ class RoomService {
                 sigma
             };
             response = await db.insert('person_rank', rating);
-
+            console.log("Getting player rating for: ", key, rating.rating);
 
             delete rating.shortid;
             delete rating.game_slug;
@@ -379,7 +382,10 @@ class RoomService {
         try {
             let modes = await cache.get('modes');
             if (modes) {
-                return modes;
+                let now = (new Date()).getTime()
+                let expires = await cache.get('modes/expire');
+                if (expires && expires > now)
+                    return modes;
             }
 
             let db = await mysql.db();
@@ -398,9 +404,13 @@ class RoomService {
                     modes[i].data = json;
                 }
                 catch (e) {
+                    console.error(e);
                 }
             }
 
+            let now = (new Date()).getTime()
+            let expires = now + 3600 * 1000;
+            cache.set('modes/expire', expires, 3600);
             cache.set('modes', response.results, 3600);
 
             return response.results;
