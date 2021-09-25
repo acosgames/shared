@@ -234,12 +234,18 @@ class RoomService {
                 return rating;
             }
 
+            let mu = Math.floor(Math.random() * 32) + 2
+            let sigma = 1.5;
+            rating = mu * 100;
+            // let rating = 1200;
+            // let mu = 12.0;
+            // let sigma = 1.5;
             rating = {
                 shortid,
                 game_slug,
-                rating: 1200,
-                mu: 12.0,
-                sigma: 1.5
+                rating: mu * 100,
+                mu,
+                sigma
             };
             response = await db.insert('person_rank', rating);
 
@@ -369,18 +375,54 @@ class RoomService {
         return [];
     }
 
+    async getModes() {
+        try {
+            let modes = await cache.get('modes');
+            if (modes) {
+                return modes;
+            }
+
+            let db = await mysql.db();
+            var response;
+            console.log("Getting list of modes");
+
+            response = await db.sql(`SELECT * FROM game_modes`);
+
+            modes = response.results;
+            if (!modes)
+                throw new GeneralError("E_MODENOTEXIST");
+
+            for (let i = 0; i < modes.length; i++) {
+                try {
+                    let json = JSON.parse(modes[i].data);
+                    modes[i].data = json;
+                }
+                catch (e) {
+                }
+            }
+
+            cache.set('modes', response.results, 3600);
+
+            return response.results;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
     async getGameInfo(game_slug) {
         try {
             let gameinfo = await cache.get(game_slug);
             if (gameinfo) {
                 let now = (new Date()).getTime()
-                if (gameinfo.expires > now)
+                if (typeof gameinfo.expires !== 'undefined' && gameinfo.expires > now)
                     return gameinfo;
             }
 
             let db = await mysql.db();
             var response;
-            console.log("Getting list of game versions");
+            console.log("Getting game info: ", game_slug);
 
             response = await db.sql(`SELECT * FROM game_info WHERE game_slug = ?`, [game_slug]);
 
@@ -390,7 +432,7 @@ class RoomService {
             gameinfo = response.results[0];
 
             let now = (new Date()).getTime()
-            gameinfo.expires = now + 120;
+            gameinfo.expires = now + 120 * 1000;
 
             cache.set(game_slug, gameinfo, 120);
             return gameinfo;
@@ -406,7 +448,7 @@ class RoomService {
         try {
             let db = await mysql.db();
             var response;
-            console.log("Getting list of game versions");
+            console.log("Creating room: ", game_slug, mode);
 
             response = await db.sql(`SELECT * FROM game_info WHERE game_slug = ?`, [game_slug]);
 
