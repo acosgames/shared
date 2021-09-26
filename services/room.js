@@ -49,13 +49,21 @@ class RoomService {
             // cache.set(key, true);
             if (!game_slug) {
                 let meta = await this.findRoom(room_slug);
+                if (!meta) {
+                    console.error("[assignPlayerRoom] Room does not exist: " + room_slug);
+                    return null;
+                }
                 game_slug = meta.game_slug;
             }
 
+            let mode = r.getGameModeName(meta.mode);
+            let version = meta.mode == 'beta' ? meta.latest_version : meta.version;
             let personRoom = {
                 shortid,
                 room_slug,
-                game_slug
+                game_slug,
+                mode,
+                version
             }
             let response = await db.insert('person_room', personRoom);
 
@@ -223,15 +231,10 @@ class RoomService {
             let db = await mysql.db();
             var response;
 
-            //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
-            response = await db.sql('SELECT * from person_rank WHERE shortid = ? AND game_slug = ?', [shortid, game_slug]);
+            response = await db.sql('SELECT rating, mu, sigma, win, loss, tie, played from person_rank WHERE shortid = ? AND game_slug = ?', [shortid, game_slug]);
 
             if (response.results && response.results.length > 0) {
                 rating = response.results[0];
-                delete rating.shortid;
-                delete rating.game_slug;
-                delete rating['tsupdate'];
-                delete rating['tsinsert'];
                 cache.set(key, rating, 600);
                 console.log("Getting player rating for: ", key, rating.rating);
                 return rating;
@@ -239,7 +242,7 @@ class RoomService {
 
             let mu = Math.floor(Math.random() * 32) + 2
             let sigma = 1.5;
-            rating = mu * 100;
+            // rating = mu * 100;
             // let rating = 1200;
             // let mu = 12.0;
             // let sigma = 1.5;
@@ -248,7 +251,11 @@ class RoomService {
                 game_slug,
                 rating: mu * 100,
                 mu,
-                sigma
+                sigma,
+                win: 0,
+                loss: 0,
+                tie: 0,
+                played: 0
             };
             response = await db.insert('person_rank', rating);
             console.log("Getting player rating for: ", key, rating.rating);
@@ -281,6 +288,8 @@ class RoomService {
 
             if (response.results && response.results.length > 0) {
                 let room = response.results[0];
+                //convert from id to name
+                room.mode = this.getGameModeName(room.mode);
                 delete room['tsupdate'];
                 delete room['tsinsert'];
                 cache.set(key, room);
@@ -359,7 +368,7 @@ class RoomService {
             // rooms = rooms.filter(room => room.player_count >= room.max_players)
 
             if (rooms.length == 0) {
-                return await this.createRoom(user, game_slug, mode);
+                return await this.createRoom(user.shortid, user.ratings[game_slug], game_slug, mode);
             }
 
             let index = Math.floor(Math.random() * rooms.length);
@@ -454,7 +463,7 @@ class RoomService {
         }
     }
 
-    async createRoom(user, game_slug, mode, private_key) {
+    async createRoom(shortid, rating, game_slug, mode, private_key) {
         try {
             let db = await mysql.db();
             var response;
@@ -482,8 +491,8 @@ class RoomService {
             let maxplayers = published.maxplayers;
             let teams = published.teams;
 
-            let rating = user.ratings[game_slug];
-            let owner = user.id;
+            // let rating = user.ratings[game_slug];
+            // let owner = user.id;
 
             //use ID instead of name for database
             mode = this.getGameModeID(mode);
@@ -500,7 +509,7 @@ class RoomService {
                 teams,
                 mode,
                 rating,
-                owner,
+                owner: shortid,
                 isprivate: 0
             }
 
@@ -572,7 +581,7 @@ class RoomService {
             // cache.del(room_slug);
             // cache.del(room_slug + '/meta');
             // cache.del(room_slug + '/timer');
-            // cache.del(room_slug + '/p');
+            // cache.del(room_slug + '/p'); 
 
             let db = await mysql.db();
             var response;

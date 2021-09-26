@@ -14,12 +14,20 @@ class Cacher {
         //let key = shortid + '/' + room_slug;
         //let value = this.dict[key];
         let value = this.cache.get(key);
-        if (typeof value == 'undefined') {
+        if (typeof value === 'undefined') {
             value = await this.redis.get(key);
-            if (typeof value !== 'undefined')
-                this.dict[key] = value;
+            // if (typeof value !== 'undefined')
+            //     this.dict[key] = value;
         }
 
+
+        return value;
+    }
+
+    async getremote(key) {
+        //let key = shortid + '/' + room_slug;
+        //let value = this.dict[key];
+        let value = await this.redis.get(key);
 
         return value;
     }
@@ -44,6 +52,15 @@ class Cacher {
             this.redis.set(key, value, ttl);
         }
 
+    }
+
+    setremote(key, value, ttl) {
+        if (!ttl) {
+            this.redis.set(key, value);
+        }
+        else {
+            this.redis.set(key, value, ttl);
+        }
     }
 
     setLocal(key, value, ttl) {
