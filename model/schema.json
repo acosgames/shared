@@ -1,5 +1,35 @@
 {
-    "game_info": {
+    "create-game_info": {
+        "name": {
+            "label": "Game Name",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "game_slug": {
+            "label": "Slug Name",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "shortdesc": {
+            "label": "Short Description",
+            "type": "string",
+            "required": true,
+            "max": 80,
+            "min": 3
+        },
+        "longdesc": {
+            "label": "Long Description",
+            "type": "string",
+            "required": true,
+            "max": 1200,
+            "min": 3
+        }
+    },
+    "update-game_info": {
         "name": {
             "label": "Game Name",
             "type": "string",
