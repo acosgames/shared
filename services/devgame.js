@@ -83,10 +83,10 @@ module.exports = class DevGameService {
             var response;
             console.log("Searching for game: ", game);
             if (game.apikey) {
-                response = await db.sql('SELECT i.gameid, i.version as published_version, v.version as version, i.game_slug, i.ownerid, v.tsupdate as latest_tsupdate FROM game_info i, game_version v WHERE i.apikey = ? AND i.gameid = v.gameid ORDER by v.version desc', [game.apikey]);
+                response = await db.sql('SELECT i.gameid, i.status as published_status, i.version as published_version, v.version as version, i.game_slug, i.ownerid, v.tsupdate as latest_tsupdate FROM game_info i, game_version v WHERE i.apikey = ? AND i.gameid = v.gameid ORDER by v.version desc', [game.apikey]);
             }
             else if (game.gameid) {
-                response = await db.sql('SELECT i.gameid, i.version as published_version, v.version as version, i.game_slug, i.ownerid, v.tsupdate as latest_tsupdate FROM game_info i, game_version v WHERE i.gameid = ? AND i.gameid = v.gameid ORDER by v.version desc', [{ toSqlString: () => game.gameid }]);
+                response = await db.sql('SELECT i.gameid, i.status as published_status, i.version as published_version, v.version as version, i.game_slug, i.ownerid, v.tsupdate as latest_tsupdate FROM game_info i, game_version v WHERE i.gameid = ? AND i.gameid = v.gameid ORDER by v.version desc', [{ toSqlString: () => game.gameid }]);
             }
 
             return response.results;
@@ -274,8 +274,12 @@ module.exports = class DevGameService {
             let { results } = await db.update('game_version', { status: 2 }, 'gameid = ? AND version = ?', [game.gameid, game.version]);
             console.log(results);
 
+            let published_status = game.published_status;
+            if (published_status == 1) {
+                published_status = 2;
+            }
             //save the latest version in game_info
-            let { results2 } = await db.update('game_info', { latest_tsupdate: toMysqlFormat(new Date()) }, 'gameid = ?', [game.gameid])
+            let { results2 } = await db.update('game_info', { status: published_status, latest_tsupdate: toMysqlFormat(new Date()) }, 'gameid = ?', [game.gameid])
             console.log(results2);
 
             if (results.affectedRows > 0) {
@@ -315,7 +319,11 @@ module.exports = class DevGameService {
             console.log(results);
 
             //save the latest version in game_info
-            let { results2 } = await db.update('game_info', { latest_version: game.version, latest_tsupdate: game.last_tsupdate }, 'gameid = ?', [game.gameid])
+            let published_status = game.published_status;
+            if (published_status == 1) {
+                published_status = 2;
+            }
+            let { results2 } = await db.update('game_info', { status: published_status, latest_version: game.version, latest_tsupdate: game.last_tsupdate }, 'gameid = ?', [game.gameid])
             console.log(results2);
 
             if (results.affectedRows > 0) {

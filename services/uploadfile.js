@@ -8,11 +8,12 @@ const multerS3 = require('multer-s3-transform');
 // const busboy = require('busboy');
 var zlib = require('zlib');
 var stream = require("stream");
+const { GeneralError } = require('../util/errorhandler');
 
 const encoder = new TextEncoder('utf-8');
 const decoder = new TextDecoder('utf-8');
 
-var iframeTop = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8" /><title>FiveSecondGames - Client Simulator</title><meta name="description" content="FiveSecondGames Client Simulator" /><meta name="author" content="fsg" /><meta http-equiv="Content-Security-Policy" content="script-src 'self' f000.backblazeb2.com 'unsafe-inline';" /></head><body><div id="root"></div><script>`;
+var iframeTop = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8" /><title>FiveSecondGames - Client Simulator</title><meta name="description" content="FiveSecondGames Client Simulator" /><meta name="author" content="fsg" /><meta http-equiv="Content-Security-Policy" content="script-src 'self' cdn.fivesecondgames.com 'unsafe-inline';" /></head><body><div id="root"></div><script>`;
 var iframeBottom = `</script></body></html>`
 iframeTop = encoder.encode(iframeTop);
 iframeBottom = encoder.encode(iframeBottom);
@@ -136,6 +137,159 @@ module.exports = class UploadFile {
         return [];
     }
 
+
+    middlewareGame(clientBucket, serverBucket, metadataCB) {
+
+
+        // mimetypes = mimetypes || ['image/jpeg', 'image/png'];
+        let clientContentType = 'text/html';
+        let serverContentType = ['text/javascript', 'application/javascript'];
+        let dbContentType = ['text/javascript', 'application/json'];
+
+        const serverStorage = multerS3({
+            s3: this.s3,
+            bucket: serverBucket,
+            acl: 'private',
+            contentType: (req, file, cb) => {
+                if (file.field == 'server')
+                    cb(null, 'application/javascript', file.stream);
+                else if (file.field == 'db')
+                    cb(null, 'application/json', file.stream);
+            },
+            metadata: metadataCB || function (req, file, cb) {
+                cb(null, { fieldName: file.fieldname });
+            },
+            key: (req, file, cb) => {
+                if (file.fieldname == 'db') {
+                    let game = req.game;
+                    var filename = file.originalname;
+                    filename = "server.db." + game.version + '.json';
+                    let key = game.gameid + '/' + filename;
+
+                    cb(null, key)
+                }
+                else if (file.fieldname == 'server') {
+                    let game = req.game;
+                    var filename = file.originalname;
+                    filename = filename.replace('.js', '.' + game.version + '.js')
+                    let key = game.gameid + '/' + filename;
+
+                    cb(null, key)
+                }
+            }
+        });
+
+        const clientStorage = multerS3({
+            s3: this.s3,
+            bucket: clientBucket,
+            acl: 'public-read',
+            contentType: function (req, file, cb) { cb(null, clientContentType); } || multerS3.AUTO_CONTENT_TYPE,
+            metadata: function (req, file, cb) {
+                if (file.fieldname !== 'client')
+                    cb(null, null);
+                cb(null, { fieldName: file.fieldname, 'Content-Type': clientContentType, 'Content-Encoding': 'gzip', 'b2-content-encoding': 'gzip' });
+            },
+            key: (req, file, cb) => {
+                let game = req.game;
+                var filename = file.originalname;
+                filename = filename.replace('.js', '.' + game.version + '.js')
+                let key = game.gameid + '/client/' + filename;
+                cb(null, key)
+            },
+            shouldTransform: function (req, file, cb) {
+                if (file.fieldname !== 'client')
+                    cb(null, false);
+                cb(null, true)
+            },
+            transforms: [{
+                id: 'html',
+                key: function (req, file, cb) {
+                    let game = req.game;
+                    var filename = file.originalname;
+                    filename = filename.replace('.js', '.' + game.version + '.html')
+                    let key = game.gameid + '/client/' + filename;
+                    cb(null, key)
+                },
+                transform: function (req, file, cb) {
+                    var fileStream = file.stream;
+                    var out = new stream.PassThrough();
+                    let zipped
+                        = zlib.createGzip();
+                    var cnt = 0;
+                    fileStream.on('data', (chunk) => {
+                        console.log("chunk[" + cnt + "]", chunk);
+                        cnt++;
+                        //prepend the iframe top html
+                        if (cnt == 1)
+                            zipped.write(iframeTop);
+                        //write the JS into the middle
+                        zipped.write(chunk);
+                    });
+
+                    fileStream.on('end', () => {
+                        //append the iframe bottom html
+                        zipped.write(iframeBottom);
+                        // var zipped = new stream.PassThrough();
+                        cb(null, zipped);
+                    });
+                }
+            }]
+        });
+
+
+        const clientMimetypes = ['text/javascript', 'application/javascript'];
+        const clientFileFilter = (req, file, cb) => {
+            if (file.fieldname !== 'client') {
+                cb(null, false);
+                return;
+            }
+
+            var key = file.originalname;
+            var fileExt = key.split('.').pop();
+            if (fileExt.length == key.length) {
+                cb(null, false);
+                return;
+            }
+
+            if (clientMimetypes.includes(file.mimetype)) {
+                cb(null, true);
+            } else {
+                cb(null, false);
+            }
+        }
+
+        const serverMimeTypes = ['text/javascript', 'application/javascript'];
+        const dbMimeTypes = ['text/javascript', 'application/json'];
+        const fileFilter = (req, file, cb) => {
+            if (file.fieldname === 'client') {
+                cb(null, false);
+                return;
+            }
+
+            var key = file.originalname;
+            var fileExt = key.split('.').pop();
+            if (fileExt.length == key.length) {
+                cb(null, false);
+                return;
+            }
+
+            if (file.fieldname == 'server' && serverMimeTypes.includes(file.mimetype)) {
+                cb(null, true);
+            } else if (file.fieldname == 'db' && dbMimeTypes.includes(file.mimetype)) {
+                cb(null, true);
+            } else {
+                cb(null, false);
+            }
+        }
+
+        let clientMulter = multer({ storage: clientStorage, fileFilter: clientFileFilter });
+        let serverMulter = multer({ storage: serverStorage, fileFilter: fileFilter });
+
+        let clientMiddleware = clientMulter.any();//single('client');
+        let serverMiddleware = serverMulter.any();//.single('server');
+        let dbMiddleware = serverMulter.any();//.single('db');
+        return { clientMiddleware, serverMiddleware, dbMiddleware };
+    }
 
 
     // busboyMiddleware({ onFile, onField, onFinish, onFileData, onFileEnd }) {
