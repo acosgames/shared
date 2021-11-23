@@ -27,6 +27,10 @@ class RabbitMQService {
 
     }
 
+    getInChannel() {
+        return this.inChannel;
+    }
+
     isActive() {
         return this.active;
     }
@@ -109,8 +113,10 @@ class RabbitMQService {
         this.active = true;
 
         for (var name in this.inChannel.exchanges) {
-            let exchange = this.inChannel.exchanges[name];
-            this.subscribe(name, exchange.pattern, exchange.callback);
+            let parts = name.split('/');
+            let exchange = parts[0];
+            let pattern = parts[1];
+            this.subscribe(exchange, pattern, exchange.callback, exchange.queue);
         }
 
         for (var name in this.inChannel.queues) {
@@ -119,8 +125,34 @@ class RabbitMQService {
         }
     }
 
-    async subscribe(exchange, pattern, callback) {
-        this.callbacks[pattern + '-' + exchange] = callback || null;
+    async unsubscribe(exchange, pattern, queue) {
+        if (this.callbacks[exchange + '/' + pattern])
+            delete this.callbacks[exchange + '/' + pattern];
+
+        try {
+            if (!queue)
+                return false;
+            if (!this.subscriber) {
+                this.subscriber = await rabbitmq.connect(this.credentials.host);
+                this.in = await this.subscriber.createChannel();
+            }
+
+            let bindRemoved = await this.in.unbindQueue(queue, exchange, pattern);
+
+            console.log("[AMQP] Removed binding to exchange: ", exchange, pattern);
+            delete this.inChannel.exchanges[exchange + '/' + pattern];
+
+            return true;
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+        return false;
+    }
+
+    async subscribe(exchange, pattern, callback, queue) {
+        this.callbacks[exchange + '/' + pattern] = callback || null;
 
         try {
             if (!this.subscriber) {
@@ -128,7 +160,7 @@ class RabbitMQService {
                 this.in = await this.subscriber.createChannel();
             }
 
-            let queue = generateAPIKEY();
+            queue = queue || generateAPIKEY();
 
             let queueCreated = await this.in.assertQueue(queue, { autoDelete: false });
             if (!queueCreated)
@@ -142,7 +174,8 @@ class RabbitMQService {
             let bindCreated = await this.in.bindQueue(queue, exchange, pattern);
 
             console.log("[AMQP] Subscribed to exchange: ", exchange, pattern);
-            this.inChannel.exchanges[exchange] = { pattern, callback };
+            this.inChannel.exchanges[exchange + '/' + pattern] = { pattern, callback, queue };
+
 
             await this.in.consume(queue, (msg) => {
                 let msgStr = msg.content.toString().trim();
@@ -168,7 +201,7 @@ class RabbitMQService {
                 noAck: true,
             });
 
-            return true;
+            return queue;
         }
         catch (e) {
             console.error(e);

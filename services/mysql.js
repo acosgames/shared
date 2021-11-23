@@ -303,6 +303,16 @@ module.exports = class MySQL {
                 },
 
                 insertBatch: (table, rows, primarykeys) => {
+
+                    // if( rows.length > 1000 ) {
+                    //     let subset = rows.slice(0,1000);
+                    //     let remaining = rows.slice(1000, rows.length);
+                    //     let results = [];
+                    //     let result1 = await this.insertBatch(table, subset, primarykeys);
+                    //     let result2 = await this.insertBatch(table, remaining, primarykeys);
+                    //     return;
+                    // }
+
                     return new Promise((resolve, reject) => {
                         try {
                             if (!conn) {
