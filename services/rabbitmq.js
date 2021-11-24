@@ -120,7 +120,7 @@ class RabbitMQService {
         }
 
         for (var name in this.inChannel.queues) {
-            let callback = this.inChannel.queues[name];
+            let callback = this.inChannel.queues[name].callback;
             this.subscribeQueue(name, callback);
         }
     }
@@ -151,6 +151,24 @@ class RabbitMQService {
         return false;
     }
 
+    async findExistingQueue(queue) {
+        let queueNum = 1;
+        // queue = queue;
+        let queueAlias = queue + '-' + queueNum;
+        let queueCreated = await this.in.assertQueue(queueAlias, { autoDelete: false });
+
+        while (queueCreated && queueCreated.consumerCount != 0) {
+            queueNum++;
+            queueAlias = queue + '-' + queueNum;
+            queueCreated = await this.in.assertQueue(queueAlias, { autoDelete: false });
+        }
+
+        if (!queueCreated)
+            return false;
+
+        return queueAlias;
+    }
+
     async subscribe(exchange, pattern, callback, queue) {
         this.callbacks[exchange + '/' + pattern] = callback || null;
 
@@ -160,9 +178,103 @@ class RabbitMQService {
                 this.in = await this.subscriber.createChannel();
             }
 
-            queue = queue || generateAPIKEY();
+            let queueNum = 1;
+            // queue = queue;
+            let queueAlias = exchange + '-' + queueNum;
+            if (queue) {
+                queueAlias = queue;
+            }
 
-            let queueCreated = await this.in.assertQueue(queue, { autoDelete: false });
+            let queueCreated = await this.in.assertQueue(queueAlias, { autoDelete: false });
+            if (!queue) {
+                while (queueCreated && queueCreated.consumerCount != 0) {
+                    queueNum++;
+                    queueAlias = exchange + '-' + queueNum;
+                    queueCreated = await this.in.assertQueue(queueAlias, { autoDelete: false });
+                }
+            }
+            //let queueNum = 1;
+
+
+
+
+            if (!queueCreated)
+                return false;
+
+            let exchangeCreated = await this.in.assertExchange(exchange, 'direct', { autoDelete: false });
+            if (!exchangeCreated) {
+                return false;
+            }
+
+            let bindCreated = await this.in.bindQueue(queueAlias, exchange, pattern);
+
+            console.log("[AMQP] Subscribed to exchange: ", exchange, pattern, ' queueAlias=', queueAlias);
+            this.inChannel.exchanges[exchange + '/' + pattern] = { pattern, callback, queue, queueAlias };
+
+
+            // await this.in.consume(queueAlias, (msg) => {
+            //     let msgStr = msg.content.toString().trim();
+            //     let msgJSON;
+            //     if (msgStr[0] == '{' || msgStr[0] == '[') {
+            //         msgJSON = JSON.parse(msgStr);
+            //         if (!callback(msgJSON)) {
+            //             this.nackMsg(msg);
+            //         }
+            //         else {
+            //             this.ackMsg(msg);
+            //         }
+            //     }
+            //     else {
+            //         if (!callback(msg.content)) {
+            //             this.nackMsg(msg);
+            //         }
+            //         else {
+            //             this.ackMsg(msg);
+            //         }
+            //     }
+            // }, {
+            //     noAck: true,
+            // });
+
+            return queueAlias;
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+        return false;
+    }
+
+
+    async subscribeAutoDelete(exchange, pattern, callback, queue) {
+        this.callbacks[exchange + '/' + pattern] = callback || null;
+
+        try {
+            if (!this.subscriber) {
+                this.subscriber = await rabbitmq.connect(this.credentials.host);
+                this.in = await this.subscriber.createChannel();
+            }
+
+            let queueNum = 1;
+            // queue = queue;
+            let queueAlias = exchange + '-' + queueNum;
+            if (queue) {
+                queueAlias = queue;
+            }
+
+            let queueCreated = await this.in.assertQueue(queueAlias, { autoDelete: true });
+            if (!queue) {
+                while (queueCreated && queueCreated.consumerCount != 0) {
+                    queueNum++;
+                    queueAlias = exchange + '-' + queueNum;
+                    queueCreated = await this.in.assertQueue(queueAlias, { autoDelete: true });
+                }
+            }
+            //let queueNum = 1;
+
+
+
+
             if (!queueCreated)
                 return false;
 
@@ -171,13 +283,13 @@ class RabbitMQService {
                 return false;
             }
 
-            let bindCreated = await this.in.bindQueue(queue, exchange, pattern);
+            let bindCreated = await this.in.bindQueue(queueAlias, exchange, pattern);
 
-            console.log("[AMQP] Subscribed to exchange: ", exchange, pattern);
-            this.inChannel.exchanges[exchange + '/' + pattern] = { pattern, callback, queue };
+            console.log("[AMQP] Subscribed to exchange: ", exchange, pattern, ' queueAlias=', queueAlias);
+            this.inChannel.exchanges[exchange + '/' + pattern] = { pattern, callback, queue, queueAlias };
 
 
-            await this.in.consume(queue, (msg) => {
+            await this.in.consume(queueAlias, (msg) => {
                 let msgStr = msg.content.toString().trim();
                 let msgJSON;
                 if (msgStr[0] == '{' || msgStr[0] == '[') {
@@ -201,7 +313,7 @@ class RabbitMQService {
                 noAck: true,
             });
 
-            return queue;
+            return queueAlias;
         }
         catch (e) {
             console.error(e);
@@ -209,6 +321,7 @@ class RabbitMQService {
 
         return false;
     }
+
 
     nackMsg(msg) {
         // setTimeout(async () => {
@@ -247,6 +360,24 @@ class RabbitMQService {
         });
     }
 
+    async unsubscribeQueue(queue) {
+        if (this.callbacks[queue])
+            delete this.callbacks[queue];
+
+        try {
+            let queueInfo = this.inChannel.queues[queue];
+            let queueCreated = await this.in.cancel(queueInfo.consumerTag);
+
+            if (this.inChannel.queues[queue])
+                delete this.inChannel.queues[queue];
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+        return true;
+    }
+
     async subscribeQueue(queue, callback) {
         const self = this;
         this.callbacks[queue] = callback || null;
@@ -261,10 +392,7 @@ class RabbitMQService {
                 let queueCreated = await self.in.assertQueue(queue, { autoDelete: false });
                 if (queueCreated) {
 
-                    this.inChannel.queues[queue] = callback;
-                    console.log("[AMQP] Subscribed to queue: ", queue);
-
-                    await self.in.consume(queue, (msg) => {
+                    let reply = await self.in.consume(queue, (msg) => {
                         let msgStr = msg.content.toString().trim();
                         let msgJSON;
                         if (msgStr[0] == '{' || msgStr[0] == '[') {
@@ -287,6 +415,9 @@ class RabbitMQService {
                     }, {
                         noAck: true,
                     });
+
+                    this.inChannel.queues[queue] = { callback, consumerTag: reply.consumerTag };
+                    console.log("[AMQP] Subscribed to queue: ", queue);
                 }
                 rs(queueCreated);
             }

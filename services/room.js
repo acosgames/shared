@@ -47,16 +47,15 @@ class RoomService {
 
             // let key = shortid + '/' + room_slug;
             // cache.set(key, true);
-            if (!game_slug) {
-                let meta = await this.findRoom(room_slug);
-                if (!meta) {
-                    console.error("[assignPlayerRoom] Room does not exist: " + room_slug);
-                    return null;
-                }
-                game_slug = meta.game_slug;
-            }
 
-            let mode = r.getGameModeName(meta.mode);
+            let meta = await this.findRoom(room_slug);
+            if (!meta) {
+                console.error("[assignPlayerRoom] Room does not exist: " + room_slug);
+                return null;
+            }
+            game_slug = meta.game_slug;
+
+            let mode = this.getGameModeName(meta.mode);
             let version = meta.mode == 'beta' ? meta.latest_version : meta.version;
             let personRoom = {
                 shortid,
@@ -156,6 +155,40 @@ class RoomService {
             if (e instanceof GeneralError)
                 throw e;
             throw new CodeError(e);
+        }
+    }
+
+    async addError(gameid, version, error) {
+
+        let row = {
+            gameid,
+            version,
+            type: error.type,
+            title: error.title,
+            body: error.body
+        }
+
+        let db;
+        try {
+            db = await mysql.db();
+            var response = await db.insert('game_error', row);
+            return response;
+        }
+        catch (e) {
+            console.log("Game Error already exists, updating: ", row.gameid, row.version, row.body);
+
+            try {
+                var response = await db.sql(`
+                    UPDATE game_error
+                    SET count = IFNULL(count, 0) + 1
+                    WHERE gameid = ? AND version = ? AND body = ?
+                `, [{ toSqlString: () => row.gameid }, row.version, row.body]);
+                console.log(response);
+            }
+            catch (e) {
+                console.error(e);
+                console.log("Failed to find record.", row.gameid, row.version, row.body);
+            }
         }
     }
 
