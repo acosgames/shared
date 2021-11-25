@@ -175,7 +175,7 @@ class RoomService {
             return response;
         }
         catch (e) {
-            console.log("Game Error already exists, updating: ", row.gameid, row.version, row.body);
+            //console.log("Game Error already exists, updating: ", row.gameid, row.version, row.body);
 
             try {
                 var response = await db.sql(`
@@ -183,7 +183,7 @@ class RoomService {
                     SET count = IFNULL(count, 0) + 1
                     WHERE gameid = ? AND version = ? AND body = ?
                 `, [{ toSqlString: () => row.gameid }, row.version, row.body]);
-                console.log(response);
+                //console.log(response);
             }
             catch (e) {
                 console.error(e);
