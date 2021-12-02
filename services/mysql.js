@@ -187,7 +187,7 @@ module.exports = class MySQL {
                             var query = conn.query('INSERT INTO ' + table + ' SET ?', row, function (error, results, fields) {
                                 if (error) {
                                     conn.rollback();
-                                    console.error(error);
+                                    // console.error(error);
                                     reject(new SQLError('E_SQL_ERROR', error));
                                     if (type == 2)
                                         conn.release();

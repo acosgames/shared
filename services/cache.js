@@ -24,6 +24,12 @@ class Cacher {
         return value;
     }
 
+    getLocal(key) {
+        console.log(`${key} has TTL: ${this.cache.getTtl(key)}`);
+        let value = this.cache.get(key);
+        return value;
+    }
+
     async getremote(key) {
         //let key = shortid + '/' + room_slug;
         //let value = this.dict[key];
@@ -71,7 +77,7 @@ class Cacher {
         }
         else {
             //this.dict[key] = value;
-            this.cache.set(key, value, { ttl: Math.round(ttl * 0.7) });
+            this.cache.set(key, value, Math.round(ttl));
             // this.redis.set(key, value, ttl);
         }
     }

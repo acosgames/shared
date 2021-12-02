@@ -31,7 +31,7 @@ class RedisService {
 
         try {
             if (options) {
-                this.connect(options);
+                await this.connect(options);
                 return;
             }
 
@@ -53,7 +53,7 @@ class RedisService {
                 host, port
             }
 
-            this.connect(options);
+            await this.connect(options);
         }
         catch (e) {
             retry(options);
