@@ -1,8 +1,8 @@
 
-const FOENV = process.env.FOENV;
+const FSGENV = process.env.FSGENV;
 
 module.exports = () => {
-    if (FOENV == 'prod' || FOENV == 'production') {
+    if (FSGENV == 'prod' || FSGENV == 'production') {
         return require('../credential/production.json');
     }
 

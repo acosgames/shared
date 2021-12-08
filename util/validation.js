@@ -55,11 +55,15 @@ function validateField(tableName, key, value, fields) {
 
 const validationRules = {
     type: (fields, table, rules, value, errors) => {
+        if (value == null)
+            return;
         if (rules.type && typeof value !== rules.type) {
             errors.push(ValidateError('E_FIELD_INVALIDTYPE', rules.label));
         }
     },
     required: (fields, table, rules, value, errors) => {
+        if (!rules.required)
+            return;
         if (!value || value.length < 0) {
             errors.push(ValidateError('E_FIELD_REQUIRED', rules.label));
         }

@@ -55,7 +55,7 @@
             "label": "Long Description",
             "type": "string",
             "required": true,
-            "max": 1200,
+            "max": 5000,
             "min": 3
         },
         "maxplayers": {

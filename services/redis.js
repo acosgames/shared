@@ -56,7 +56,7 @@ class RedisService {
             await this.connect(options);
         }
         catch (e) {
-            retry(options);
+            this.retry(options);
         }
 
     }

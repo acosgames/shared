@@ -302,7 +302,7 @@ module.exports = class MySQL {
                     });
                 },
 
-                insertBatch: (table, rows, primarykeys) => {
+                insertBatch: (table, rows, primarykeys, incrementKeys) => {
 
                     // if( rows.length > 1000 ) {
                     //     let subset = rows.slice(0,1000);
@@ -366,6 +366,11 @@ module.exports = class MySQL {
                             }
 
                             let updateColumns = [];
+
+                            if (incrementKeys)
+                                for (var key of incrementKeys) {
+                                    updateColumns.push(key + '= ' + key + ' + 1');
+                                }
                             for (var key in rows[0]) {
                                 if (primarykeys.includes(key) || key == 'tsinsert')
                                     continue;

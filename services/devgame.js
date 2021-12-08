@@ -98,21 +98,21 @@ module.exports = class DevGameService {
         }
     }
 
-    async findGame(game, db) {
+    async findGame(game, user, db) {
         try {
             if (game.id == 'undefined')
                 return null;
             db = db || await mysql.db();
             var response;
-            console.log("Searching for game: ", game);
+            console.log("Searching for game: ", game, user.id);
             if (game.id) {
-                response = await db.sql('select * from game_info where gameid = ?', [{ toSqlString: () => game.id }]);
+                response = await db.sql('select * from game_info where gameid = ? AND ownerid = ?', [{ toSqlString: () => game.id }, { toSqlString: () => user.id }]);
             }
             else if (game.gameid) {
-                response = await db.sql('select * from game_info where gameid = ?', [{ toSqlString: () => game.gameid }]);
+                response = await db.sql('select * from game_info where gameid = ? AND ownerid = ?', [{ toSqlString: () => game.gameid }, { toSqlString: () => user.id }]);
             }
             else if (game.shortid) {
-                response = await db.sql('select * from game_info where shortid = ?', [game.shortid]);
+                response = await db.sql('select * from game_info where shortid = ? AND ownerid = ?', [game.shortid, { toSqlString: () => user.id }]);
             }
             else if (game.apikey) {
                 response = await db.sql('select * from game_info where apikey = ?', [game.apikey]);
@@ -492,17 +492,18 @@ module.exports = class DevGameService {
                 let { results } = await db.update('game_info', game, 'apikey=?', [apikey]);
                 dbresult = results;
                 console.log(dbresult);
+                game.gameid = gameid;
+                game.ownerid = ownerid;
                 return game;
+
             }
             else {
-                let { results } = await db.update('game_info', game, 'gameid=? AND ownerid=?', [gameid, ownerid]);
+                let { results } = await db.update('game_info', game, 'gameid=? AND ownerid=?', [gameid, user.id]);
                 dbresult = results;
                 console.log(dbresult);
                 if (dbresult.affectedRows > 0) {
                     game.gameid = gameid;
                     game.ownerid = ownerid;
-                    game.clients = clients;
-                    game.servers = servers;
                     return game;
                 }
 

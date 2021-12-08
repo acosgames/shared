@@ -215,7 +215,10 @@ class RoomService {
     async updateAllPlayerRatings(ratings) {
         try {
             let db = await mysql.db();
-            var response = await db.insertBatch('person_rank', ratings, ['shortid', 'game_slug']);
+
+            let incrementList = ['played'];
+
+            var response = await db.insertBatch('person_rank', ratings, ['shortid', 'game_slug'], ['played']);
             if (response && response.results.affectedRows > 0) {
                 return true;
             }
