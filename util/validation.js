@@ -75,12 +75,12 @@ const validationRules = {
 
         if (typeof value === 'number') {
             if (value < rules.min) {
-                errors.push(ValidateError('E_NUMBER_TOOSMALL', [rules.label, rules.max]))
+                errors.push(ValidateError('E_NUMBER_TOOSMALL', [rules.label, rules.min]))
             }
         }
         else if (typeof value === 'string') {
             if (value.length < rules.min) {
-                errors.push(ValidateError('E_FIELD_TOOSHORT', [rules.label, rules.max]))
+                errors.push(ValidateError('E_FIELD_TOOSHORT', [rules.label, rules.min]))
             }
         }
     },

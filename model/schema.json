@@ -18,7 +18,7 @@
             "label": "Short Description",
             "type": "string",
             "required": true,
-            "max": 80,
+            "max": 120,
             "min": 3
         }
        
@@ -42,7 +42,7 @@
             "label": "Short Description",
             "type": "string",
             "required": true,
-            "max": 80,
+            "max": 120,
             "min": 3
         },
         "longdesc": {

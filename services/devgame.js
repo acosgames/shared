@@ -63,7 +63,19 @@ module.exports = class DevGameService {
             let db = await mysql.db();
             var response;
             console.log("Searching for games by user: ", userid);
-            response = await db.sql('select * from game_info where ownerid = ?', [userid]);
+            response = await db.sql(`
+                select a.*, players.count
+                from game_info a
+                LEFT JOIN (
+                    SELECT 
+                        count(gameid) as count, 
+                        gameid 
+                    FROM game_room
+                    group by gameid
+                ) as players
+                    on players.gameid = a.gameid
+                where a.ownerid = ?
+            `, [userid]);
 
             return response.results;
         }
@@ -83,6 +95,11 @@ module.exports = class DevGameService {
             var response;
             console.log("Searching for game: ", game);
             if (game.apikey) {
+                let comment = game.apikey.indexOf('.');
+                if (comment > -1) {
+                    game.apikey = game.apikey.substr(comment + 1);
+                }
+
                 response = await db.sql('SELECT i.gameid, i.status as published_status, i.version as published_version, v.version as version, i.game_slug, i.ownerid, v.tsupdate as latest_tsupdate FROM game_info i, game_version v WHERE i.apikey = ? AND i.gameid = v.gameid ORDER by v.version desc', [game.apikey]);
             }
             else if (game.gameid) {
@@ -104,7 +121,7 @@ module.exports = class DevGameService {
             //     return null;
             db = db || await mysql.db();
             var response;
-            console.log("Searching for game: ", game, user.id);
+            console.log("Searching for game: ", game, user);
             if (game.id) {
                 response = await db.sql('select * from game_info where gameid = ? AND ownerid = ?', [{ toSqlString: () => game.id }, { toSqlString: () => user.id }]);
             }
@@ -115,6 +132,11 @@ module.exports = class DevGameService {
                 response = await db.sql('select * from game_info where shortid = ? AND ownerid = ?', [game.shortid, { toSqlString: () => user.id }]);
             }
             else if (game.apikey) {
+                let comment = game.apikey.indexOf('.');
+                if (comment > -1) {
+                    game.apikey = game.apikey.substr(comment + 1);
+                }
+
                 response = await db.sql('select * from game_info where apikey = ?', [game.apikey]);
             }
 
@@ -491,6 +513,11 @@ module.exports = class DevGameService {
             // game.apikey = generateAPIKEY();
             let dbresult;
             if (apikey) {
+                let comment = apikey.indexOf('.');
+                if (comment > -1) {
+                    apikey = apikey.substr(comment + 1);
+                }
+
                 let { results } = await db.update('game_info', game, 'apikey=?', [apikey]);
                 dbresult = results;
                 console.log(dbresult);
