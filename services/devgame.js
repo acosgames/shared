@@ -100,8 +100,8 @@ module.exports = class DevGameService {
 
     async findGame(game, user, db) {
         try {
-            if (game.id == 'undefined')
-                return null;
+            // if (game.gameid == 'undefined')
+            //     return null;
             db = db || await mysql.db();
             var response;
             console.log("Searching for game: ", game, user.id);
@@ -483,6 +483,8 @@ module.exports = class DevGameService {
             delete game['clients'];
             delete game['servers'];
 
+            if (game.game_slug)
+                delete game['game_slug'];
             let apikey = game.apikey;
             delete game['apikey'];
             //game.ownerid = user.id;

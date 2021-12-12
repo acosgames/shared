@@ -27,7 +27,7 @@ class RedisService {
         return this.active;
     }
 
-    async getRedisServers(options) {
+    getRedisServers = async (options) => {
 
         try {
             if (options) {
@@ -61,24 +61,28 @@ class RedisService {
 
     }
 
-    connect(credentials) {
+    connect = (credentials) => {
         if (credentials) {
             this.redisCredentials = credentials;
         }
         const self = this;
-        return new Promise((rs, rj) => {
+        return new Promise(async (rs, rj) => {
             if (self.client) {
                 rs(self.client);
                 return;
             }
 
-            self.client = redis.createClient(self.redisCredentials);
-            self._publish = promisify(self.client.publish).bind(self.client);
-            self._setex = promisify(self.client.setex).bind(self.client);
-            self._hset = promisify(self.client.hset).bind(self.client);
-            self._set = promisify(self.client.set).bind(self.client);
-            self._get = promisify(self.client.get).bind(self.client);
-            self._del = promisify(self.client.del).bind(self.client);
+            self.client = await redis.createClient(self.redisCredentials);
+
+
+            // self.client.publish = self.client.publish;
+            // self.client.setex = self.client.setex;
+            // self.client.hset = self.client.hset;
+            // self.client.hget = self.client.hget;
+            // self.client.hgetall = self.client.hgetall;
+            // self.client.set = self.client.set;
+            // self.client.get = self.client.get;
+            // self.client.del = self.client.del;
             self.client.on("connect", self.onConnect.bind(self));
             self.client.on("end", self.onEnd.bind(self));
             self.client.on("ready", (data) => {
@@ -89,19 +93,21 @@ class RedisService {
                 self.onError(err);
                 rj(err);
             });
+
+            await self.client.connect();
         })
     }
 
     async subscribe(channel, callback) {
         const self = this;
         this.callbacks[channel] = callback || null;
-        return new Promise((rs, rj) => {
+        return new Promise(async (rs, rj) => {
             if (!channel) {
                 rj("Missing channel");
             }
 
             if (!self.subscriber) {
-                self.subscriber = redis.createClient(self.redisCredentials);
+                self.subscriber = await redis.createClient(self.redisCredentials);
                 self.subscriber.on('message', self.onMessage.bind(self));
                 self.subscriber.on("connect", self.onConnect.bind(self));
                 self.subscriber.on("end", self.onEnd.bind(self));
@@ -113,6 +119,7 @@ class RedisService {
                     self.onError(err);
                     rj(err);
                 });
+                await self.subscriber.connect();
             }
 
             self.subscriber.subscribe(channel);
@@ -180,62 +187,61 @@ class RedisService {
                 value = JSON.stringify(value);
             }
 
-            let result = await this._publish(key, value);
+            let result = await this.client.publish(key, value);
             return result;
         }
         catch (e) {
             console.error(e);
-            throw new GeneralError('ERROR_REDIS_PUBLISH', { key, value });
+            throw new GeneralError('ERROR_REDISclient.publish', { key, value });
         }
     }
 
     async set(key, value, ttl) {
         try {
             ttl = ttl || this.credentials.defaultExpireTime || 300
-            if (typeof value === 'object') {
-                value = JSON.stringify(value);
-            }
+            //if (typeof value === 'object') {
+            value = JSON.stringify(value);
+            //}
 
-            let result = await this._setex(key, ttl, value);
+            let result = await this.client.set(key, value, { EX: ttl });
             return result;
         }
         catch (e) {
             console.error(e);
-            throw new GeneralError('ERROR_REDIS_SET', { key, value });
+            throw new GeneralError('ERROR_REDISclient.set', { key, value });
         }
 
     }
 
-    async hset(key, value, ttl) {
+    async hset(key, field, value) {
         try {
-            ttl = ttl || this.credentials.defaultExpireTime || 300
+            // ttl = ttl || this.credentials.defaultExpireTime || 300
             if (typeof value === 'object') {
                 value = JSON.stringify(value);
             }
 
-            let result = await this._setex(key, ttl, value);
+            let result = await this.client.HSET(key, field, value);
             return result;
         }
         catch (e) {
             console.error(e);
-            throw new GeneralError('ERROR_REDIS_SET', { key, value });
+            throw new GeneralError('ERROR_REDISclient.hset', { key, field, value });
         }
-
     }
 
     async del(key) {
         try {
-            await this._del(key);
+            await this.client.del(key);
         }
         catch (e) {
             console.error(e);
-            throw new GeneralError('ERROR_REDIS_GET', { key });
+            throw new GeneralError('ERROR_REDISclient.get', { key });
         }
     }
 
-    async get(key) {
+    async hget(key, field) {
         try {
-            let data = await this._get(key);
+            let data = await this.client.HGET(key, field);
             if (!data)
                 return null;
             let firstChar = data.trim()[0];
@@ -245,7 +251,42 @@ class RedisService {
         }
         catch (e) {
             console.error(e);
-            throw new GeneralError('ERROR_REDIS_GET', { key });
+            throw new GeneralError('ERROR_REDISclient.hget', { key, field });
+        }
+    }
+
+    async hgetall(key) {
+        try {
+            let data = await this.client.HGETALL(key);
+            if (!data)
+                return null;
+            for (var key in data) {
+                let firstChar = data[key].trim()[0];
+                if (firstChar == '{' || firstChar == '[')
+                    data[key] = JSON.parse(data[key]);
+            }
+
+            return data;
+        }
+        catch (e) {
+            console.error(e);
+            throw new GeneralError('ERROR_REDISclient.hgetall', { key });
+        }
+    }
+
+    async get(key) {
+        try {
+            let data = await this.client.get(key);
+            if (!data)
+                return null;
+            //let firstChar = data.trim()[0];
+            //if (firstChar == '{' || firstChar == '[')
+            data = JSON.parse(data);
+            return data;
+        }
+        catch (e) {
+            console.error(e);
+            throw new GeneralError('ERROR_REDISclient.get', { key });
         }
     }
 }
@@ -256,14 +297,16 @@ async function test() {
     const r = new RedisService();
     //const s = new RedisService();
     await r.connect();
-    await r.subscribe('evt_newgame', (channel, value) => {
-        console.log("Received Event: ", channel, value);
-    });
-    await r.watch('joe2', (channel, value) => {
-        console.log("Changed Key: ", channel, value);
-    })
-    await r.publish('evt_newgame', { id: 1234 });
-    await r.set('joe2', { id: 555 });
+    // await r.subscribe('evt_newgame', (channel, value) => {
+    //     console.log("Received Event: ", channel, value);
+    // });
+    // await r.watch('joe2', (channel, value) => {
+    //     console.log("Changed Key: ", channel, value);
+    // })
+    // await r.publish('evt_newgame', { id: 1234 });
+    // await r.set('joe2', { id: 555 });
+
+    await r.hset('action-1', '1234',)
     // await r.set('joe', { id: 1234 });
     // let data = await r.get('joe');
     // console.log(data);

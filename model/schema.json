@@ -20,14 +20,8 @@
             "required": true,
             "max": 80,
             "min": 3
-        },
-        "longdesc": {
-            "label": "Long Description",
-            "type": "string",
-            "required": true,
-            "max": 1200,
-            "min": 3
         }
+       
     },
     "update-game_info": {
         "name": {
