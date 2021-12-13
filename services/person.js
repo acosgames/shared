@@ -109,8 +109,11 @@ module.exports = class UserService {
                     console.log(user);
                 }
                 else {
+                    if (!existingUser)
+                        throw "Creating user"
                     user = existingUser;
                 }
+
             }
             catch (e2) {
                 user = await this.createUser(user, db);
@@ -146,13 +149,13 @@ module.exports = class UserService {
             if (results.affectedRows == 0)
                 throw new GeneralError('E_PERSON_UPDATEFAILED', user);
 
-            if (!existingUser.isdev) {
-                await this.inviteToGithub(existingUser);
-            }
+            // if (!existingUser.isdev) {
+            //     await this.inviteToGithub(existingUser);
+            // }
             return user;
         }
         catch (e) {
-            if (e.errno == 1062) {
+            if (e.payload && e.payload.errno == 1062) {
                 throw new GeneralError("E_PERSON_DUPENAME", user);
             }
 

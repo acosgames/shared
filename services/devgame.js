@@ -742,12 +742,28 @@ module.exports = class DevGameService {
         }
     }
 
+    async inviteToGithub(user) {
+        if (!('github' in user) || !user.github) {
+            return false;
+        }
+
+        if (user.isdev)
+            return false;
+
+        try {
+            let orgInviteResult = await gh.orgs.createInvitation({ org: 'fivesecondgames', email: user.email, role: 'direct_member' })
+            console.log(orgInviteResult);
+            return true;
+        }
+        catch (e3) {
+            console.error(e3);
+        }
+    }
+
     async createGitHubRepos(game, user, db) {
-        let shortid = game.shortid;
-        let username = user.displayname;
 
         let org = 'fivesecondgames';
-        let name = shortid + '-client';
+        let name = game.game_slug;
         let description = game.shortdesc;
         let visibility = 'public';
         let has_issues = true;
@@ -756,7 +772,14 @@ module.exports = class DevGameService {
         let parent_team_id = user.github_teamid;
 
         try {
-            let clientImport = await gh.repos.createInOrg({ org, name, description, 'private': false, visibility, has_issues });
+            let clientImport = await gh.repos.createInOrg({
+                org,
+                name,
+                description,
+                'private': false,
+                visibility,
+                has_issues
+            });
             console.log(clientImport);
         }
         catch (e) {
@@ -777,15 +800,15 @@ module.exports = class DevGameService {
         // }
 
 
-        name = shortid + '-server';
+        // name = shortid + '-server';
 
-        try {
-            let serverImport = await gh.repos.createInOrg({ org, name, description, 'private': false, visibility, has_issues });
-            console.log(serverImport);
-        }
-        catch (e) {
-            console.error(e);
-        }
+        // try {
+        //     let serverImport = await gh.repos.createInOrg({ org, name, description, 'private': false, visibility, has_issues });
+        //     console.log(serverImport);
+        // }
+        // catch (e) {
+        //     console.error(e);
+        // }
 
         // try {
         //     let maintainers = [];
