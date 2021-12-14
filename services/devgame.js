@@ -748,7 +748,7 @@ module.exports = class DevGameService {
         }
 
         if (user.isdev)
-            return false;
+            return true;
 
         try {
             let orgInviteResult = await gh.orgs.createInvitation({ org: 'fivesecondgames', email: user.email, role: 'direct_member' })
