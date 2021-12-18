@@ -15,10 +15,10 @@ function sleep(ms) {
 const cache = require('./cache');
 
 const ModeFromID = [
-    'beta', 'rank', 'public', 'private'
+    'experimental', 'rank', 'public', 'private'
 ]
 const ModeFromName = {
-    'beta': 0,
+    'experimental': 0,
     'rank': 1,
     'public': 2,
     'private': 3
@@ -56,7 +56,7 @@ class RoomService {
             game_slug = meta.game_slug;
 
             let mode = this.getGameModeName(meta.mode);
-            let version = meta.mode == 'beta' ? meta.latest_version : meta.version;
+            let version = meta.mode == 'experimental' ? meta.latest_version : meta.version;
             let personRoom = {
                 shortid,
                 room_slug,
@@ -385,7 +385,7 @@ class RoomService {
                 rooms = rooms || await this.findRooms(game_slug);
             }
 
-            if (mode == 'beta') {
+            if (mode == 'experimental') {
                 let betaRooms = [];
                 for (let i = 0; i < rooms.length; i++) {
                     let room = rooms[i];
@@ -516,8 +516,8 @@ class RoomService {
             let database = published.db || false;
             let latest_tsupdate = published.tsupdate;
 
-            //beta uses the latest version that is not in production
-            if (mode == 'beta') {
+            //experimental uses the latest version that is not in production
+            if (mode == 'experimental') {
                 version = published.latest_version;
                 database = published.latest_db || false;
                 latest_tsupdate = published.latest_tsupdate;
