@@ -66,6 +66,50 @@ module.exports = class GameService {
         }
     }
 
+
+    ratingToRank(rating) {
+
+
+        let ranks = [
+            'Wood I',
+            'Wood II',
+            'Wood III',
+            'Wood IV',
+            'Bronze I',
+            'Bronze II',
+            'Bronze III',
+            'Bronze IV',
+            'Silver I',
+            'Silver II',
+            'Silver III',
+            'Silver IV',
+            'Gold I',
+            'Gold II',
+            'Gold III',
+            'Gold IV',
+            'Platinum I',
+            'Platinum II',
+            'Platinum III',
+            'Platinum IV',
+            'Champion I',
+            'Champion II',
+            'Champion III',
+            'Champion IV',
+            'Grand Champion I',
+            'Grand Champion II',
+            'Grand Champion III',
+            'Grand Champion IV',
+        ]
+
+        let rt = Math.min(5000, Math.max(0, rating));
+        rt = rt / 5000;
+        rt = rt * (ranks.length - 1);
+
+        rt = Math.round(rt);
+        return ranks[rt];
+
+    }
+
     async findGames() {
         try {
             let db = await mysql.db();
@@ -154,7 +198,7 @@ module.exports = class GameService {
             let result = response.results[0];
             if (result) {
                 let votes = Number(result.likes) - Number(result.dislikes);
-                cache.set(game_slug + '/votes', votes, 3600);
+                cache.set(game_slug + '/votes', votes, 60);
                 return votes;
             }
 
@@ -183,11 +227,11 @@ module.exports = class GameService {
                     a.votes, 
                     b.vote, 
                     b.report, 
-                    coalesce(c.rating,0), 
-                    coalesce(c.win,0), 
-                    coalesce(c.loss,0), 
-                    coalesce(c.tie,0), 
-                    coalesce(c.played,0), 
+                    coalesce(c.rating,0) as rating, 
+                    coalesce(c.win,0) as win, 
+                    coalesce(c.loss,0) as loss, 
+                    coalesce(c.tie,0) as tie, 
+                    coalesce(c.played,0) as played, 
                     a.latest_version, a.minplayers, a.maxplayers, 
                     a.ownerid, a.name, a.shortdesc, a.longdesc, 
                     a.git, a.preview_images, a.status, 
@@ -203,9 +247,44 @@ module.exports = class GameService {
             if (response.results && response.results.length == 0) {
                 return new GeneralError('E_NOTFOUND');
             }
+
             let game = response.results[0];
+            game.ratingTxt = await this.ratingToRank(game.rating);
             game.votes = await this.findGameVotes(game_slug);
-            return game;
+
+
+            let cleaned = {
+                game: {
+                    gameid: game.gameid,
+                    game_slug: game.game_slug,
+                    name: game.name,
+                    version: game.version,
+                    latest_version: game.latest_version,
+                    minplayers: game.minplayers,
+                    maxplayers: game.maxplayers,
+                    ownerid: game.ownerid,
+                    shortdesc: game.shortdesc,
+                    longdesc: game.longdesc,
+                    git: game.git,
+                    preview_images: game.preview_images,
+                    status: game.status,
+                    votes: game.votes,
+                    tsupdate: game.tsupdate,
+                    tsinsert: game.tsinsert,
+                },
+                player: {
+                    rating: game.rating,
+                    ratingTxt: game.ratingTxt,
+                    vote: game.vote,
+                    report: game.report,
+                    win: game.win,
+                    loss: game.loss,
+                    tie: game.tie,
+                    played: game.played
+                }
+            }
+
+            return cleaned;
 
         }
         catch (e) {
