@@ -143,10 +143,10 @@ module.exports = class MySQL {
 
     async db(conn) {
         try {
-            let type = 0; //transaction query
+            const type = !conn ? 2 : 0; //single use VS transaction query
             if (!conn) {
                 conn = await this.getConnection();
-                type = 2; //single use query
+                // type = 2; //single use query
             }
 
             conn = conn || await this.getConnection();
@@ -494,6 +494,9 @@ module.exports = class MySQL {
                                 }
                                 // Neat!
                                 resolve({ results, fields });
+
+                                if (type == 2)
+                                    conn.release();
                             });
                         }
                         catch (e) {

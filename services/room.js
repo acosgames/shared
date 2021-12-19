@@ -201,7 +201,8 @@ class RoomService {
             response = await db.sql('SELECT a.shortid, b.* FROM person_room a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ?', [shortid]);
 
             if (response.results && response.results.length > 0) {
-                return response.results;
+                let filtered = response.results.filter(room => room.room_slug)
+                return filtered;
             }
             return [];
         }
