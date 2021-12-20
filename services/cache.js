@@ -50,7 +50,7 @@ class Cacher {
         if (!ttl) {
             //this.dict[key] = value;
             this.cache.set(key, value);
-            this.redis.set(key, value);
+            this.redis.set(key, value, 60);
         }
         else {
             //this.dict[key] = value;

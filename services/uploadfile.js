@@ -142,59 +142,69 @@ module.exports = class UploadFile {
 
 
         // mimetypes = mimetypes || ['image/jpeg', 'image/png'];
-        let clientContentType = 'text/html';
-        let serverContentType = ['text/javascript', 'application/javascript'];
-        let dbContentType = ['text/javascript', 'application/json'];
+        let clientContentType = 'application/javascript';
 
-        const serverStorage = multerS3({
+        const gameStorage = multerS3({
             s3: this.s3,
-            bucket: serverBucket,
-            acl: 'private',
-            contentType: (req, file, cb) => {
-                if (file.field == 'server')
-                    cb(null, 'application/javascript', file.stream);
-                else if (file.field == 'db')
-                    cb(null, 'application/json', file.stream);
+            bucket: function (req, file, cb) {
+                if (file.fieldname == 'server')
+                    cb(null, 'fsg-server');
+                else if (file.fieldname == 'db')
+                    cb(null, 'fsg-server');
+                else if (file.fieldname == 'client')
+                    cb(null, clientBucket);
+                else cb(null, null);
+
+
             },
-            metadata: metadataCB || function (req, file, cb) {
-                cb(null, { fieldName: file.fieldname });
+            acl: function (req, file, cb) {
+                if (file.fieldname == 'server')
+                    cb(null, 'private');
+                else if (file.fieldname == 'db')
+                    cb(null, 'private');
+                else if (file.fieldname == 'client')
+                    cb(null, 'public-read');
+                else cb(null, null);
+
+
+            },
+            contentType: function (req, file, cb) {
+                if (file.fieldname == 'server')
+                    cb(null, 'application/javascript', file.stream);
+                else if (file.fieldname == 'db')
+                    cb(null, 'application/json', file.stream);
+                else if (file.fieldname == 'client')
+                    cb(null, clientContentType);
+                else cb(null, null);
+            } || multerS3.AUTO_CONTENT_TYPE,
+            metadata: function (req, file, cb) {
+                if (file.fieldname !== 'client')
+                    cb(null, { fieldName: file.fieldname });
+                cb(null, { fieldName: file.fieldname, 'Content-Type': clientContentType, 'Content-Encoding': 'gzip', 'b2-content-encoding': 'gzip' });
             },
             key: (req, file, cb) => {
                 if (file.fieldname == 'db') {
                     let game = req.game;
-                    var filename = file.originalname;
-                    filename = "server.db." + game.version + '.json';
+                    var filename = "server.db." + game.version + '.json';
                     let key = game.gameid + '/' + filename;
 
                     cb(null, key)
                 }
                 else if (file.fieldname == 'server') {
                     let game = req.game;
-                    var filename = file.originalname;
-                    filename = filename.replace('.js', '.' + game.version + '.js')
+                    var filename = 'server.bundle.' + game.version + '.js';
+                    // filename = filename.replace('.js', '.' + game.version + '.js')
                     let key = game.gameid + '/' + filename;
 
                     cb(null, key)
                 }
-            }
-        });
-
-        const clientStorage = multerS3({
-            s3: this.s3,
-            bucket: clientBucket,
-            acl: 'public-read',
-            contentType: function (req, file, cb) { cb(null, clientContentType); } || multerS3.AUTO_CONTENT_TYPE,
-            metadata: function (req, file, cb) {
-                if (file.fieldname !== 'client')
-                    cb(null, null);
-                cb(null, { fieldName: file.fieldname, 'Content-Type': clientContentType, 'Content-Encoding': 'gzip', 'b2-content-encoding': 'gzip' });
-            },
-            key: (req, file, cb) => {
-                let game = req.game;
-                var filename = file.originalname;
-                filename = filename.replace('.js', '.' + game.version + '.js')
-                let key = game.gameid + '/client/' + filename;
-                cb(null, key)
+                else if (file.fieldname == 'client') {
+                    let game = req.game;
+                    var filename = 'client.bundle.' + game.version + '.js';
+                    let key = game.gameid + '/client/' + filename;
+                    cb(null, key)
+                }
+                else cb(null, null)
             },
             shouldTransform: function (req, file, cb) {
                 if (file.fieldname !== 'client')
@@ -202,33 +212,50 @@ module.exports = class UploadFile {
                 cb(null, true)
             },
             transforms: [{
-                id: 'html',
+                id: 'js',
                 key: function (req, file, cb) {
-                    let game = req.game;
-                    var filename = file.originalname;
-                    filename = filename.replace('.js', '.' + game.version + '.html')
-                    let key = game.gameid + '/client/' + filename;
-                    cb(null, key)
+                    if (file.fieldname == 'db') {
+                        let game = req.game;
+                        var filename = "server.db." + game.version + '.json';
+                        let key = game.gameid + '/' + filename;
+
+                        cb(null, key)
+                    }
+                    else if (file.fieldname == 'server') {
+                        let game = req.game;
+                        var filename = 'server.bundle.' + game.version + '.js';
+                        // filename = filename.replace('.js', '.' + game.version + '.js')
+                        let key = game.gameid + '/' + filename;
+
+                        cb(null, key)
+                    }
+                    else if (file.fieldname == 'client') {
+                        let game = req.game;
+                        var filename = 'client.bundle.' + game.version + '.js';
+                        let key = game.gameid + '/client/' + filename;
+                        cb(null, key)
+                    }
+                    else cb(null, null)
                 },
                 transform: function (req, file, cb) {
-                    var fileStream = file.stream;
-                    var out = new stream.PassThrough();
+                    // var fileStream = file.stream;
+                    // var out = new stream.PassThrough();
                     let zipped
                         = zlib.createGzip();
-                    var cnt = 0;
-                    fileStream.on('data', (chunk) => {
-                        console.log("chunk[" + cnt + "]", chunk);
-                        cnt++;
+                    // var cnt = 0;
+                    file.stream.on('data', (chunk) => {
+                        // console.log("chunk[" + cnt + "]", chunk);
+                        // cnt++;
                         //prepend the iframe top html
-                        if (cnt == 1)
-                            zipped.write(iframeTop);
+                        // if (cnt == 1)
+                        //     zipped.write(iframeTop);
                         //write the JS into the middle
                         zipped.write(chunk);
                     });
 
-                    fileStream.on('end', () => {
+                    file.stream.on('end', () => {
                         //append the iframe bottom html
-                        zipped.write(iframeBottom);
+                        // zipped.write(iframeBottom);
                         // var zipped = new stream.PassThrough();
                         cb(null, zipped);
                     });
@@ -237,12 +264,12 @@ module.exports = class UploadFile {
         });
 
 
-        const clientMimetypes = ['text/javascript', 'application/javascript'];
-        const clientFileFilter = (req, file, cb) => {
-            if (file.fieldname !== 'client') {
-                cb(null, false);
-                return;
-            }
+        const gameMimetypes = ['text/javascript', 'application/javascript', 'application/json'];
+        const gameFileFilter = (req, file, cb) => {
+            // if (file.fieldname !== 'client') {
+            //     cb(null, false);
+            //     return;
+            // }
 
             var key = file.originalname;
             var fileExt = key.split('.').pop();
@@ -251,44 +278,19 @@ module.exports = class UploadFile {
                 return;
             }
 
-            if (clientMimetypes.includes(file.mimetype)) {
+            if (gameMimetypes.includes(file.mimetype)) {
                 cb(null, true);
             } else {
                 cb(null, false);
             }
         }
 
-        const serverMimeTypes = ['text/javascript', 'application/javascript'];
-        const dbMimeTypes = ['text/javascript', 'application/json'];
-        const fileFilter = (req, file, cb) => {
-            if (file.fieldname === 'client') {
-                cb(null, false);
-                return;
-            }
 
-            var key = file.originalname;
-            var fileExt = key.split('.').pop();
-            if (fileExt.length == key.length) {
-                cb(null, false);
-                return;
-            }
 
-            if (file.fieldname == 'server' && serverMimeTypes.includes(file.mimetype)) {
-                cb(null, true);
-            } else if (file.fieldname == 'db' && dbMimeTypes.includes(file.mimetype)) {
-                cb(null, true);
-            } else {
-                cb(null, false);
-            }
-        }
+        let gameMulter = multer({ storage: gameStorage, fileFilter: gameFileFilter });
 
-        let clientMulter = multer({ storage: clientStorage, fileFilter: clientFileFilter });
-        let serverMulter = multer({ storage: serverStorage, fileFilter: fileFilter });
-
-        let clientMiddleware = clientMulter.any();//single('client');
-        let serverMiddleware = serverMulter.any();//.single('server');
-        let dbMiddleware = serverMulter.any();//.single('db');
-        return { clientMiddleware, serverMiddleware, dbMiddleware };
+        let gameMiddleware = gameMulter.any();
+        return gameMiddleware;
     }
 
 

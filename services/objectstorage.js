@@ -7,6 +7,8 @@ const upload = new UploadFile();
 
 const AWS = require('aws-sdk');
 const fs = require('fs');
+const zlib = require("zlib");
+const { rejects } = require('assert');
 
 module.exports = class ObjectStorage {
 
@@ -55,7 +57,8 @@ module.exports = class ObjectStorage {
     }
 
     downloadServerDatabase(Key) {
-        return new Promise((rs, rj) => {
+        const $this = this;
+        return new Promise(async (rs, rj) => {
             try {
                 var params = {
                     Key,
@@ -66,32 +69,58 @@ module.exports = class ObjectStorage {
                 let folderPath = '/' + Key.split('/')[0];
                 let localPath = rootPath + '/' + Key;
                 if (fs.existsSync(localPath)) {
-                    let data = fs.readFileSync(localPath);
-                    let js = data.toString('utf-8');
+                    let data = await fs.promises.readFile(localPath);
+                    let js = $this.unzipServerFile(data);
                     rs(js);
                     console.log('file loaded from filesystem successfully')
                     return;
                 }
-                this.s3.getObject(params, function (err, data) {
+                this.s3.getObject(params, async function (err, data) {
                     if (err) {
                         rj(err);
                         return;
                     }
 
-                    fs.mkdirSync(rootPath + folderPath, { recursive: true });
-                    fs.writeFileSync('./serverScripts/' + Key, data.Body)
-                    let js = data.Body.toString('utf-8');
-                    rs(js);
+                    await fs.promises.mkdir(rootPath + folderPath, { recursive: true });
+                    await fs.promises.writeFile('./serverScripts/' + Key, data.Body)
+
+                    let js = await $this.unzipServerFile(data.Body);
                     console.log('file downloaded successfully: ', Key)
+
+                    rs(js);
+
                 })
             }
             catch (e) {
                 console.error(e);
+                rj(e);
             }
         });
     }
 
+    async unzipServerFile(body) {
+        return new Promise(async (rs, rj) => {
+            try {
+                zlib.gunzip(body, (err, buffer) => {
+                    if (err) {
+                        console.error(err);
+                        rj(err);
+                        return;
+                    }
+                    let js = buffer.toString('utf8');
+                    rs(js);
+                });
+            }
+            catch (e) {
+                console.error(e);
+                rj(e);
+            }
+        })
+
+    }
+
     downloadServerScript(Key, meta) {
+        const $this = this;
         return new Promise(async (rs, rj) => {
             try {
                 var params = {
@@ -110,7 +139,7 @@ module.exports = class ObjectStorage {
                 }
                 if (fileExists && !meta.istest) {
                     let data = await fs.promises.readFile(localPath);
-                    let js = data.toString('utf-8');
+                    let js = await $this.unzipServerFile(data);
                     rs(js);
                     console.log('file loaded from filesystem successfully')
                     return;
@@ -123,13 +152,17 @@ module.exports = class ObjectStorage {
 
                     await fs.promises.mkdir(rootPath + folderPath, { recursive: true });
                     await fs.promises.writeFile('./serverScripts/' + Key, data.Body)
-                    let js = data.Body.toString('utf-8');
-                    rs(js);
+
+                    let js = await $this.unzipServerFile(data.Body);
                     console.log('file downloaded successfully: ', Key)
+
+                    rs(js);
+
                 })
             }
             catch (e) {
                 console.error(e);
+                rj(e);
             }
         });
     }
