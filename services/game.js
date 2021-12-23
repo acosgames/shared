@@ -116,26 +116,23 @@ module.exports = class GameService {
             var response;
             console.log("Getting list of games");
             response = await db.sql(`
-                SELECT 
-                    coalesce(players.count,0) as activePlayers, 
+                SELECT  
                     a.gameid,
                     a.game_slug, 
                     a.version, 
                     a.latest_version, 
+                    cur.scaled as scaled,
+                    cur.db as db,
+                    latest.scaled as latest_scaled,
+                    latest.db as latest_db,
                     a.name, 
                     a.preview_images,
                     a.status,
                     a.maxplayers
-                FROM game_info a
-                LEFT JOIN (
-                    SELECT 
-                        count(gameid) as count, 
-                        gameid 
-                    FROM game_room
-                    group by gameid
-                ) as players
-                    on players.gameid = a.gameid
+                FROM game_info a, game_version cur, game_version latest
                 WHERE (a.status = 2 or a.status = 3)
+                AND (a.gameid = cur.gameid AND a.version = cur.version)
+                AND (a.gameid = latest.gameid AND a.latest_version = latest.version)
             `);
 
             return response.results;
@@ -153,7 +150,20 @@ module.exports = class GameService {
             let db = await mysql.db();
             var response;
             console.log("Getting game: ", game_slug);
-            response = await db.sql('SELECT gameid, game_slug,  version, latest_version, minplayers, maxplayers, ownerid, name, shortdesc, longdesc, git, preview_images, votes, status, tsupdate, tsinsert FROM game_info WHERE game_slug = ?', [game_slug]);
+            response = await db.sql(`
+                SELECT 
+                    b.shortid, b.displayname, b.github,
+                    a.*,
+                    current.scaled as scaled,
+                    current.db as db,
+                    latest.scaled as latest_scaled,
+                    latest.db as latest_db
+                FROM game_info a, person b, game_version current, game_version latest
+                WHERE a.game_slug = ?
+                AND a.ownerid = b.id
+                AND (a.gameid = current.gameid AND a.version = current.version)
+                AND (a.gameid = latest.gameid AND a.latest_version = latest.version)
+            `, [game_slug]);
 
             if (response.results && response.results.length == 0) {
                 return null;
@@ -219,30 +229,36 @@ module.exports = class GameService {
         try {
             let db = await mysql.db();
             var response;
-            console.log("Getting game: ", game_slug);
+            console.log("Getting game with person stats: ", game_slug);
             response = await db.sql(`
                 SELECT 
-                    
-                    a.gameid, a.game_slug,  a.version, 
-                    a.votes, 
-                    b.vote, 
-                    b.report, 
-                    coalesce(c.rating,0) as rating, 
-                    coalesce(c.win,0) as win, 
-                    coalesce(c.loss,0) as loss, 
-                    coalesce(c.tie,0) as tie, 
-                    coalesce(c.played,0) as played, 
-                    a.latest_version, a.minplayers, a.maxplayers, 
-                    a.ownerid, a.name, a.shortdesc, a.longdesc, 
-                    a.git, a.preview_images, a.status, 
-                    a.tsupdate, a.tsinsert 
-                FROM game_info a
-                LEFT JOIN game_review b
-                    ON a.game_slug = b.game_slug AND b.shortid = ?
-                LEFT JOIN person_rank c
-                    ON a.game_slug = c.game_slug AND c.shortid = ?
+                cur.scaled as scaled,
+                cur.db as db,
+                latest.scaled as latest_scaled,
+                latest.db as latest_db,
+                latest.tsupdate as latest_tsupdate,
+                d.shortid, d.displayname, d.github,
+                a.gameid, a.game_slug,  a.version, 
+                a.votes, 
+                b.vote, 
+                b.report, 
+                coalesce(c.rating,0) as rating, 
+                coalesce(c.win,0) as win, 
+                coalesce(c.loss,0) as loss, 
+                coalesce(c.tie,0) as tie, 
+                coalesce(c.played,0) as played, 
+                a.latest_version, a.minplayers, a.maxplayers, 
+                a.ownerid, a.name, a.shortdesc, a.longdesc, 
+                a.opensource, a.preview_images, a.status, 
+                a.tsupdate, a.tsinsert 
+                FROM game_info a, person d, game_version cur, game_version latest, game_review b, person_rank c
                 WHERE a.game_slug = ?
-            `, [shortid, shortid, game_slug]);
+                AND a.ownerid = d.id
+                AND (a.game_slug = b.game_slug AND b.shortid = ?)
+                AND (a.game_slug = c.game_slug AND c.shortid = ?)
+                AND (a.gameid = cur.gameid AND a.version = cur.version)
+                AND (a.gameid = latest.gameid AND a.latest_version = latest.version)
+            `, [game_slug, shortid, shortid]);
 
             if (response.results && response.results.length == 0) {
                 return new GeneralError('E_NOTFOUND');
@@ -259,13 +275,21 @@ module.exports = class GameService {
                     game_slug: game.game_slug,
                     name: game.name,
                     version: game.version,
+                    scaled: game.scaled,
+                    db: game.db,
                     latest_version: game.latest_version,
+                    latest_scaled: game.latest_scaled,
+                    latest_db: game.latest_db,
+                    latest_tsupdate: game.latest_tsupdate,
                     minplayers: game.minplayers,
                     maxplayers: game.maxplayers,
                     ownerid: game.ownerid,
+                    shortid: game.shortid,
+                    displayname: game.displayname,
+                    github: game.github,
                     shortdesc: game.shortdesc,
                     longdesc: game.longdesc,
-                    git: game.git,
+                    opensource: game.opensource,
                     preview_images: game.preview_images,
                     status: game.status,
                     votes: game.votes,

@@ -62,19 +62,22 @@ module.exports = class DevGameService {
 
             let db = await mysql.db();
             var response;
-            console.log("Searching for games by user: ", userid);
+            console.log("Searching for devgames with player count: ", userid);
             response = await db.sql(`
-                select a.*, players.count
+                select 
+                    a.*, 
+                    cur.scaled as scaled,
+                    cur.db as db,
+                    latest.scaled as latest_scaled,
+                    latest.db as latest_db,
+                    latest.tsupdate as latest_tsupdate,
+                    b.role,
+                    b.apikey
                 from game_info a
-                LEFT JOIN (
-                    SELECT 
-                        count(gameid) as count, 
-                        gameid 
-                    FROM game_room
-                    group by gameid
-                ) as players
-                    on players.gameid = a.gameid
-                where a.ownerid = ?
+                LEFT JOIN game_dev b ON b.gameid = a.gameid
+                LEFT JOIN game_version cur ON cur.gameid = a.gameid AND cur.version = a.version
+                LEFT JOIN game_version latest ON latest.gameid = a.gameid AND latest.version = a.latest_version
+                where b.ownerid = ?
             `, [userid]);
 
             return response.results;
@@ -100,10 +103,38 @@ module.exports = class DevGameService {
                     game.apikey = game.apikey.substr(comment + 1);
                 }
 
-                response = await db.sql('SELECT i.gameid, i.status as published_status, i.version as published_version, v.version as version, i.game_slug, i.ownerid, v.tsupdate as latest_tsupdate FROM game_info i, game_version v WHERE i.apikey = ? AND i.gameid = v.gameid ORDER by v.version desc LIMIT 3', [game.apikey]);
+                response = await db.sql(`
+                    SELECT 
+                        i.gameid, 
+                        i.status as published_status, 
+                        i.version as published_version, 
+                        v.version as version, 
+                        i.game_slug, 
+                        i.ownerid, 
+                        v.tsupdate as latest_tsupdate 
+                    FROM game_info i, game_version v 
+                    WHERE i.apikey = ? 
+                    AND i.gameid = v.gameid 
+                    ORDER by v.version desc 
+                    LIMIT 3
+                `, [game.apikey]);
             }
             else if (game.gameid) {
-                response = await db.sql('SELECT i.gameid, i.status as published_status, i.version as published_version, v.version as version, i.game_slug, i.ownerid, v.tsupdate as latest_tsupdate FROM game_info i, game_version v WHERE i.gameid = ? AND i.gameid = v.gameid ORDER by v.version desc LIMIT 3', [{ toSqlString: () => game.gameid }]);
+                response = await db.sql(`
+                    SELECT 
+                        i.gameid, 
+                        i.status as published_status, 
+                        i.version as published_version, 
+                        v.version as version, 
+                        i.game_slug, 
+                        i.ownerid, 
+                        v.tsupdate as latest_tsupdate 
+                    FROM game_info i, game_version v 
+                    WHERE i.gameid = ? 
+                    AND i.gameid = v.gameid 
+                    ORDER by v.version desc 
+                    LIMIT 3
+                `, [{ toSqlString: () => game.gameid }]);
             }
 
             return response.results;
@@ -115,29 +146,106 @@ module.exports = class DevGameService {
         }
     }
 
+    async findDevByGame(gameid, ownerid) {
+        try {
+            if (gameid == 'undefined')
+                return null;
+            let db = await mysql.db();
+
+            console.log("Searching for specific game developer: ", gameid, ownerid);
+
+            var response = await db.sql('select * from game_dev where gameid = ? AND ownerid = ?', [{ toSqlString: () => gameid }, { toSqlString: () => ownerid }]);
+
+            var dev = null;
+            if (response && response.results.length > 0) {
+                dev = response.results[0];
+            }
+            return dev;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                return e;
+            throw new CodeError(e);
+        }
+    }
+
+    async findDevByAPIKey(apikey) {
+        try {
+            if (typeof apikey === 'undefined')
+                return [];
+            let db = await mysql.db();
+
+            console.log("Searching for specific developer using apikey: ", apikey);
+
+            var response = await db.sql('select * from game_dev where apikey = ?', [apikey]);
+
+            var dev = null;
+            if (response && response.results.length > 0) {
+                dev = response.results[0];
+            }
+            return dev;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                return e;
+            throw new CodeError(e);
+        }
+    }
+
     async findGame(game, user, db) {
         try {
             // if (game.gameid == 'undefined')
             //     return null;
             db = db || await mysql.db();
             var response;
-            console.log("Searching for game: ", game, user);
-            if (game.id) {
-                response = await db.sql('select * from game_info where gameid = ? AND ownerid = ?', [{ toSqlString: () => game.id }, { toSqlString: () => user.id }]);
+
+
+            if (game.gameid) {
+
+                console.log("Searching for dev game by gameid/ownerid: ", game.gameid, user.id);
+                response = await db.sql(`
+                    select 
+                        a.*, 
+                        cur.scaled as scaled,
+                        cur.db as db,
+                        latest.scaled as latest_scaled,
+                        latest.db as latest_db,
+                        latest.tsupdate as latest_tsupdate,
+                        b.role,
+                        b.apikey
+                    from game_info a
+                    LEFT JOIN game_dev b ON b.gameid = a.gameid
+                    LEFT JOIN game_version cur ON cur.gameid = a.gameid AND cur.version = a.version
+                    LEFT JOIN game_version latest ON latest.gameid = a.gameid AND latest.version = a.latest_version
+                    where a.gameid = ? 
+                `, [game.gameid, user.id]);
             }
-            else if (game.gameid) {
-                response = await db.sql('select * from game_info where gameid = ? AND ownerid = ?', [{ toSqlString: () => game.gameid }, { toSqlString: () => user.id }]);
-            }
-            else if (game.shortid) {
-                response = await db.sql('select * from game_info where shortid = ? AND ownerid = ?', [game.shortid, { toSqlString: () => user.id }]);
-            }
+            // else if (game.shortid) {
+            //     response = await db.sql('select * from game_info where shortid = ? AND ownerid = ?', [game.shortid, { toSqlString: () => user.id }]);
+            // }
             else if (game.apikey) {
                 let comment = game.apikey.indexOf('.');
                 if (comment > -1) {
                     game.apikey = game.apikey.substr(comment + 1);
                 }
 
-                response = await db.sql('select * from game_info where apikey = ?', [game.apikey]);
+                console.log("Searching for dev game by apikey: ", game.apikey);
+                response = await db.sql(`
+                    select 
+                        a.*, 
+                        cur.scaled as scaled,
+                        cur.db as db,
+                        latest.scaled as latest_scaled,
+                        latest.db as latest_db,
+                        latest.tsupdate as latest_tsupdate,
+                        b.role,
+                        b.apikey
+                    from game_info a
+                    LEFT JOIN game_dev b ON b.gameid = a.gameid
+                    LEFT JOIN game_version cur ON cur.gameid = a.gameid AND cur.version = a.version
+                    LEFT JOIN game_version latest ON latest.gameid = a.gameid AND latest.version = a.latest_version
+                    where b.apikey = ? 
+                `, [game.apikey]);
             }
 
             var foundGame = null;
@@ -322,7 +430,7 @@ module.exports = class DevGameService {
         return null;
     }
 
-    async createGameVersion(game, hasDB) {
+    async createGameVersion(game, hasDB, scaled) {
 
         try {
             let db = await mysql.db();
@@ -333,6 +441,7 @@ module.exports = class DevGameService {
                 },
                 version: game.latest_version + 1,
                 status: 2,
+                scaled: scaled ? 1 : 0,
                 db: hasDB ? 1 : 0
             }
             let { results } = await db.insert('game_version', gameVersion);
@@ -345,8 +454,7 @@ module.exports = class DevGameService {
             }
             let { results2 } = await db.update('game_info', {
                 status: published_status,
-                latest_version: gameVersion.version,
-                latest_tsupdate: gameVersion.tsupdate
+                latest_version: gameVersion.version
             }, 'gameid = ?', [game.gameid])
 
             console.log(results2);
@@ -401,14 +509,18 @@ module.exports = class DevGameService {
     async updatePreviewImages(gameid, user, images) {
 
         try {
-            let db = await mysql.db();
+
 
             let ownerid = user.id;
 
             let game = {};
             game.preview_images = images.join(',');
 
-            let { results } = await db.update('game_info', game, 'gameid=? AND ownerid=?', [gameid, ownerid]);
+            let dev = await this.findDevByGame(gameid, ownerid);
+            if (!dev)
+                throw new GeneralError("E_NOTAUTHORIZED");
+            let db = await mysql.db();
+            let { results } = await db.update('game_info', game, 'gameid=?', [gameid,]);
             console.log(results);
 
             if (results.affectedRows > 0) {
@@ -514,6 +626,17 @@ module.exports = class DevGameService {
             delete game['apikey'];
             //game.ownerid = user.id;
             // game.apikey = generateAPIKEY();
+
+            let newGame = {
+                name: game.name,
+                shortdesc: game.shortdesc,
+                longdesc: game.longdesc,
+                minplayers: game.minplayers,
+                maxplayers: game.maxplayers,
+                teams: game.teams,
+                opensource: game.opensource ? 1 : 0
+            }
+
             let dbresult;
             if (apikey) {
                 let comment = apikey.indexOf('.');
@@ -521,7 +644,12 @@ module.exports = class DevGameService {
                     apikey = apikey.substr(comment + 1);
                 }
 
-                let { results } = await db.update('game_info', game, 'apikey=?', [apikey]);
+                let dev = await this.findDevByAPIKey(apikey);
+                if (!dev) {
+                    throw new GeneralError("E_NOTAUTHORIZED");
+                }
+
+                let { results } = await db.update('game_info', newGame, 'gameid=?', [gameid]);
                 dbresult = results;
                 console.log(dbresult);
                 game.gameid = gameid;
@@ -530,7 +658,13 @@ module.exports = class DevGameService {
 
             }
             else {
-                let { results } = await db.update('game_info', game, 'gameid=? AND ownerid=?', [gameid, user.id]);
+
+                let dev = await this.findDevByGame(gameid, user.id);
+                if (!dev) {
+                    throw new GeneralError("E_NOTAUTHORIZED");
+                }
+
+                let { results } = await db.update('game_info', newGame, 'gameid=?', [gameid]);
                 dbresult = results;
                 console.log(dbresult);
                 if (dbresult.affectedRows > 0) {
@@ -640,6 +774,38 @@ module.exports = class DevGameService {
         return null;
     }
 
+    async deployGame(game, user, db) {
+        console.log(game);
+        try {
+            db = db || await mysql.db();
+
+            let dev = await this.findDevByGame(game.gameid, user.id);
+            if (!dev)
+                throw new GeneralError("E_NOTAUTHORIZED");
+
+
+            let deployedGame = {
+                version: game.version
+            }
+
+            let { results } = await db.update('game_info', deployedGame, 'gameid=?', [game.gameid]);
+            console.log(results);
+
+            if (results.affectedRows > 0)
+                return deployedGame;
+
+        }
+        catch (e) {
+            console.log(e);
+            if (e instanceof GeneralError)
+                return e;
+
+            //revert back to normal
+            throw new GeneralError("E_GAME_INVALID");
+        }
+        return null;
+    }
+
     async createGame(game, user, db) {
         console.log(game);
         try {
@@ -649,31 +815,32 @@ module.exports = class DevGameService {
                 worker: this.credentials.datacenter.worker || 0
             });
 
-            game.gameid = {
-                toSqlString: () => newid
-            }
-
-            game.ownerid = {
-                toSqlString: () => user.id
-            }
-
-            game.apikey = generateAPIKEY();
+            game.gameid = { toSqlString: () => newid }
+            game.ownerid = { toSqlString: () => user.id }
             game.game_slug = game.game_slug.toLowerCase();
-
             game.status = this.statusId('Draft');
-
-            let { results } = await db.insert('game_info', game);
-            console.log(results);
+            game.version = 0;
+            game.latest_version = 0;
 
             let errors = validateSimple('game_info', game);
             if (errors.length > 0) {
                 throw new GeneralError("E_GAME_INVALID");
             }
 
-
+            let response = await db.insert('game_info', game);
+            console.log(response.results);
             // await this.createGameBuilds(game, user, db);
 
-            if (results.affectedRows > 0) {
+            let dev = {
+                gameid: game.gameid,
+                ownerid: game.ownerid,
+                role: 0,
+                apikey: generateAPIKEY()
+            }
+            let response2 = await db.insert('game_dev', dev);
+            console.log(response2.results);
+
+            if (response.results.affectedRows > 0 && response2.results.affectedRows > 0) {
                 game.gameid = game.gameid.toSqlString();
                 return game;
             }
@@ -687,8 +854,8 @@ module.exports = class DevGameService {
                 if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {
                     throw new GeneralError("E_GAME_DUPENAME", game.name);
                 }
-                if (e.payload.sqlMessage.indexOf("game_info.shortid_UNIQUE") > -1) {
-                    throw new GeneralError("E_GAME_DUPESHORTNAME", game.shortid);
+                if (e.payload.sqlMessage.indexOf("game_info.game_slug_UNIQUE") > -1) {
+                    throw new GeneralError("E_GAME_DUPESHORTNAME", game.game_slug);
                 }
             }
             console.error(e);

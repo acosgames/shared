@@ -1,6 +1,7 @@
 const pako = require('pako');
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const { serialize, deserialize } = require('bson');
 
 function ab2str(buf) {
     return String.fromCharCode.apply(null, new Uint16Array(buf));
@@ -94,4 +95,68 @@ function decode(raw) {
 }
 
 
-module.exports = { encode, decode }
+function test() {
+
+    let testJSON = {
+        "local": {
+            "name": "joe",
+            "rank": 2,
+            "score": 0,
+            "type": "O",
+            "id": "8CCkf"
+        },
+        "room_slug": "JHMKGD",
+        "state": {
+            "cells": {
+                "0": "",
+                "1": "",
+                "2": "",
+                "3": "",
+                "4": "",
+                "5": "",
+                "6": "",
+                "7": "",
+                "8": ""
+            },
+            "startPlayer": "manC6"
+        },
+        "rules": {
+            "bestOf": 5,
+            "maxPlayers": 2
+        },
+        "next": {
+            "id": "manC6",
+            "action": "pick"
+        },
+        "events": {},
+        "timer": {
+            "seq": 1
+        },
+        "players": {
+            "8CCkf": {
+                "name": "joe",
+                "rank": 2,
+                "score": 0,
+                "type": "O",
+                "id": "8CCkf"
+            },
+            "manC6": {
+                "name": "5SG",
+                "rank": 2,
+                "score": 0,
+                "type": "X"
+            }
+        },
+        "prev": {}
+    };
+
+
+    let bson = serialize(testJSON);
+    let json = deserialize(bson);
+    console.log("BSON Length: ", bson.length);
+    console.log("JSON length: ", JSON.stringify(json).length);
+}
+
+test();
+
+module.exports = { encode, decode, serialize, deserialize }

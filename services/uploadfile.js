@@ -218,7 +218,7 @@ module.exports = class UploadFile {
                         let game = req.game;
                         var filename = "server.db." + game.version + '.json';
                         let key = game.gameid + '/' + filename;
-
+                        req.hasDb = true;
                         cb(null, key)
                     }
                     else if (file.fieldname == 'server') {

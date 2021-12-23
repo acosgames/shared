@@ -480,7 +480,7 @@ class RoomService {
             var response;
             console.log("Getting game info: ", game_slug);
 
-            response = await db.sql(`SELECT * FROM game_info WHERE game_slug = ?`, [game_slug]);
+            response = await db.sql(`SELECT a.* FROM game_info a, game_version b WHERE game_slug = ?`, [game_slug]);
 
             if (!response.results || response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
