@@ -1,7 +1,7 @@
 const pako = require('pako');
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const { serialize, deserialize } = require('bson');
+// const { serialize, deserialize } = require('bson');
 const ServerAPI = require('../../fsg-api/src/api/server');
 
 function ab2str(buf) {
@@ -78,7 +78,7 @@ function isObject(obj) {
 
 function serialize(json, buffer, dict) {
     buffer = buffer || [];
-    dict = dict || {};
+    dict = dict || { count: 0, keys: {} };
 
     if (isObject(json)) {
         buffer.push(TYPE_OBJ);
@@ -102,7 +102,7 @@ function serialize(json, buffer, dict) {
 
     if (json instanceof Date) {
         buffer.push(TYPE_DATE);
-        buffer.push(toBytesInt32(json.getTime()))
+        buffer.push()
         return;
     }
 
@@ -121,10 +121,12 @@ function serialize(json, buffer, dict) {
         else {
             buffer.push(TYPE_DOUBLE);
             buffer.push(json)
+            return;
         }
 
     }
 
+    return buffer;
 }
 
 function toBytesInt32(num) {
@@ -169,9 +171,9 @@ function serializeArr(json, buffer, dict) {
     }
 }
 
-function deserialize(json, dict) {
+// function deserialize(json, dict) {
 
-}
+// }
 
 function encode(json) {
     try {
@@ -215,14 +217,24 @@ function decode(raw) {
 
 function test() {
 
+    let buffer = [];
+    let dict = { count: 0, keys: {} };
+
+    console.time('serialize');
+    let test = serialize(testJSON, buffer, dict);
 
 
-    let bson = serialize(testJSON);
-    let json = deserialize(bson);
-    console.log("BSON Length: ", bson.length);
-    console.log("JSON length: ", JSON.stringify(json).length);
+    // console.log("Dict: ", dict);
+    let bufferLen = buffer.length;
+    let dictLen = JSON.stringify(dict).length;
+    console.log("Buffer:", bufferLen);
+    // console.log("BSON Length: ", bson.length);
+    console.log("Dict length: ", dictLen);
+    console.log("Buffer+Dict length: ", dictLen + bufferLen);
+    console.log("JSON length: ", JSON.stringify(testJSON).length);
+    console.timeEnd('serialize');
 }
 
 test();
 
-module.exports = { encode, decode, serialize, deserialize }
+module.exports = { encode, decode }
