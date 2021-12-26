@@ -137,7 +137,7 @@ module.exports = class ObjectStorage {
                 } catch (e) {
                     console.error(e);
                 }
-                if (fileExists && !meta.istest) {
+                if (fileExists) {
                     let data = await fs.promises.readFile(localPath);
                     let js = await $this.unzipServerFile(data);
                     rs(js);

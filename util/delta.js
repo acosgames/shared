@@ -32,7 +32,7 @@ class Delta {
             }
 
             let child = this.delta(from[key], to[key]);
-            if (typeof child !== 'undefined' &&
+            if (typeof child !== 'undefined' && child != null &&
                 ((typeof child === 'string') ||
                     (typeof child === 'number') ||
                     (typeof child === 'boolean') ||

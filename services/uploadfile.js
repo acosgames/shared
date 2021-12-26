@@ -41,7 +41,7 @@ module.exports = class UploadFile {
 
             var params2 = {
                 Bucket: "fivesecondgames",
-                Key: client.gameid + '/client/' + client.id + '/' + filename
+                Key: client.game_slug + '/client/' + client.id + '/' + filename
             };
             let del = await this.s3.deleteObject(params2).promise();
             console.log(del);
@@ -88,7 +88,7 @@ module.exports = class UploadFile {
                 let filename = previews[i];
                 var params2 = {
                     Bucket: "fivesecondgames",
-                    Key: client.gameid + '/client/' + client.id + '/' + filename
+                    Key: client.game_slug + '/client/' + client.id + '/' + filename
                 };
                 let del = await this.s3.deleteObject(params2).promise();
                 console.log(del);
@@ -122,7 +122,7 @@ module.exports = class UploadFile {
                 let filename = previews[i];
                 var params2 = {
                     Bucket: "fivesecondgames",
-                    Key: game.gameid + '/preview/' + filename
+                    Key: game.game_slug + '/preview/' + filename
                 };
                 let del = await this.s3.deleteObject(params2).promise();
                 console.log(del);
@@ -186,7 +186,7 @@ module.exports = class UploadFile {
                 if (file.fieldname == 'db') {
                     let game = req.game;
                     var filename = "server.db." + game.version + '.json';
-                    let key = game.gameid + '/' + filename;
+                    let key = game.game_slug + '/' + filename;
 
                     cb(null, key)
                 }
@@ -194,14 +194,14 @@ module.exports = class UploadFile {
                     let game = req.game;
                     var filename = 'server.bundle.' + game.version + '.js';
                     // filename = filename.replace('.js', '.' + game.version + '.js')
-                    let key = game.gameid + '/' + filename;
+                    let key = game.game_slug + '/' + filename;
 
                     cb(null, key)
                 }
                 else if (file.fieldname == 'client') {
                     let game = req.game;
                     var filename = 'client.bundle.' + game.version + '.js';
-                    let key = game.gameid + '/client/' + filename;
+                    let key = game.game_slug + '/client/' + filename;
                     cb(null, key)
                 }
                 else cb(null, null)
@@ -217,7 +217,7 @@ module.exports = class UploadFile {
                     if (file.fieldname == 'db') {
                         let game = req.game;
                         var filename = "server.db." + game.version + '.json';
-                        let key = game.gameid + '/' + filename;
+                        let key = game.game_slug + '/' + filename;
                         req.hasDb = true;
                         cb(null, key)
                     }
@@ -225,14 +225,14 @@ module.exports = class UploadFile {
                         let game = req.game;
                         var filename = 'server.bundle.' + game.version + '.js';
                         // filename = filename.replace('.js', '.' + game.version + '.js')
-                        let key = game.gameid + '/' + filename;
+                        let key = game.game_slug + '/' + filename;
 
                         cb(null, key)
                     }
                     else if (file.fieldname == 'client') {
                         let game = req.game;
                         var filename = 'client.bundle.' + game.version + '.js';
-                        let key = game.gameid + '/client/' + filename;
+                        let key = game.game_slug + '/client/' + filename;
                         cb(null, key)
                     }
                     else cb(null, null)
@@ -424,7 +424,7 @@ module.exports = class UploadFile {
                     let game = req.game;
                     var filename = file.originalname;
                     filename = filename.replace('.js', '.' + game.version + '.html')
-                    let key = game.gameid + '/client/' + filename;
+                    let key = game.game_slug + '/client/' + filename;
 
                     cb(null, key)
                 },

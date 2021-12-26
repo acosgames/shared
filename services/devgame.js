@@ -154,7 +154,7 @@ module.exports = class DevGameService {
 
             console.log("Searching for specific game developer: ", gameid, ownerid);
 
-            var response = await db.sql('select * from game_dev where gameid = ? AND ownerid = ?', [{ toSqlString: () => gameid }, { toSqlString: () => ownerid }]);
+            var response = await db.sql('select * from game_dev where (gameid = ? OR game_slug = ?) AND ownerid = ?', [{ toSqlString: () => gameid }, gameid, { toSqlString: () => ownerid }]);
 
             var dev = null;
             if (response && response.results.length > 0) {
@@ -219,6 +219,25 @@ module.exports = class DevGameService {
                     LEFT JOIN game_version latest ON latest.gameid = a.gameid AND latest.version = a.latest_version
                     where a.gameid = ? 
                 `, [game.gameid, user.id]);
+            }
+            else if (game.game_slug) {
+                console.log("Searching for dev game by gameid/ownerid: ", game.game_slug, user.id);
+                response = await db.sql(`
+                    select 
+                        a.*, 
+                        cur.scaled as scaled,
+                        cur.db as db,
+                        latest.scaled as latest_scaled,
+                        latest.db as latest_db,
+                        latest.tsupdate as latest_tsupdate,
+                        b.role,
+                        b.apikey
+                    from game_info a
+                    LEFT JOIN game_dev b ON b.gameid = a.gameid
+                    LEFT JOIN game_version cur ON cur.gameid = a.gameid AND cur.version = a.version
+                    LEFT JOIN game_version latest ON latest.gameid = a.gameid AND latest.version = a.latest_version
+                    where a.game_slug = ? 
+                `, [game.game_slug, user.id]);
             }
             // else if (game.shortid) {
             //     response = await db.sql('select * from game_info where shortid = ? AND ownerid = ?', [game.shortid, { toSqlString: () => user.id }]);
@@ -506,7 +525,7 @@ module.exports = class DevGameService {
         return null;
     }
 
-    async updatePreviewImages(gameid, user, images) {
+    async updatePreviewImages(game_slug, user, images) {
 
         try {
 
@@ -516,15 +535,15 @@ module.exports = class DevGameService {
             let game = {};
             game.preview_images = images.join(',');
 
-            let dev = await this.findDevByGame(gameid, ownerid);
+            let dev = await this.findDevByGame(game_slug, ownerid);
             if (!dev)
                 throw new GeneralError("E_NOTAUTHORIZED");
             let db = await mysql.db();
-            let { results } = await db.update('game_info', game, 'gameid=?', [gameid,]);
+            let { results } = await db.update('game_info', game, 'game_slug=?', [game_slug,]);
             console.log(results);
 
             if (results.affectedRows > 0) {
-                game.gameid = gameid;
+                game.game_slug = game_slug;
                 game.ownerid = ownerid;
                 return game;
             }
