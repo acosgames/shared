@@ -289,6 +289,106 @@ class RedisService {
             throw new GeneralError('ERROR_REDISclient.get', { key });
         }
     }
+
+    async zadd(name, members) {
+        try {
+            // ttl = ttl || this.credentials.defaultExpireTime || 300
+            if (!Array.isArray(members)) {
+                return false;
+            }
+
+            if (typeof name !== 'string')
+                return false;
+
+            let result = await this.client.ZADD(name, members);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            throw new GeneralError('ERROR_REDISclient.ZADD', { name, members });
+        }
+    }
+
+    async zrange(name, start, end) {
+        try {
+            // ttl = ttl || this.credentials.defaultExpireTime || 300
+
+            if (typeof name !== 'string')
+                return false;
+
+            let result = await this.client.ZRANGE_WITHSCORES(name, start, end, {});
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            rj(new GeneralError('ERROR_REDISClient.ZRANGE', { name, start, end }));
+        }
+    }
+
+    async zrevrange(name, start, end) {
+        try {
+            // ttl = ttl || this.credentials.defaultExpireTime || 300
+
+            if (typeof name !== 'string')
+                return false;
+
+            let result = await this.client.ZRANGE_WITHSCORES(name, start, end, { REV: true });
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            rj(new GeneralError('ERROR_REDISClient.ZREVRANGE', { name, start, end }));
+        }
+    }
+
+    async zcount(name, start, end) {
+        try {
+            // ttl = ttl || this.credentials.defaultExpireTime || 300
+
+            if (typeof name !== 'string')
+                return false;
+
+            let result = await this.client.ZCOUNT(name, start, end);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            rj(new GeneralError('ERROR_REDISClient.ZCOUNT', { name, start, end }));
+        }
+    }
+
+    async zrank(name, key) {
+        try {
+            // ttl = ttl || this.credentials.defaultExpireTime || 300
+
+            if (typeof name !== 'string')
+                return false;
+
+            let result = await this.client.ZRANK(name, key);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            rj(new GeneralError('ERROR_REDISClient.ZRANK', { name, start, end }));
+        }
+    }
+
+    async zrevrank(name, key) {
+        try {
+            // ttl = ttl || this.credentials.defaultExpireTime || 300
+
+            if (typeof name !== 'string')
+                return false;
+
+            let result = await this.client.ZREVRANK(name, key);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            rj(new GeneralError('ERROR_REDISClient.ZREVRANK', { name, start, end }));
+        }
+    }
+
 }
 
 

@@ -7,6 +7,7 @@ const { utcDATETIME } = require('../util/datefns');
 const { GeneralError, CodeError, SQLError } = require('../util/errorhandler');
 
 const cache = require('./cache');
+const redis = require('./redis');
 
 module.exports = class GameService {
 
@@ -225,6 +226,53 @@ module.exports = class GameService {
 
     }
 
+    async getGameTop10Players(game_slug) {
+
+        let rankings = await redis.get(game_slug + '/top10');
+        if (!rankings) {
+            let rankings = await redis.zrevrange(game_slug + '/lb', 0, 2);
+
+            for (var i = 0; i < rankings.length; i++) {
+                rankings[i].rank = (i + 1);
+            }
+
+            redis.set(game_slug + '/top10', rankings, 60);
+        }
+
+        console.log("top10: ", game_slug, rankings);
+        return rankings;
+    }
+
+    async getGameLeaderboardCount(game_slug) {
+        let count = await redis.zcount(game_slug + '/lb', 0, 10000000);
+        console.log("count: ", game_slug, count);
+        return count;
+    }
+
+    async getPlayerGameLeaderboard(game_slug, player) {
+        let rank = await redis.zrevrank(game_slug + '/lb', player);
+        console.log("rank: ", game_slug, rank);
+
+        let rankings = await redis.zrevrange(game_slug + '/lb', rank - 1, rank + 1);
+        let playerPos = 0;
+        for (var i = 0; i < rankings.length; i++) {
+            if (rankings[i].value == player) {
+                playerPos = i;
+                break;
+            }
+        }
+
+        let otherRank = 0;
+        for (var i = 0; i < rankings.length; i++) {
+            otherRank = rank + (playerPos - i)
+            rankings[i].rank = (otherRank + 1);
+        }
+
+        console.log("range: ", game_slug, rankings);
+
+        return rankings;
+    }
+
     async findGamePerson(game_slug, shortid) {
         try {
             let db = await mysql.db();
@@ -267,8 +315,9 @@ module.exports = class GameService {
             let game = response.results[0];
             game.ratingTxt = await this.ratingToRank(game.rating);
             game.votes = await this.findGameVotes(game_slug);
-
-
+            game.top10 = await this.getGameTop10Players(game_slug) || -1;
+            game.lb = await this.getPlayerGameLeaderboard(game_slug, game.displayname) || [];
+            game.lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
             let cleaned = {
                 game: {
                     gameid: game.gameid,
@@ -299,13 +348,17 @@ module.exports = class GameService {
                 player: {
                     rating: game.rating,
                     ratingTxt: game.ratingTxt,
+                    ranking: game.playerRanking,
                     vote: game.vote,
                     report: game.report,
                     win: game.win,
                     loss: game.loss,
                     tie: game.tie,
                     played: game.played
-                }
+                },
+                top10: game.top10,
+                lb: game.lb,
+                lbCount: game.lbCount
             }
 
             return cleaned;

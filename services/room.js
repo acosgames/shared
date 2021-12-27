@@ -213,6 +213,23 @@ class RoomService {
         }
     }
 
+    async updateLeaderboard(game_slug, players) {
+        try {
+            let members = [];
+            for (var id in players) {
+                let player = players[id];
+                members.push({ value: player.name, score: player.rating });
+            }
+
+            let result = await redis.zadd(game_slug + '/lb', members);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return false;
+    }
+
     async updateAllPlayerRatings(ratings) {
         try {
             let db = await mysql.db();

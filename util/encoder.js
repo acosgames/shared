@@ -85,6 +85,11 @@ const TYPE_FLOATSTR = 19;
 const TYPE_NULL = 20;
 const TYPE_ZERO = 21;
 const TYPE_EMPTYSTRING = 22;
+const TYPE_TRUE = 23;
+const TYPE_FALSE = 24;
+const TYPE_ONE = 25;
+const TYPE_TWO = 26;
+const TYPE_THREE = 27;
 
 var dvbuff = new ArrayBuffer(16);
 var dv = new DataView(dvbuff);
@@ -106,6 +111,7 @@ var defaultOrder = [
     'seq',
     'rank',
     'rating',
+    'ratingTxt',
     'score',
     '_win',
     '_loss',
@@ -137,6 +143,8 @@ var defaultOrder = [
     '$leave',
     '$gamestart',
     '$gameover',
+    '$id',
+    '$action',
     'seconds',
     'end',
 ]
@@ -201,11 +209,7 @@ function serializeEX(json, buffer, dict, parentKey) {
         buffer.push(TYPE_NULL);
         return;
     }
-
-    if (json == 0 && !(typeof json === 'string' || json instanceof String)) {
-        buffer.push(TYPE_ZERO);
-        return;
-    }
+    let isString = (typeof json === 'string' || json instanceof String);
 
     if (json instanceof Date) {
         buffer.push(TYPE_DATE);
@@ -238,7 +242,7 @@ function serializeEX(json, buffer, dict, parentKey) {
     }
 
 
-    if (typeof json === 'string' || json instanceof String) {
+    if (isString) {
 
         if (json.length == 0) {
             buffer.push(TYPE_EMPTYSTRING);
@@ -256,17 +260,31 @@ function serializeEX(json, buffer, dict, parentKey) {
     }
 
 
-
-    if (typeof json == "boolean") {
-        buffer.push(TYPE_BOOL);
-        buffer.push(json ? 1 : 0);
+    if (typeof json === "boolean") {
+        if (json == false) {
+            buffer.push(TYPE_FALSE);
+            return;
+        }
+        buffer.push(TYPE_TRUE);
         return;
     }
 
     if (typeof json === 'number') {
         if (Number.isInteger(json)) {
-
-            if (json >= -128 && json <= 127) {
+            if (json == 0) {
+                buffer.push(TYPE_ZERO);
+                return;
+            } else if (json == 1) {
+                buffer.push(TYPE_ONE);
+                return;
+            } else if (json == 2) {
+                buffer.push(TYPE_TWO);
+                return;
+            } else if (json == 3) {
+                buffer.push(TYPE_THREE);
+                return;
+            }
+            else if (json >= -128 && json <= 127) {
                 buffer.push(TYPE_INT8);
                 dv.setInt8(0, json);
                 buffer.push(dv.getUint8(0));
@@ -437,6 +455,15 @@ function deserializeEX(ref) {
         case TYPE_ZERO:
             json = 0;
             break;
+        case TYPE_ONE:
+            json = 1;
+            break;
+        case TYPE_TWO:
+            json = 2;
+            break;
+        case TYPE_THREE:
+            json = 3;
+            break;
         case TYPE_OBJ:
             json = deserializeObj({}, ref);
             break;
@@ -460,8 +487,11 @@ function deserializeEX(ref) {
             json = decoder.decode(data);
             // console.log('string: ', json);
             break;
-        case TYPE_BOOL:
-            json = ref.buffer.getInt8(ref.pos++) ? true : false;
+        case TYPE_TRUE:
+            json = true;
+            break;
+        case TYPE_FALSE:
+            json = false;
             break;
         case TYPE_DATE:
             json = ref.buffer.getBigUint64(ref.pos);
