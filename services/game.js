@@ -171,7 +171,17 @@ module.exports = class GameService {
             }
             let game = response.results[0];
             game.votes = await this.findGameVotes(game_slug);
-            return game;
+
+            let top10 = await this.getGameTop10Players(game_slug) || [];
+            // game.lb = await this.getPlayerGameLeaderboard(game_slug, game.displayname) || [];
+            let lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
+
+            let cleaned = {
+                game,
+                top10,
+                lbCount
+            }
+            return cleaned;
         }
         catch (e) {
             if (e instanceof GeneralError)
@@ -230,7 +240,7 @@ module.exports = class GameService {
 
         let rankings = await redis.get(game_slug + '/top10');
         if (!rankings) {
-            let rankings = await redis.zrevrange(game_slug + '/lb', 0, 2);
+            rankings = await redis.zrevrange(game_slug + '/lb', 0, 4);
 
             for (var i = 0; i < rankings.length; i++) {
                 rankings[i].rank = (i + 1);
@@ -249,23 +259,30 @@ module.exports = class GameService {
         return count;
     }
 
-    async getPlayerGameLeaderboard(game_slug, player) {
+    async getPlayerGameRank(game_slug, player) {
         let rank = await redis.zrevrank(game_slug + '/lb', player);
-        console.log("rank: ", game_slug, rank);
+        console.log("rank: ", game_slug, player, rank);
 
-        let rankings = await redis.zrevrange(game_slug + '/lb', rank - 1, rank + 1);
+        return rank;
+    }
+
+    async getPlayerGameLeaderboard(game_slug, player, rank) {
+        if (!rank)
+            return [];
+        let rankings = await redis.zrevrange(game_slug + '/lb', Math.max(0, rank - 1), rank + 1);
+        console.log("rankings raw: ", rankings);
         let playerPos = 0;
         for (var i = 0; i < rankings.length; i++) {
             if (rankings[i].value == player) {
-                playerPos = i;
+                playerPos = -i;
                 break;
             }
         }
 
         let otherRank = 0;
         for (var i = 0; i < rankings.length; i++) {
-            otherRank = rank + (playerPos - i)
-            rankings[i].rank = (otherRank + 1);
+
+            rankings[i].rank = rank + (playerPos + i + 1)
         }
 
         console.log("range: ", game_slug, rankings);
@@ -273,11 +290,11 @@ module.exports = class GameService {
         return rankings;
     }
 
-    async findGamePerson(game_slug, shortid) {
+    async findGamePerson(game_slug, shortid, displayname) {
         try {
             let db = await mysql.db();
             var response;
-            console.log("Getting game with person stats: ", game_slug);
+            console.log("Getting game with person stats: ", game_slug, shortid);
             response = await db.sql(`
                 SELECT 
                 cur.scaled as scaled,
@@ -299,14 +316,14 @@ module.exports = class GameService {
                 a.ownerid, a.name, a.shortdesc, a.longdesc, 
                 a.opensource, a.preview_images, a.status, 
                 a.tsupdate, a.tsinsert 
-                FROM game_info a, person d, game_version cur, game_version latest, game_review b, person_rank c
+                FROM game_info a, person d, game_version cur, game_version latest
+                LEFT JOIN game_review b ON (b.game_slug = ? AND b.shortid = ?)
+                LEFT JOIN person_rank c ON (c.game_slug = ? AND c.shortid = ?)
                 WHERE a.game_slug = ?
                 AND a.ownerid = d.id
-                AND (a.game_slug = b.game_slug AND b.shortid = ?)
-                AND (a.game_slug = c.game_slug AND c.shortid = ?)
                 AND (a.gameid = cur.gameid AND a.version = cur.version)
                 AND (a.gameid = latest.gameid AND a.latest_version = latest.version)
-            `, [game_slug, shortid, shortid]);
+            `, [game_slug, shortid, game_slug, shortid, game_slug]);
 
             if (response.results && response.results.length == 0) {
                 return new GeneralError('E_NOTFOUND');
@@ -315,8 +332,9 @@ module.exports = class GameService {
             let game = response.results[0];
             game.ratingTxt = await this.ratingToRank(game.rating);
             game.votes = await this.findGameVotes(game_slug);
-            game.top10 = await this.getGameTop10Players(game_slug) || -1;
-            game.lb = await this.getPlayerGameLeaderboard(game_slug, game.displayname) || [];
+            game.top10 = await this.getGameTop10Players(game_slug) || [];
+            let playerRank = await this.getPlayerGameRank(game_slug, displayname);
+            game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank) || [];
             game.lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
             let cleaned = {
                 game: {
@@ -348,7 +366,7 @@ module.exports = class GameService {
                 player: {
                     rating: game.rating,
                     ratingTxt: game.ratingTxt,
-                    ranking: game.playerRanking,
+                    ranking: playerRank + 1,
                     vote: game.vote,
                     report: game.report,
                     win: game.win,
