@@ -90,6 +90,9 @@ const TYPE_FALSE = 24;
 const TYPE_ONE = 25;
 const TYPE_TWO = 26;
 const TYPE_THREE = 27;
+const TYPE_EMPTY_OBJ = 28;
+const TYPE_EMPTY_ARR = 29;
+const TYPE_DEL_DICTKEY = 30;
 
 var dvbuff = new ArrayBuffer(16);
 var dv = new DataView(dvbuff);
@@ -135,18 +138,82 @@ var defaultOrder = [
     'id',
     'offset',
     'serverTime',
-    'gameover',
+    'gamestatus',
+    'pregame',
+    'starting',
     'gamestart',
+    'gameover',
     'join',
     'leave',
     '$join',
     '$leave',
+    '$gamestatus',
+    '$pregame',
+    '$starting',
     '$gamestart',
     '$gameover',
     '$id',
     '$action',
     'seconds',
     'end',
+    'ready',
+    'update',
+    'finish',
+    'winner',
+    'private',
+    'timeleft',
+    'user',
+    'pick',
+    'picked',
+    'move',
+    'moved',
+    'cells',
+    'cellid',
+    'cellx',
+    'celly',
+    'cellz',
+    'startPlayer',
+    'queue',
+    'experimental',
+    'local',
+    'ping',
+    'pong',
+    'joingame',
+    'joinroom',
+    'joinqueue',
+    'leavequeue',
+    'spectate',
+    'newround',
+    'round',
+    'rounds',
+    'Wood I',
+    'Wood II',
+    'Wood III',
+    'Wood IV',
+    'Bronze I',
+    'Bronze II',
+    'Bronze III',
+    'Bronze IV',
+    'Silver I',
+    'Silver II',
+    'Silver III',
+    'Silver IV',
+    'Gold I',
+    'Gold II',
+    'Gold III',
+    'Gold IV',
+    'Platinum I',
+    'Platinum II',
+    'Platinum III',
+    'Platinum IV',
+    'Champion I',
+    'Champion II',
+    'Champion III',
+    'Champion IV',
+    'Grand Champion I',
+    'Grand Champion II',
+    'Grand Champion III',
+    'Grand Champion IV',
 ]
 
 var defaultDict = null;
@@ -228,6 +295,10 @@ function serializeEX(json, buffer, dict, parentKey) {
     }
 
     if (Array.isArray(json)) {
+        if (json.length == 0) {
+            buffer.push(TYPE_EMPTY_ARR);
+            return;
+        }
         buffer.push(TYPE_ARR);
         serializeArr(json, buffer, dict);
         buffer.push(TYPE_ENDARR);
@@ -235,6 +306,11 @@ function serializeEX(json, buffer, dict, parentKey) {
     }
 
     if (isObject(json)) {
+        if (Object.keys(json).length == 0) {
+            buffer.push(TYPE_EMPTY_OBJ);
+            return;
+        }
+
         buffer.push(TYPE_OBJ);
         serializeObj(json, buffer, dict, parentKey);
         buffer.push(TYPE_ENDOBJ);
@@ -249,7 +325,13 @@ function serializeEX(json, buffer, dict, parentKey) {
             return;
         }
 
+        let exists = mapKey(json, buffer, dict, true);
+        if (exists) {
+            return;
+        }
+
         buffer.push(TYPE_STRING)
+
         let encoded = encoder.encode(json);
         for (var i = 0; i < encoded.byteLength; i++) {
             // console.log(json + '[' + i + ']', encoded[i]);
@@ -389,36 +471,58 @@ function serializeEX(json, buffer, dict, parentKey) {
 
 }
 
-function mapKey(key, buffer, dict) {
+function mapKey(key, buffer, dict, skip) {
     let id = dict.count || 0;
     if (key in dict.keys) {
         id = dict.keys[key];
     } else {
+        if (skip) {
+            return false;
+        }
         if (dict.frozen || dict.count >= 255) {
             serializeEX(key, buffer, dict);
-            return;
+            return false;
         }
-        else {
-            id = dict.count;
-            dict.count += 1;
-            dict.keys[key] = id;
-            dict.order.push(key);
-        }
+
+        id = dict.count;
+        dict.count += 1;
+        dict.keys[key] = id;
+        dict.order.push(key);
 
     }
 
     buffer.push(TYPE_DICT);
     buffer.push(id);
+
+    return true;
+}
+
+function mapDeletionKey(key, buffer, dict) {
+
+    let skey = key.substr(1, key.length - 1);
+    if (!(skey in dict.keys)) {
+        mapKey(key, buffer, dict);
+        return false;
+    }
+
+    let id = dict.keys[skey];
+    buffer.push(TYPE_DEL_DICTKEY);
+    buffer.push(id);
+
+    return true;
 }
 
 function serializeObj(json, buffer, dict, parentKey) {
 
     for (var key in json) {
         let value = json[key];
-        if (parentKey == 'players')
-            serializeEX(key, buffer, dict);
-        else
+        if (key[0] == '$') {
+            if (mapDeletionKey(key, buffer, dict))
+                return;
+        }
+        else {
             mapKey(key, buffer, dict);
+        }
         serializeEX(value, buffer, dict, key);
     }
 }
@@ -449,6 +553,16 @@ function deserializeEX(ref) {
     let type = ref.buffer.getInt8(ref.pos++);
 
     switch (type) {
+        case TYPE_EMPTY_OBJ:
+            json = {};
+            break;
+        case TYPE_EMPTY_ARR:
+            json = [];
+            break;
+        case TYPE_DICT:
+            let id = ref.buffer.getUint8(ref.pos++);
+            json = ref.dict.order[id];
+            break;
         case TYPE_NULL:
             json = null;
             break;
@@ -567,8 +681,16 @@ function deserializeObj(json, ref) {
         return json
     }
 
-    if (type != TYPE_DICT && type != TYPE_STRING) {
+    if (type != TYPE_DICT && type != TYPE_STRING && type != TYPE_DEL_DICTKEY) {
         throw 'E_INVALIDOBJ';
+    }
+
+    if (type == TYPE_DEL_DICTKEY) {
+        let id = ref.buffer.getUint8(ref.pos++);
+        let key = '$' + ref.dict.order[id];
+        json[key] = 0;
+
+        return deserializeObj(json, ref);
     }
 
     if (type == TYPE_DICT) {
@@ -616,13 +738,13 @@ function deserializeArr(json, ref) {
 function encode(json, storedDict) {
     try {
 
-        console.log("ENCODING: ", JSON.stringify(json, null, 2));
+        // console.log("ENCODING: ", JSON.stringify(json, null, 2));
         let dict = createDefaultDict(storedDict);
         dict.frozen = true;
-        console.time('serialize');
+        // console.time('serialize');
         let encoded = serialize(json, dict);
-        console.timeEnd('serialize');
-        console.log('Encoded Size: ', encoded.byteLength)
+        // console.timeEnd('serialize');
+        // console.log('Encoded Size: ', encoded.byteLength)
         // let jsonStr = JSON.stringify(json);
         // let buffer = encoder.encode(jsonStr);
         // let deflated = pako.deflate(encoded);
@@ -642,9 +764,9 @@ function decode(raw, storedDict) {
         let dict = createDefaultDict(storedDict);
         dict.frozen = true;
         var dataview = new DataView(raw);
-        console.time('deserialize');
+        // console.time('deserialize');
         let decoded = deserialize(dataview, 0, dict);
-        console.timeEnd('deserialize');
+        // console.timeEnd('deserialize');
         // let inflated = pako.inflate(raw);
         // let jsonStr = decoder.decode(inflated);
         // let json = JSON.parse(jsonStr);

@@ -337,7 +337,7 @@ class RedisService {
         }
         catch (e) {
             console.error(e);
-            rj(new GeneralError('ERROR_REDISClient.ZREVRANGE', { name, start, end }));
+            rj(new GeneralError('ERROR_REDISClient.ZREVRANGE', { name, start, end, }));
         }
     }
 
@@ -369,7 +369,7 @@ class RedisService {
         }
         catch (e) {
             console.error(e);
-            rj(new GeneralError('ERROR_REDISClient.ZRANK', { name, start, end }));
+            rj(new GeneralError('ERROR_REDISClient.ZRANK', { name, key }));
         }
     }
 
@@ -385,7 +385,21 @@ class RedisService {
         }
         catch (e) {
             console.error(e);
-            rj(new GeneralError('ERROR_REDISClient.ZREVRANK', { name, start, end }));
+            rj(new GeneralError('ERROR_REDISClient.ZREVRANK', { name, key }));
+        }
+    }
+
+    async zrem(name, key) {
+        try {
+            if (typeof name !== 'string')
+                return false;
+
+            let result = await this.client.ZREM(name, key);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            rj(new GeneralError('ERROR_REDISClient.ZREM', { name, key }));
         }
     }
 

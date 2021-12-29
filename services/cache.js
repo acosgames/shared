@@ -13,6 +13,8 @@ class Cacher {
     async get(key) {
         //let key = shortid + '/' + room_slug;
         //let value = this.dict[key];
+        if (!key)
+            return null;
         let value = this.cache.get(key);
         if (typeof value === 'undefined') {
             value = await this.redis.get(key);
@@ -25,7 +27,7 @@ class Cacher {
     }
 
     getLocal(key) {
-        console.log(`${key} has TTL: ${this.cache.getTtl(key)}`);
+        // console.log(`${key} has TTL: ${this.cache.getTtl(key)}`);
         let value = this.cache.get(key);
         return value;
     }
@@ -36,6 +38,13 @@ class Cacher {
         let value = await this.redis.get(key);
 
         return value;
+    }
+
+    delLocal(key) {
+        //let key = shortid + '/' + room_slug;
+        //if (this.dict[key])
+        //    delete this.dict[key];
+        this.cache.del(key);
     }
 
     async del(key) {
@@ -81,5 +90,35 @@ class Cacher {
             // this.redis.set(key, value, ttl);
         }
     }
+
+    async zadd(name, members) {
+        let result = await this.redis.zadd(name, members);
+        return result;
+    }
+
+    async zrevrange(name, min, max) {
+        let members = await this.redis.zrevrange(name, min, max);
+        return members;
+    }
+
+    async zrevrank(name, key) {
+        let rank = await this.redis.zrevrank(name, key);
+        return rank;
+    }
+
+    async zcount(name, min, max) {
+        min = min || 0;
+        max = max || Number.MAX_SAFE_INTEGER;
+        let count = await this.redis.zcount(name, min, max);
+        return count;
+    }
+
+    async zrem(name, key) {
+        let result = await this.redis.zrem(name, key);
+        return result;
+    }
+
+
+
 }
 module.exports = new Cacher()
