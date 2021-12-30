@@ -980,7 +980,7 @@ module.exports = class DevGameService {
         //     let privacy = 'closed';
         //     let repo_names = [org + '/' + name];
 
-        //     //attempt to create the team using fsg username as the team name
+        //     //attempt to create the team using acosgames username as the team name
         //     let teamResult = await gh.teams.create({ org, name, maintainers, repo_names, privacy, parent_team_id })
         //     console.log(teamResult);
         // }
@@ -1004,7 +1004,7 @@ module.exports = class DevGameService {
         //     let privacy = 'closed';
         //     let repo_names = [org + '/' + name];
         //     let team_id = user.github_teamid;
-        //     //attempt to create the team using fsg username as the team name
+        //     //attempt to create the team using acosgames username as the team name
         //     let teamResult = await gh.teams.create({ org, name, maintainers, repo_names, privacy, parent_team_id })
         //     console.log(teamResult);
         // }

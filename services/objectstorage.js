@@ -62,7 +62,7 @@ module.exports = class ObjectStorage {
             try {
                 var params = {
                     Key,
-                    Bucket: 'fsg-server'
+                    Bucket: 'server'
                 }
 
                 let rootPath = './serverScripts';
@@ -125,7 +125,7 @@ module.exports = class ObjectStorage {
             try {
                 var params = {
                     Key,
-                    Bucket: 'fsg-server'
+                    Bucket: 'server'
                 }
 
                 let rootPath = './serverScripts';

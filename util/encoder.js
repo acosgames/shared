@@ -2,7 +2,7 @@ const pako = require('pako');
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 // const { serialize, deserialize } = require('bson');
-// const ServerAPI = require('../../fsg-api/src/api/server');
+// const ServerAPI = require('../../api/src/api/server');
 
 function ab2str(buf) {
     return String.fromCharCode.apply(null, new Uint16Array(buf));

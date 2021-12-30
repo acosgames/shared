@@ -32,7 +32,7 @@ module.exports = class UserService {
             if (!publicKey) {
                 try {
                     if (!this.publicKey)
-                        this.publicKey = fs.readFileSync('../fsg-shared/credential/jwtRS256.key.pub');
+                        this.publicKey = fs.readFileSync('../shared/credential/jwtRS256.key.pub');
                     publicKey = this.publicKey;
                 }
                 catch (e) {
@@ -251,7 +251,7 @@ module.exports = class UserService {
         let privacy = 'closed';
 
         try {
-            //attempt to create the team using fsg username as the team name
+            //attempt to create the team using acosg username as the team name
             let teamResult = await gh.teams.create({ org, name, maintainers, privacy })
             console.log(teamResult);
             return teamResult;

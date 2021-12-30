@@ -503,8 +503,8 @@ async function test() {
     let r = new RabbitMQService();
     let r2 = new RabbitMQService();
 
-    await r.connect({ host: "amqp://fsg:haha123hehe@localhost:5672" })
-    await r2.connect({ host: "amqp://fsg:haha123hehe@localhost:5672" })
+    await r.connect({ host: "amqp://acosg:haha123hehe@localhost:5672" })
+    await r2.connect({ host: "amqp://acosg:haha123hehe@localhost:5672" })
 
     console.log("Connected to RabbitMQ");
 
