@@ -62,7 +62,7 @@ module.exports = class ObjectStorage {
             try {
                 var params = {
                     Key,
-                    Bucket: 'server'
+                    Bucket: 'acospriv'
                 }
 
                 let rootPath = './serverScripts';
@@ -125,7 +125,7 @@ module.exports = class ObjectStorage {
             try {
                 var params = {
                     Key,
-                    Bucket: 'server'
+                    Bucket: 'acospriv'
                 }
 
                 let rootPath = './serverScripts';

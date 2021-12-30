@@ -109,9 +109,9 @@ module.exports = class UploadFile {
             s3: this.s3,
             bucket: function (req, file, cb) {
                 if (file.fieldname == 'server')
-                    cb(null, 'server');
+                    cb(null, serverBucket);
                 else if (file.fieldname == 'db')
-                    cb(null, 'server');
+                    cb(null, serverBucket);
                 else if (file.fieldname == 'client')
                     cb(null, clientBucket);
                 else cb(null, null);
