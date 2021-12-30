@@ -916,7 +916,7 @@ module.exports = class DevGameService {
 
     async pushGitGameTemplates(repoName, templateName, type) {
         try {
-            let org = 'fivesecondgames';
+            let org = 'acosgames';
 
             let url = `git@github.com:${org}/${repoName}-${type}.git`;
             let dir = `${process.cwd()}/../templates/${templateName}-${type}`;
@@ -940,7 +940,7 @@ module.exports = class DevGameService {
             return true;
 
         try {
-            let orgInviteResult = await gh.orgs.createInvitation({ org: 'fivesecondgames', email: user.email, role: 'direct_member' })
+            let orgInviteResult = await gh.orgs.createInvitation({ org: 'acosgames', email: user.email, role: 'direct_member' })
             console.log(orgInviteResult);
             return true;
         }
@@ -951,7 +951,7 @@ module.exports = class DevGameService {
 
     async createGitHubRepos(game, user, db) {
 
-        let org = 'fivesecondgames';
+        let org = 'acosgames';
         let name = game.game_slug;
         let description = game.shortdesc;
         let visibility = 'public';

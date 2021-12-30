@@ -38,7 +38,7 @@ module.exports = class ObjectStorage {
             try {
                 var params = {
                     Key,
-                    Bucket: 'fivesecondgames'
+                    Bucket: 'acospub'
                 }
 
                 this.s3.getObject(params, function (err, data) {

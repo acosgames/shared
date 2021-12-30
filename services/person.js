@@ -230,7 +230,7 @@ module.exports = class UserService {
             return;
 
         try {
-            let orgInviteResult = await gh.orgs.createInvitation({ org: 'fivesecondgames', email: user.email, role: 'direct_member' })
+            let orgInviteResult = await gh.orgs.createInvitation({ org: 'acosgames', email: user.email, role: 'direct_member' })
             console.log(orgInviteResult);
         }
         catch (e3) {
@@ -244,7 +244,7 @@ module.exports = class UserService {
         }
 
         let id_5SG = 79618222;
-        let org = 'fivesecondgames';
+        let org = 'acosgames';
         let name = user.displayname;
         let username = user.github;
         let maintainers = [];

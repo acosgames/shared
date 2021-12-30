@@ -13,11 +13,6 @@ const { GeneralError } = require('../util/errorhandler');
 const encoder = new TextEncoder('utf-8');
 const decoder = new TextDecoder('utf-8');
 
-var iframeTop = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8" /><title>FiveSecondGames - Client Simulator</title><meta name="description" content="FiveSecondGames Client Simulator" /><meta name="author" content="fsg" /><meta http-equiv="Content-Security-Policy" content="script-src 'self' cdn.fivesecondgames.com 'unsafe-inline';" /></head><body><div id="root"></div><script>`;
-var iframeBottom = `</script></body></html>`
-iframeTop = encoder.encode(iframeTop);
-iframeBottom = encoder.encode(iframeBottom);
-
 module.exports = class UploadFile {
 
     constructor(credentials) {
@@ -40,7 +35,7 @@ module.exports = class UploadFile {
             let filename = client.build_client;
 
             var params2 = {
-                Bucket: "fivesecondgames",
+                Bucket: "acospub",
                 Key: client.game_slug + '/client/' + client.id + '/' + filename
             };
             let del = await this.s3.deleteObject(params2).promise();
@@ -57,7 +52,7 @@ module.exports = class UploadFile {
 
     async listFiles(prefix) {
         var params = {
-            Bucket: "fivesecondgames",
+            Bucket: "acospub",
             // Delimiter: '/',
             Prefix: prefix
         };
@@ -69,44 +64,10 @@ module.exports = class UploadFile {
         return data;
     }
 
-    async deleteClientPreviews(client) {
-        // var params = {
-        //     Bucket: 'fivesecondgames',
-        //     Prefix: gameid + '/preview/'
-        // };
-        try {
-            // let data = await this.s3.listObjects(params).promise();
-
-            // console.log(data);
-            let deleted = [];
-            if (!client.preview_images)
-                return deleted;
-
-            let previews = client.preview_images.split(',');
-
-            for (var i = 0; i < previews.length; i++) {
-                let filename = previews[i];
-                var params2 = {
-                    Bucket: "fivesecondgames",
-                    Key: client.game_slug + '/client/' + client.id + '/' + filename
-                };
-                let del = await this.s3.deleteObject(params2).promise();
-                console.log(del);
-                deleted.push(del);
-            }
-
-            return deleted;
-        }
-        catch (e) {
-            console.error(e, e.stack);
-        }
-        return [];
-    }
-
 
     async deletePreviews(game) {
         // var params = {
-        //     Bucket: 'fivesecondgames',
+        //     Bucket: 'acospub',
         //     Prefix: gameid + '/preview/'
         // };
         try {
@@ -121,7 +82,7 @@ module.exports = class UploadFile {
             for (var i = 0; i < previews.length; i++) {
                 let filename = previews[i];
                 var params2 = {
-                    Bucket: "fivesecondgames",
+                    Bucket: "acospub",
                     Key: game.game_slug + '/preview/' + filename
                 };
                 let del = await this.s3.deleteObject(params2).promise();
@@ -294,188 +255,7 @@ module.exports = class UploadFile {
     }
 
 
-    // busboyMiddleware({ onFile, onField, onFinish, onFileData, onFileEnd }) {
-    //     return (req, res, next) => {
-    //         var busboy = new Busboy({ headers: req.headers });
-    //         busboy.on('file', function (fieldname, file, filename, encoding, mimetype) {
-    //             if (onFile) onFile(fieldname, file, filename, encoding, mimetype);
-    //             console.log('File [' + fieldname + ']: filename: ' + filename + ', encoding: ' + encoding + ', mimetype: ' + mimetype);
-    //             file.on('data', function (data) {
-    //                 if (onFileData) onFileData(data);
-    //                 console.log('File [' + fieldname + '] got ' + data.length + ' bytes');
-    //             });
-    //             file.on('end', function () {
-    //                 if (onFileEnd) onFileEnd();
-    //                 console.log('File [' + fieldname + '] Finished');
-    //             });
-    //         });
-    //         busboy.on('field', function (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
-    //             if (onField) onField(fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype);
-    //             console.log('Field [' + fieldname + ']: value: ' + val);
 
-    //         });
-    //         busboy.on('finish', function () {
-    //             if (onFinish) onFinish();
-    //             console.log('Done parsing form!');
-    //             // res.writeHead(303, { Connection: 'close', Location: '/' });
-    //             // res.end();
-    //         });
-    //         req.pipe(busboy);
-    //     }
-    // }
-    middlewarePrivateDB(bucketName, mimetypes, metadataCB, keyCB, acl) {
-        mimetypes = mimetypes || ['image/jpeg', 'image/png'];
-        const storage = multerS3({
-            s3: this.s3,
-            bucket: bucketName,
-            acl: 'private',
-            contentType: (req, file, cb) => {
-                cb(null, 'application/json', file.stream);
-            },
-            metadata: metadataCB || function (req, file, cb) {
-                cb(null, { fieldName: file.fieldname });
-            },
-            key: keyCB || function (req, file, cb) {
-                cb(null, Date.now().toString())
-            }
-        });
-        const fileFilter = (req, file, cb) => {
-
-
-            var key = file.originalname;
-            var fileExt = key.split('.').pop();
-            if (fileExt.length == key.length) {
-                cb(null, false);
-                return;
-            }
-
-            if (mimetypes.includes(file.mimetype)) {
-                cb(null, true);
-            } else {
-                cb(null, false);
-            }
-        }
-        this.upload = multer({ storage: storage, fileFilter: fileFilter });
-        return this.upload;
-    }
-    middlewarePrivate(bucketName, mimetypes, metadataCB, keyCB, acl) {
-        mimetypes = mimetypes || ['image/jpeg', 'image/png'];
-        const storage = multerS3({
-            s3: this.s3,
-            bucket: bucketName,
-            acl: 'private',
-            contentType: (req, file, cb) => {
-                cb(null, 'application/javascript', file.stream);
-            },
-            metadata: metadataCB || function (req, file, cb) {
-                cb(null, { fieldName: file.fieldname });
-            },
-            key: keyCB || function (req, file, cb) {
-                cb(null, Date.now().toString())
-            }
-        });
-        const fileFilter = (req, file, cb) => {
-
-
-            var key = file.originalname;
-            var fileExt = key.split('.').pop();
-            if (fileExt.length == key.length) {
-                cb(null, false);
-                return;
-            }
-
-            if (mimetypes.includes(file.mimetype)) {
-                cb(null, true);
-            } else {
-                cb(null, false);
-            }
-        }
-        this.upload = multer({ storage: storage, fileFilter: fileFilter });
-        return this.upload;
-    }
-
-    /*
-    
-    */
-    middlewareTransform(bucketName, mimetypes, metadataCB, keyCB, contentType) {
-
-
-
-        mimetypes = mimetypes || ['image/jpeg', 'image/png'];
-        contentType = 'text/html';
-        const storage = multerS3({
-            s3: this.s3,
-            bucket: bucketName,
-            acl: 'public-read',
-
-            contentType: function (req, file, cb) { cb(null, contentType); } || multerS3.AUTO_CONTENT_TYPE,
-            metadata: function (req, file, cb) {
-                cb(null, { fieldName: file.fieldname, 'Content-Type': contentType, 'Content-Encoding': 'gzip', 'b2-content-encoding': 'gzip' });
-            },
-            key: keyCB || function (req, file, cb) {
-                cb(null, Date.now().toString())
-            },
-            shouldTransform: function (req, file, cb) {
-                cb(null, true)
-            },
-            transforms: [{
-                id: 'html',
-                key: function (req, file, cb) {
-                    let game = req.game;
-                    var filename = file.originalname;
-                    filename = filename.replace('.js', '.' + game.version + '.html')
-                    let key = game.game_slug + '/client/' + filename;
-
-                    cb(null, key)
-                },
-                transform: function (req, file, cb) {
-                    var fileStream = file.stream;
-                    var out = new stream.PassThrough();
-                    let zipped
-                        = zlib.createGzip();
-                    var cnt = 0;
-
-                    fileStream.on('data', (chunk) => {
-                        console.log("chunk[" + cnt + "]", chunk);
-                        cnt++;
-
-                        //prepend the iframe top html
-                        if (cnt == 1)
-                            zipped.write(iframeTop);
-
-                        //write the JS into the middle
-                        zipped.write(chunk);
-                    });
-
-                    fileStream.on('end', () => {
-                        //append the iframe bottom html
-                        zipped.write(iframeBottom);
-
-                        // var zipped = new stream.PassThrough();
-
-
-                        cb(null, zipped);
-                    });
-                }
-            }]
-        });
-        const fileFilter = (req, file, cb) => {
-            var key = file.originalname;
-            var fileExt = key.split('.').pop();
-            if (fileExt.length == key.length) {
-                cb(null, false);
-                return;
-            }
-
-            if (mimetypes.includes(file.mimetype)) {
-                cb(null, true);
-            } else {
-                cb(null, false);
-            }
-        }
-        this.upload = multer({ storage: storage, fileFilter: fileFilter });
-        return this.upload;
-    }
 
     middleware(bucketName, mimetypes, metadataCB, keyCB, contentType) {
         mimetypes = mimetypes || ['image/jpeg', 'image/png'];
