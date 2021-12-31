@@ -44,7 +44,10 @@ class Delta {
 
         for (var key in from) {
             if (!(key in to)) {
-                result['$' + key] = 0;
+
+                if (!result['$'])
+                    result['$'] = [];
+                result['$'].push(key);
             }
 
         }
@@ -112,8 +115,15 @@ class Delta {
 
         for (var key in delta) {
 
-            if (key[0] == '$') {
-                delete from[key.substr(1)]
+            if (key == '$') {
+                let arr = delta[key];
+                if (arr && arr.length > 0)
+                    for (var i = 0; i < arr.length; i++) {
+                        let val = arr[i];
+                        if (from[val])
+                            delete from[val];
+                    }
+
                 continue;
             }
 

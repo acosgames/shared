@@ -93,6 +93,8 @@ const TYPE_THREE = 27;
 const TYPE_EMPTY_OBJ = 28;
 const TYPE_EMPTY_ARR = 29;
 const TYPE_DEL_DICTKEY = 30;
+const TYPE_STRING_DICT1 = 31;
+const TYPE_STRING_DICT2 = 32;
 
 var dvbuff = new ArrayBuffer(16);
 var dv = new DataView(dvbuff);
@@ -256,7 +258,9 @@ function serialize(json, dict) {
     let buffer = [];
     dict = dict || { count: defaultOrder.length, keys: {}, order: [] };
 
-    serializeEX(json, buffer, dict);
+    let cache = {};
+
+    serializeEX(json, buffer, dict, cache);
 
 
     let arrBuffer = Uint8Array.from(buffer);
@@ -268,7 +272,7 @@ function serialize(json, dict) {
 
 }
 
-function serializeEX(json, buffer, dict, parentKey) {
+function serializeEX(json, buffer, dict, cache) {
     buffer = buffer || [];
     dict = dict || { count: defaultOrder.length, keys: {}, order: [] };
 
@@ -300,7 +304,7 @@ function serializeEX(json, buffer, dict, parentKey) {
             return;
         }
         buffer.push(TYPE_ARR);
-        serializeArr(json, buffer, dict);
+        serializeArr(json, buffer, dict, cache);
         buffer.push(TYPE_ENDARR);
         return;
     }
@@ -312,7 +316,7 @@ function serializeEX(json, buffer, dict, parentKey) {
         }
 
         buffer.push(TYPE_OBJ);
-        serializeObj(json, buffer, dict, parentKey);
+        serializeObj(json, buffer, dict, cache);
         buffer.push(TYPE_ENDOBJ);
         return;
     }
@@ -325,12 +329,33 @@ function serializeEX(json, buffer, dict, parentKey) {
             return;
         }
 
-        let exists = mapKey(json, buffer, dict, true);
+        let exists = mapKey(json, buffer, dict, cache, true);
         if (exists) {
             return;
         }
 
+
+        if (json in cache) {
+            let pos = cache[json];
+            console.log("Found cache for:", json, "at", pos);
+            if (json.length <= 255) {
+                buffer.push(TYPE_STRING_DICT1);
+                dv.setUint8(0, pos);
+                buffer.push(dv.getUint8(0));
+            }
+            else {
+                buffer.push(TYPE_STRING_DICT2);
+                dv.setUint16(0, pos);
+                buffer.push(dv.getUint8(0));
+                buffer.push(dv.getUint8(1));
+            }
+
+            return;
+        }
+
         buffer.push(TYPE_STRING)
+        let pos = buffer.length;
+        cache[json] = pos;
 
         let encoded = encoder.encode(json);
         for (var i = 0; i < encoded.byteLength; i++) {
@@ -471,7 +496,7 @@ function serializeEX(json, buffer, dict, parentKey) {
 
 }
 
-function mapKey(key, buffer, dict, skip) {
+function mapKey(key, buffer, dict, cache, skip) {
     let id = dict.count || 0;
     if (key in dict.keys) {
         id = dict.keys[key];
@@ -480,7 +505,7 @@ function mapKey(key, buffer, dict, skip) {
             return false;
         }
         if (dict.frozen || dict.count >= 255) {
-            serializeEX(key, buffer, dict);
+            serializeEX(key, buffer, dict, cache);
             return false;
         }
 
@@ -497,11 +522,11 @@ function mapKey(key, buffer, dict, skip) {
     return true;
 }
 
-function mapDeletionKey(key, buffer, dict) {
+function mapDeletionKey(key, buffer, dict, cache) {
 
     let skey = key.substr(1, key.length - 1);
     if (!(skey in dict.keys)) {
-        mapKey(key, buffer, dict);
+        mapKey(key, buffer, dict, cache);
         return false;
     }
 
@@ -512,26 +537,26 @@ function mapDeletionKey(key, buffer, dict) {
     return true;
 }
 
-function serializeObj(json, buffer, dict, parentKey) {
+function serializeObj(json, buffer, dict, cache) {
 
     for (var key in json) {
         let value = json[key];
         if (key[0] == '$') {
-            if (mapDeletionKey(key, buffer, dict))
+            if (mapDeletionKey(key, buffer, dict, cache))
                 return;
         }
         else {
-            mapKey(key, buffer, dict);
+            mapKey(key, buffer, dict, cache);
         }
-        serializeEX(value, buffer, dict, key);
+        serializeEX(value, buffer, dict, cache);
     }
 }
 
-function serializeArr(json, buffer, dict) {
+function serializeArr(json, buffer, dict, cache) {
 
     for (var i = 0; i < json.length; i++) {
         let value = json[i];
-        serializeEX(value, buffer, dict);
+        serializeEX(value, buffer, dict, cache);
     }
 }
 
@@ -586,6 +611,36 @@ function deserializeEX(ref) {
             break;
         case TYPE_EMPTYSTRING:
             json = '';
+            break;
+        //the string exists in the buffer already less than 255 indices away
+        case TYPE_STRING_DICT1:
+            arr = [];
+            let position = ref.buffer.getUint8(ref.pos);
+            for (; position < ref.buffer.byteLength; position++) {
+                let val = ref.buffer.getUint8(position);
+                if (val == 0) {
+                    break;
+                }
+                arr.push(val);
+            }
+            ref.pos++; //skip null terminated
+            data = new Uint8Array(arr);
+            json = decoder.decode(data);
+            break;
+        //the string exists in the buffer already less than 65,536 indices away
+        case TYPE_STRING_DICT2:
+            arr = [];
+            let position2 = ref.buffer.getUint16(ref.pos);
+            for (; position2 < ref.buffer.byteLength; position2++) {
+                let val = ref.buffer.getUint8(position2);
+                if (val == 0) {
+                    break;
+                }
+                arr.push(val);
+            }
+            ref.pos += 2; //skip null terminated
+            data = new Uint8Array(arr);
+            json = decoder.decode(data);
             break;
         case TYPE_STRING:
             arr = [];
@@ -681,7 +736,7 @@ function deserializeObj(json, ref) {
         return json
     }
 
-    if (type != TYPE_DICT && type != TYPE_STRING && type != TYPE_DEL_DICTKEY) {
+    if (type != TYPE_DICT && type != TYPE_STRING && type != TYPE_DEL_DICTKEY && type != TYPE_STRING_DICT1 && type != TYPE_STRING_DICT2) {
         throw 'E_INVALIDOBJ';
     }
 
@@ -703,7 +758,7 @@ function deserializeObj(json, ref) {
         return deserializeObj(json, ref);
     }
 
-    if (type == TYPE_STRING) {
+    if (type == TYPE_STRING || type == TYPE_STRING_DICT1 || type == TYPE_STRING_DICT2) {
         ref.pos--;
         // let id = ref.buffer.getUint8(ref.pos++);
         let key = deserializeEX(ref);
@@ -833,6 +888,6 @@ function test() {
     // console.log(decoded.players['8CCkf'].score.getTime())
 }
 
-test();
+// test();
 
 module.exports = { encode, decode, serialize, deserialize, defaultDict }
