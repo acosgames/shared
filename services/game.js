@@ -250,6 +250,7 @@ module.exports = class GameService {
         if (!rankings) {
             rankings = await redis.zrevrange(game_slug + '/lb', 0, 4);
 
+
             for (var i = 0; i < rankings.length; i++) {
                 rankings[i].rank = (i + 1);
             }
@@ -259,6 +260,25 @@ module.exports = class GameService {
 
         console.log("top10: ", game_slug, rankings);
         return rankings;
+    }
+
+    async updateAllRankings(game_slug) {
+        let db = await mysql.db();
+        var response;
+        console.log("updateAllRankings ", game_slug);
+        response = await db.sql(`
+            SELECT a.displayname, b.rating
+            FROM person a, person_rank b
+            WHERE a.shortid = b.shortid
+            AND b.game_slug = ?
+            AND b.season = ?
+            LIMIT ?,?
+            `, [game_slug, 0, game_slug]);
+
+        if (response.results && response.results.length == 0) {
+            return 0;
+        }
+        let result = response.results[0];
     }
 
     async getGameLeaderboardCount(game_slug) {
