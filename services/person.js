@@ -207,7 +207,7 @@ module.exports = class UserService {
             let { results } = await db.insert('person', user);
             console.log(results);
 
-            await this.inviteToGithub(user);
+            // await this.inviteToGithub(user);
 
             if (results.affectedRows == 0)
                 throw new GeneralError('E_PERSON_CREATEFAILED', user);
