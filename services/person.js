@@ -100,7 +100,8 @@ module.exports = class UserService {
 
             try {
                 let existingUser = await this.findUser(user, db);
-                if (('github' in user) && existingUser.github != user.github) {
+                if (('github' in user) &&
+                    (existingUser.github != user.github || existingUser.github_id != user.github_id)) {
                     user.id = existingUser.id;
                     user.isdev = false;
                     user = await this.updateUser(user, db);
