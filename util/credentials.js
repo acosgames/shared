@@ -8,6 +8,11 @@ module.exports = () => {
         console.log("LOADING PRODUCTION CREDENTIALS");
         return require('../credential/production.json');
     }
+
+    if (NODE_ENV == 'mobile') {
+        console.log("LOADING MOBILE CREDENTIALS");
+        return require('../credential/mobile.json');
+    }
     console.log("LOADING LOCALHOST CREDENTIALS");
     return require('../credential/localhost.json');
 }

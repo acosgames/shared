@@ -859,6 +859,10 @@ module.exports = class DevGameService {
             let response2 = await db.insert('game_dev', dev);
             console.log(response2.results);
 
+
+            await this.createGitHubRepos(game, user, db);
+            await this.assignUserToRepo(game, user, db);
+
             if (response.results.affectedRows > 0 && response2.results.affectedRows > 0) {
                 game.gameid = game.gameid.toSqlString();
                 return game;
@@ -946,6 +950,25 @@ module.exports = class DevGameService {
         }
         catch (e3) {
             console.error(e3);
+        }
+    }
+
+    async assignUserToRepo(game, user, db) {
+
+
+        try {
+
+            let result = await gh.repos.addCollaborator({
+                owner: 'acosgames',
+                repo: game.game_slug,
+                username: user.github,
+                permission: 'admin'
+            })
+            console.log(result);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
         }
     }
 

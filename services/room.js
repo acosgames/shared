@@ -272,6 +272,79 @@ class RoomService {
         cache.set(key, rating, 600);
     }
 
+    async findPlayerRatings(room_slug, game_slug) {
+        try {
+            let db = await mysql.db();
+            var response;
+
+            response = await db.sql(`
+                SELECT 
+                    a.shortid,
+                    a.game_slug,
+                    b.rating, 
+                    b.mu, 
+                    b.sigma, 
+                    b.win, 
+                    b.loss, 
+                    b.tie, 
+                    b.played 
+                FROM person_room a
+                LEFT JOIN person_rank b 
+                    ON a.shortid = b.shortid AND b.game_slug = a.game_slug
+                WHERE a.game_slug = ?
+                AND a.room_slug = ?
+            `, [game_slug, room_slug]);
+
+            let results = response.results;
+            if (results && results.length > 0) {
+
+                for (var i = 0; i < results.length; i++) {
+                    let rating = results[i];
+
+                    let key = rating.shortid + '/' + rating.game_slug;
+
+                    //rating exists, cache it
+                    if (rating.rating != null) {
+                        // delete rating.shortid;
+                        delete rating.game_slug;
+                        cache.set(key, rating, 600);
+                        continue;
+                    }
+
+                    //create new rating and cache it
+                    let mu = 25.0;
+                    let sigma = 5;
+                    let newRating = {
+                        shortid: rating.shortid,
+                        game_slug: rating.game_slug,
+                        rating: mu * 100,
+                        mu,
+                        sigma,
+                        win: 0,
+                        loss: 0,
+                        tie: 0,
+                        played: 0
+                    };
+                    results[i] = newRating;
+                    response = await db.insert('person_rank', newRating);
+                    console.log("Saving player rating: ", key, newRating.rating);
+
+                    // delete rating.shortid;
+                    delete rating.game_slug;
+                    cache.set(key, rating, 600);
+
+                }
+                // console.log("Getting player rating for: ", key, rating.rating);
+                return results;
+            }
+
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+    }
+
     async findPlayerRating(shortid, game_slug) {
         try {
 
@@ -294,12 +367,12 @@ class RoomService {
                 return rating;
             }
 
-            let mu = Math.floor(Math.random() * 32) + 2
-            let sigma = 1.5;
-            // rating = mu * 100;
-            // let rating = 1200;
-            // let mu = 12.0;
+            // let mu = Math.floor(Math.random() * 32) + 2
             // let sigma = 1.5;
+            // rating = mu * 100;
+            // let rating = 2000;
+            let mu = 25.0;
+            let sigma = 5;
             rating = {
                 shortid,
                 game_slug,
