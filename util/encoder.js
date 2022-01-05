@@ -1,4 +1,4 @@
-const encoderVersion = '1.0';
+const encoderVersion = '1.1';
 
 const pako = require('pako');
 const encoder = new TextEncoder();
@@ -22,6 +22,7 @@ function str2ab(str) {
 console.log("ENCODER VERSION = " + encoderVersion);
 
 let testJSON = {
+    "type": "ping",
     "room_slug": "JHMKGD",
     "state": {
         "cells": {
@@ -862,37 +863,41 @@ function createDictKeys(dict) {
 function test() {
 
     let buffer = [];
-    let dict = { count: defaultOrder.length, keys: {}, order: defaultOrder.slice(), frozen: false };
-    createDictKeys(dict);
+    let dict = createDefaultDict();
 
-    console.time('serialize');
-    let encoded = serialize(testJSON, dict);
-    let deflated = pako.deflate(encoded);
-    console.timeEnd('serialize');
+    // console.time('serialize');
+    // let encoded = serialize(testJSON, dict);
+    // let deflated = pako.deflate(encoded);
+    // console.timeEnd('serialize');
 
     // console.log("Dict: ", dict);
     let bufferLen = buffer.length;
     let dictLen = JSON.stringify(dict.order).length;
 
-    console.time('compression')
+    console.time('encode')
     let jsonStr = JSON.stringify(testJSON);
-    let jsonEncoded = encoder.encode(jsonStr);
-    let jsonDeflated = pako.deflate(jsonEncoded);
-    console.timeEnd('compression')
+    let jsonEncoded = encode(jsonStr);
+    // let jsonDeflated = pako.deflate(jsonEncoded);
+    console.timeEnd('encode')
+
+    console.time('decode');
+    let decoded = decode(jsonEncoded);
+    console.log(decoded);
+    console.timeEnd("decode");
 
     // console.log("Dict: ", dict);
-    console.log("Buffer:", encoded.byteLength);
+    // console.log("Buffer:", encoded.byteLength);
     console.log("Dict length: ", dictLen);
-    console.log("Buffer+Dict length: ", dictLen + encoded.byteLength);
+    // console.log("Buffer+Dict length: ", dictLen + encoded.byteLength);
     console.log("JSON length: ", JSON.stringify(testJSON).length);
-    console.log("compressed byte len: ", deflated.length);
-    console.log("compressed JSON str byte len: ", jsonDeflated.length);
-    var dataview = new DataView(encoded);
-    console.time('deserialize');
-    let decoded = deserialize(dataview, 0, dict);
-    console.timeEnd('deserialize');
+    // console.log("compressed byte len: ", deflated.length);
+    // console.log("compressed JSON str byte len: ", jsonDeflated.length);
+    // var dataview = new DataView(encoded);
+    // console.time('deserialize');
+    // let decoded = deserialize(dataview, 0, dict);
+    // console.timeEnd('deserialize');
     // console.log(JSON.parse(JSON.stringify(testJSON)))
-    console.log(decoded);
+    // console.log(decoded);
     // console.log(decoded.players['8CCkf'].score.getTime())
 }
 
