@@ -484,7 +484,7 @@ module.exports = class MySQL {
                                 reject(new SQLError('E_SQL_ERROR', "table not defined.  Check your code!"));
                                 return;
                             }
-                            if (where.indexOf("WHERE") == - 1) {
+                            if (where.indexOf("WHERE") == -1) {
                                 where = 'WHERE ' + where;
                             }
                             var query = conn.query('DELETE FROM ' + table + ' ' + where, values, function (error, results, fields) {
