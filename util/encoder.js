@@ -1,3 +1,5 @@
+const encoderVersion = '1.0';
+
 const pako = require('pako');
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -16,6 +18,8 @@ function str2ab(str) {
     }
     return buf;
 }
+
+console.log("ENCODER VERSION = " + encoderVersion);
 
 let testJSON = {
     "room_slug": "JHMKGD",
