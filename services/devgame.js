@@ -114,6 +114,29 @@ module.exports = class DevGameService {
         return [];
     }
 
+    async findGameTemplates() {
+        try {
+            let db = await mysql.db();
+            var response;
+            // console.log("Searching for game templates");
+            response = await db.sql(`
+                select 
+                    a.game_slug,
+                    a.name,
+                    a.preview_images
+                from game_info a
+                WHERE a.opensource = 1
+            `, []);
+
+            return response.results;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+        return [];
+    }
 
 
     async findDevByGame(gameid, ownerid) {
@@ -518,6 +541,7 @@ module.exports = class DevGameService {
         return null;
     }
 
+
     async deleteGame(game, user) {
         console.log(game);
         try {
@@ -766,6 +790,29 @@ module.exports = class DevGameService {
 
         let parent_team_id = user.github_teamid;
 
+        //game template was defined, try to create repo with that template
+        if (game.template.length > 2) {
+
+            try {
+                let repo = await gh.repos.createUsingTemplate({
+                    template_owner: org,
+                    template_repo: game.template,
+                    owner: org,
+                    name,
+                    description,
+                    include_all_branches: true,
+                    private: false
+                })
+
+                return;
+            }
+            catch (e) {
+                console.error(e);
+            }
+
+        }
+
+        //if it fails, just create an empty repo
         try {
             let clientImport = await gh.repos.createInOrg({
                 org,

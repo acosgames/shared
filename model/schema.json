@@ -20,8 +20,14 @@
             "required": true,
             "max": 120,
             "min": 3
+        },
+        "template": {
+            "label": "Game Template",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 1
         }
-       
     },
     "update-game_info": {
         "name": {
