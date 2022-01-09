@@ -246,7 +246,7 @@ module.exports = class UserService {
             // let updatedUser = { displayname: user.displayname }
             let existingUser = await this.findUser({ displayname: user.displayname }, db);
 
-            if (existingUser.displayname) {
+            if (existingUser?.displayname) {
                 throw new GeneralError('E_PERSON_EXISTSNAME', user.displayname);
             }
             // if (existingUser) {
