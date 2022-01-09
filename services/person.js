@@ -137,6 +137,7 @@ module.exports = class UserService {
                 WHERE a.id = ?
                 AND a.id = b.ownerid
                 AND b.gameid = c.gameid
+                AND (c.status = 2 OR c.status = 3)
             `, [shortid, season])
 
             if (response && response?.results.length > 0) {
