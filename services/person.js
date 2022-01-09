@@ -50,30 +50,132 @@ module.exports = class UserService {
         })
     }
 
+    async findPlayer(displayname) {
+        try {
+            let user = await this.findUser({ displayname });
+
+            if (!user) {
+                throw new GeneralError('E_PLAYER_NOTFOUND');
+            }
+
+            // let ranks = await this.findPlayerRanks(user.shortid);
+            // let devgames = await this.findPlayerDevGames(user.id);
+            let filteredUser = {
+                displayname: displayname,
+                github: user.github,
+                membersince: user.membersince,
+                isdev: user.isdev,
+                ranks: user.ranks,
+                devgames: user.devgames
+            }
+
+            return filteredUser;
+        }
+        catch (e) {
+            //console.error(e);
+            throw e;
+        }
+    }
+
+    async findPlayerRanks(shortid) {
+        try {
+            let db = await mysql.db();
+
+            let season = 0;
+
+            let response = await db.sql(`
+                SELECT 
+                    a.shortid,
+                    a.game_slug,
+                    a.season,
+                    a.rating,
+                    a.win,
+                    a.loss,
+                    a.tie,
+                    a.played,
+                    a.tsinsert,
+                    b.name,
+                    b.preview_images
+                FROM person_rank a, game_info b
+                WHERE a.shortid = ?
+                AND a.season = ?
+                AND b.game_slug = a.game_slug
+            `, [shortid, season])
+
+            if (response && response?.results.length > 0) {
+
+                let ranks = response.results;
+
+                ranks.sort((a, b) => {
+                    return b.played - a.played
+                })
+
+                return ranks;
+            }
+
+            return [];
+        }
+        catch (e) {
+            //console.error(e);
+            throw e;
+        }
+    }
+    async findPlayerDevGames(shortid) {
+        try {
+            let db = await mysql.db();
+
+            let season = 0;
+
+            let response = await db.sql(`
+                SELECT 
+                    c.game_slug,
+                    c.name,
+                    c.opensource,
+                    c.preview_images,
+                    c.tsinsert
+                FROM person a, game_dev b, game_info c
+                WHERE a.id = ?
+                AND a.id = b.ownerid
+                AND b.gameid = c.gameid
+            `, [shortid, season])
+
+            if (response && response?.results.length > 0) {
+                let devgames = response.results;
+                return devgames;
+            }
+
+            return [];
+        }
+        catch (e) {
+            //console.error(e);
+            throw e;
+        }
+    }
+
     async findUser(user, db) {
         try {
             db = db || await mysql.db();
             let response;
             if (user.id) {
-                response = await db.sql('select * from person where id = ?', [user.id]);
+                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where id = ?', [user.id]);
             }
             else if (user.shortid) {
-                response = await db.sql('select * from person where shortid = ?', [user.shortid]);
+                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where shortid = ?', [user.shortid]);
             }
             else if (user.email) {
-                response = await db.sql('select * from person where email = ?', [user.email]);
+                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where email = ?', [user.email]);
             }
             else if (user.apikey) {
-                response = await db.sql('select * from person where apikey = ?', [user.apikey]);
+                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where apikey = ?', [user.apikey]);
             }
             else if (user.displayname) {
-                response = await db.sql('select * from person where LOWER(displayname) = ?', [user.displayname.toLowerCase()]);
+                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where LOWER(displayname) = ?', [user?.displayname?.toLowerCase()]);
             }
             else if (user.github) {
-                response = await db.sql('select * from person where github = ?', [user.github]);
+                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where github = ?', [user.github]);
             }
             else if (user.github_id) {
-                response = await db.sql('select * from person where github_id = ?', [user.github_id]);
+                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where github_id = ?', [user.github_id]);
             }
             else {
                 throw new GeneralError('E_PERSON_MISSINGINFO', user);
@@ -84,6 +186,11 @@ module.exports = class UserService {
             } else {
                 user = response.results[0];
             }
+
+            user.ranks = await this.findPlayerRanks(user.shortid);
+            if (user.isdev)
+                user.devgames = await this.findPlayerDevGames(user.id);
+            else user.devgames = [];
 
             return user;
         }
@@ -137,7 +244,7 @@ module.exports = class UserService {
 
             // user.displayname = user.displayname.replace(/[^A-Za-z0-9\_]/ig, "");
             // let updatedUser = { displayname: user.displayname }
-            let existingUser = await this.findUser({ id: user.id }, db);
+            let existingUser = await this.findUser({ displayname: user.displayname }, db);
 
             if (existingUser.displayname) {
                 throw new GeneralError('E_PERSON_EXISTSNAME', user.displayname);
