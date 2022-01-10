@@ -8,6 +8,10 @@ const { GeneralError, CodeError, SQLError } = require('../util/errorhandler');
 
 const redis = require('./redis');
 
+const GameService = require('./game');
+const game = new GameService();
+
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -596,12 +600,16 @@ class RoomService {
             var response;
             console.log("Creating room: ", game_slug, mode);
 
-            response = await db.sql(`SELECT * FROM game_info WHERE game_slug = ?`, [game_slug]);
+            let published = await game.findGame(game_slug, true);
 
-            if (!response.results || response.results.length == 0)
+            // response = await db.sql(`SELECT * FROM game_info WHERE game_slug = ?`, [game_slug]);
+
+            if (!published || !published.game || !published.game.gameid)
                 throw new GeneralError("E_GAMENOTEXIST");
-
-            let published = response.results[0];
+            // if (!response.results || response.results.length == 0)
+            // throw new GeneralError("E_GAMENOTEXIST");
+            published = published.game;
+            // let published = response.results[0];
             let version = published.version;
             let gameid = published.gameid;
             let database = published.db || false;

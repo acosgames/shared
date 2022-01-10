@@ -152,7 +152,7 @@ module.exports = class GameService {
         return [];
     }
 
-    async findGame(game_slug) {
+    async findGame(game_slug, ignoreExtra) {
         try {
             let db = await mysql.db();
             var response;
@@ -184,6 +184,8 @@ module.exports = class GameService {
             let game = response.results[0];
             game.votes = await this.findGameVotes(game_slug);
 
+            if (ignoreExtra)
+                return { game }
             let top10 = await this.getGameTop10Players(game_slug) || [];
             // game.lb = await this.getPlayerGameLeaderboard(game_slug, game.displayname) || [];
             let lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
