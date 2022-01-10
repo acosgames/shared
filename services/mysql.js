@@ -456,6 +456,7 @@ module.exports = class MySQL {
                             values = values || [];
                             let query = conn.query(sql, values, function (error, results, fields) {
                                 if (error) {
+                                    console.error(error);
                                     reject(new SQLError('E_SQL_ERROR', error));
                                     return;
                                 }

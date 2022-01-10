@@ -197,7 +197,7 @@ class RoomService {
         try {
             let db = await mysql.db();
             var response;
-            console.log("Getting list of player rooms");
+            console.log("Getting list of player rooms", shortid);
             response = await db.sql('SELECT a.shortid, b.* FROM person_room a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ?', [shortid]);
 
             if (response.results && response.results.length > 0) {
