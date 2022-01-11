@@ -203,6 +203,7 @@ module.exports = class MySQL {
                         }
                         catch (e) {
                             reject(new SQLError('E_SQL_ERROR', e));
+                            conn.release();
                         }
                     });
                 },
@@ -399,6 +400,7 @@ module.exports = class MySQL {
                         }
                         catch (e) {
                             reject(new SQLError('E_SQL_ERROR', e));
+                            conn.release();
                         }
                     });
                 },
@@ -502,7 +504,9 @@ module.exports = class MySQL {
                         }
                         catch (e) {
                             console.error(e);
+                            conn.release();
                             reject(new SQLError('E_SQL_ERROR', e));
+
                         }
                     });
                 }
