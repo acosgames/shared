@@ -254,8 +254,14 @@ module.exports = class GameService {
 
         let rankings = await redis.get(game_slug + '/top10');
         if (!rankings) {
-            rankings = await redis.zrevrange(game_slug + '/lb', 0, 4);
+            rankings = await redis.zrevrange(game_slug + '/lb', 0, 10);
 
+            if (rankings.length == 0) {
+                let total = await this.updateAllRankings(game_slug);
+                if (total > 0) {
+                    return this.getGameTop10Players(game_slug);
+                }
+            }
 
             for (var i = 0; i < rankings.length; i++) {
                 rankings[i].rank = (i + 1);
@@ -272,19 +278,67 @@ module.exports = class GameService {
         let db = await mysql.db();
         var response;
         console.log("updateAllRankings ", game_slug);
-        response = await db.sql(`
-            SELECT a.displayname, b.rating
-            FROM person a, person_rank b
-            WHERE a.shortid = b.shortid
-            AND b.game_slug = ?
-            AND b.season = ?
-            LIMIT ?,?
-            `, [game_slug, 0, game_slug]);
 
-        if (response.results && response.results.length == 0) {
-            return 0;
+        let total = 0;
+        let responseCnt = await db.sql(`SELECT count(*) as cnt FROM person_rank WHERE game_slug = ? and season = ?`, [game_slug, 0]);
+        if (responseCnt && responseCnt.results && responseCnt.results.length > 0) {
+            total = Number(responseCnt.results[0]?.cnt) || 0;
         }
-        let result = response.results[0];
+
+        if (total == 0)
+            return 0;
+
+        let offset = 0;
+
+        while (offset < total) {
+
+            let count = 1000;
+            if (offset + count > total) {
+                count = total - offset;
+            }
+
+            response = await db.sql(`
+                SELECT a.displayname as value, b.rating as score
+                FROM person a, person_rank b
+                WHERE a.shortid = b.shortid
+                AND b.game_slug = ?
+                AND b.season = ?
+                LIMIT ?,?
+            `, [game_slug, 0, offset, count]);
+
+            if (!response || !response.results || response.results.length == 0)
+                break;
+
+            let members = response.results;
+            // for (var i = 0; i < response.results.length; i++) {
+            //     let member = {
+            //         value: response.results[i].value,
+            //         rating: response.results[i].rating
+            //     }
+            //     members.push(member);
+            // }
+
+            let result = await redis.zadd(game_slug + '/lb', members);
+
+            offset += count;
+        }
+
+        return total;
+
+
+        // let members = [];
+        // for (var id in players) {
+        //     let player = players[id];
+        //     members.push({ value: player.name, score: player.rating });
+        // }
+
+        // let result = await redis.zadd(game_slug + '/lb', members);
+
+
+        // if (response.results && response.results.length == 0) {
+        //     return 0;
+        // }
+        // let result = response.results[0];
     }
 
     async getGameLeaderboardCount(game_slug) {
