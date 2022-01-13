@@ -58,6 +58,39 @@ module.exports = class UploadFile {
         })
     }
 
+
+    async uploadByStreamGzipHtml(Bucket, Key, data) {
+
+        return new Promise((rs, rj) => {
+
+
+            try {
+                let params = {
+                    Bucket,
+                    Key,
+                    Body: data,
+                    ACL: 'public-read',
+                    ContentType: 'text/html',
+                    ContentEncoding: 'gzip'
+                }
+                var options = { partSize: 10 * 1024 * 1024, queueSize: 1 };
+
+                this.s3.upload(params, options, function (err, data) {
+                    if (err) {
+                        console.log("Error", err);
+                        rj(err);
+                    } if (data) {
+                        console.log("Upload Success", data.Location);
+                        rs(data);
+                    }
+                });
+            }
+            catch (e) {
+                console.error(e);
+            }
+        })
+    }
+
     async deleteBundles(client) {
         try {
             let deleted = [];
@@ -68,7 +101,7 @@ module.exports = class UploadFile {
 
             var params2 = {
                 Bucket: "acospub",
-                Key: client.game_slug + '/client/' + client.id + '/' + filename
+                Key: 'g/' + client.game_slug + '/client/' + client.id + '/' + filename
             };
             let del = await this.s3.deleteObject(params2).promise();
             console.log(del);
@@ -115,7 +148,7 @@ module.exports = class UploadFile {
                 let filename = previews[i];
                 var params2 = {
                     Bucket: "acospub",
-                    Key: game.game_slug + '/preview/' + filename
+                    Key: 'g/' + game.game_slug + '/preview/' + filename
                 };
                 let del = await this.s3.deleteObject(params2).promise();
                 console.log(del);
