@@ -26,6 +26,38 @@ module.exports = class UploadFile {
         this.upload = null;
     }
 
+    async uploadByStreamGzip(Bucket, Key, data) {
+
+        return new Promise((rs, rj) => {
+
+
+            try {
+                let params = {
+                    Bucket,
+                    Key,
+                    Body: data,
+                    ACL: 'public-read',
+                    ContentType: 'application/javascript',
+                    ContentEncoding: 'gzip'
+                }
+                var options = { partSize: 10 * 1024 * 1024, queueSize: 1 };
+
+                this.s3.upload(params, options, function (err, data) {
+                    if (err) {
+                        console.log("Error", err);
+                        rj(err);
+                    } if (data) {
+                        console.log("Upload Success", data.Location);
+                        rs(data);
+                    }
+                });
+            }
+            catch (e) {
+                console.error(e);
+            }
+        })
+    }
+
     async deleteBundles(client) {
         try {
             let deleted = [];
@@ -162,7 +194,7 @@ module.exports = class UploadFile {
                 else if (file.fieldname == 'client') {
                     let game = req.game;
                     var filename = 'client.bundle.' + game.version + '.js';
-                    let key = game.game_slug + '/client/' + filename;
+                    let key = 'g/' + game.game_slug + '/client/' + filename;
                     cb(null, key)
                 }
                 else cb(null, null)
@@ -193,7 +225,7 @@ module.exports = class UploadFile {
                     else if (file.fieldname == 'client') {
                         let game = req.game;
                         var filename = 'client.bundle.' + game.version + '.js';
-                        let key = game.game_slug + '/client/' + filename;
+                        let key = 'g/' + game.game_slug + '/client/' + filename;
                         cb(null, key)
                     }
                     else cb(null, null)

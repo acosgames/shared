@@ -1,6 +1,6 @@
 const encoderVersion = '1.1';
 
-const pako = require('pako');
+// const pako = require('pako');
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 // const { serialize, deserialize } = require('bson');
