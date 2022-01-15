@@ -280,7 +280,7 @@ module.exports = class GameService {
         console.log("updateAllRankings ", game_slug);
 
         let total = 0;
-        let responseCnt = await db.sql(`SELECT count(*) as cnt FROM person_rank WHERE game_slug = ? and season = ?`, [game_slug, 0]);
+        let responseCnt = await db.sql(`SELECT count(*) as cnt FROM person_rank WHERE game_slug = ? and season = ? and played > 0`, [game_slug, 0]);
         if (responseCnt && responseCnt.results && responseCnt.results.length > 0) {
             total = Number(responseCnt.results[0]?.cnt) || 0;
         }
@@ -303,6 +303,7 @@ module.exports = class GameService {
                 WHERE a.shortid = b.shortid
                 AND b.game_slug = ?
                 AND b.season = ?
+                AND b.played > 0
                 LIMIT ?,?
             `, [game_slug, 0, offset, count]);
 

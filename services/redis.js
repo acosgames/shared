@@ -389,17 +389,21 @@ class RedisService {
         }
     }
 
-    async zrem(name, key) {
+    async zrem(name, members) {
         try {
+            if (!Array.isArray(members)) {
+                return false;
+            }
+
             if (typeof name !== 'string')
                 return false;
 
-            let result = await this.client.ZREM(name, key);
+            let result = await this.client.ZREM(name, members);
             return result;
         }
         catch (e) {
             console.error(e);
-            rj(new GeneralError('ERROR_REDISClient.ZREM', { name, key }));
+            rj(new GeneralError('ERROR_REDISClient.ZREM', { name, members }));
         }
     }
 

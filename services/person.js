@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 // const gh = GitHub;
 const credutil = require('../util/credentials');
 const fs = require('fs');
+const redis = require('./redis');
 
 module.exports = class UserService {
     constructor(credentials) {
@@ -100,6 +101,7 @@ module.exports = class UserService {
                 WHERE a.shortid = ?
                 AND a.season = ?
                 AND b.game_slug = a.game_slug
+                AND a.played > 0
             `, [shortid, season])
 
             if (response && response?.results.length > 0) {
@@ -153,9 +155,9 @@ module.exports = class UserService {
         }
     }
 
-    async findUser(user, db) {
+    async findUser(user, isSimple) {
         try {
-            db = db || await mysql.db();
+            let db = await mysql.db();
             let response;
             if (user.id) {
                 response = await db.sql('select *, YEAR(tsinsert) as membersince from person where id = ?', [user.id]);
@@ -188,6 +190,10 @@ module.exports = class UserService {
                 user = response.results[0];
             }
 
+            if (isSimple) {
+                return user;
+            }
+
             user.ranks = await this.findPlayerRanks(user.shortid);
             if (user.isdev)
                 user.devgames = await this.findPlayerDevGames(user.id);
@@ -207,7 +213,7 @@ module.exports = class UserService {
             let db = await mysql.begin('findOrCreateUser');
 
             try {
-                let existingUser = await this.findUser(user, db);
+                let existingUser = await this.findUser(user, true);
                 if (('github' in user) &&
                     (existingUser.github != user.github || existingUser.github_id != user.github_id)) {
                     user.id = existingUser.id;
@@ -245,7 +251,7 @@ module.exports = class UserService {
 
             // user.displayname = user.displayname.replace(/[^A-Za-z0-9\_]/ig, "");
             // let updatedUser = { displayname: user.displayname }
-            let existingUser = await this.findUser({ displayname: user.displayname }, db);
+            let existingUser = await this.findUser({ displayname: user.displayname });
 
             if (existingUser?.displayname) {
                 throw new GeneralError('E_PERSON_EXISTSNAME', user.displayname);
@@ -272,12 +278,56 @@ module.exports = class UserService {
         }
     }
 
+    async deleteUser(user, db) {
+        try {
+            db = db || await mysql.db();
+            let id = user.id;
+            let { results } = await db.delete('person', 'WHERE id = ?', [{ toSqlString: () => id }]);
+
+            let rankResults = await db.sql(`
+                SELECT a.displayname, b.game_slug
+                FROM person a, person_rank b
+                WHERE a.shortid = b.shortid
+                and a.shortid = ?
+            `, [user.shortid]);
+
+            for (var i = 0; i < rankResults.length; i++) {
+                let rank = rankResults[i];
+                redis.zrem(rank.game_slug + '/lb', [rank.displayname]);
+            }
+
+            let { results2 } = await db.delete('person_rank', 'WHERE shortid = ?', [user.shortid]);
+
+            let { results3 } = await db.delete('person_room', 'WHERE shortid = ?', [user.shortid]);
+
+            let key = `rooms/${user.shortid}`;
+            redis.del(key);
+
+            console.log("Deleted user: ", user.id, user.shortid, user.displayname);
+
+            return true;
+        }
+        catch (e) {
+            if (e.errno == 1062) {
+                throw new GeneralError("E_PERSON_DUPENAME", user);
+            }
+
+            throw e;
+        }
+    }
+
     async updateUser(user, db) {
         try {
             db = db || await mysql.db();
             let id = user.id;
             delete user['id'];
 
+            if (user.membersince)
+                delete user.membersince;
+            if (user.iat)
+                delete user.iat;
+            if (user.exp)
+                delete user.exp;
             let { results } = await db.update('person', user, 'WHERE id = ?', [{ toSqlString: () => id }]);
 
             user.id = id;
@@ -313,15 +363,32 @@ module.exports = class UserService {
             user.isdev = false;
             user.tsapikey = utcDATETIME();
 
-            let { results } = await db.insert('person', user);
-            console.log(results);
+            try {
+                let { results } = await db.insert('person', user);
+                console.log(results);
+            }
+            catch (e) {
+                if (e instanceof SQLError && e.payload.errno == 1062) {
+                    if (e.payload.sqlMessage.indexOf("person.PRIMARY") > -1) {
+                        //user id already exists, try creating again
+                        return this.createUser(user);
+                    }
+                    else if (e.payload.sqlMessage.indexOf('shortid_UNIQUE') > -1) {
+                        //shortid already exists, try creating again
+                        return this.createUser(user);
+                    }
+                }
+                console.error(e);
+            }
+
 
             // await this.inviteToGithub(user);
 
-            if (results.affectedRows == 0)
-                throw new GeneralError('E_PERSON_CREATEFAILED', user);
+            // if (results.affectedRows == 0)
+            //     throw new GeneralError('E_PERSON_CREATEFAILED', user);
 
             user.id = newid;
+            user.membersince = (new Date()).getFullYear();
             return user;
         }
         catch (e) {
