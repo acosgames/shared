@@ -594,6 +594,32 @@ class RoomService {
         }
     }
 
+    async findRoomUserSubscriptions(room_slug) {
+
+        try {
+            let db = await mysql.db();
+
+            let response = await db.sql(`
+                SELECT a.shortid, a.webpush
+                FROM person a, person_room b
+                WHERE a.shortid = b.shortid
+                AND b.room_slug = ?
+                AND a.webpush IS NOT NULL
+            `, [room_slug])
+
+            if (response.results && response.results.length == 0) {
+                return null;
+            }
+            let subscriptions = response.results;
+            return subscriptions;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
     async createRoom(shortid, rating, game_slug, mode, private_key) {
         try {
             let db = await mysql.db();
@@ -614,6 +640,7 @@ class RoomService {
             let gameid = published.gameid;
             let database = published.db || false;
             let latest_tsupdate = published.tsupdate;
+            // let preview_images = published.preview_images;
 
             //experimental uses the latest version that is not in production
             if (mode == 'experimental') {
@@ -645,6 +672,7 @@ class RoomService {
                 mode,
                 rating,
                 owner: shortid,
+                // preview_images,
                 isprivate: 0
             }
 
