@@ -141,15 +141,9 @@ module.exports = class MySQL {
         }
     }
 
-    async db(conn) {
+    async db() {
         try {
-            const type = !conn ? 2 : 0; //single use VS transaction query
-            if (!conn) {
-                conn = await this.getConnection();
-                // type = 2; //single use query
-            }
-
-            conn = conn || await this.getConnection();
+            var conn = await this.getConnection();
             return {
                 commit: () => {
                     conn.commit((err) => {
@@ -189,15 +183,15 @@ module.exports = class MySQL {
                                     conn.rollback();
                                     // console.error(error);
                                     reject(new SQLError('E_SQL_ERROR', error));
-                                    if (type == 2)
-                                        conn.release();
+
+                                    conn.release();
                                     return;
                                 };
                                 // Neat!
 
                                 resolve({ results, fields });
-                                if (type == 2)
-                                    conn.release();
+
+                                conn.release();
                             });
                             // console.log(query.sql);
                         }
@@ -235,22 +229,24 @@ module.exports = class MySQL {
 
                                 if (error) {
                                     reject(new SQLError('E_SQL_ERROR', error));
+                                    conn.release();
                                     return;
                                 }
 
                                 resolve({ results, fields });
 
-                                if (type == 2)
-                                    conn.release();
+
+                                conn.release();
                             });
                             console.log(query.sql);
                         }
                         catch (e) {
                             conn.rollback();
+                            conn.release();
                             //console.error(e);
                             reject(new SQLError('E_SQL_ERROR', e));
-                            if (type == 2)
-                                conn.release();
+
+
                         }
                     });
                 },
@@ -288,17 +284,18 @@ module.exports = class MySQL {
 
                                     resolve({ results, fields });
 
-                                    if (type == 2)
-                                        conn.release();
+
+                                    conn.release();
                                 });
                             console.log(query.sql);
                         }
                         catch (e) {
                             conn.rollback();
+                            conn.release();
                             //console.error(e);
                             reject(new SQLError('E_SQL_ERROR', e));
-                            if (type == 2)
-                                conn.release();
+
+
                         }
                     });
                 },
@@ -384,23 +381,23 @@ module.exports = class MySQL {
                                 function (error, results, fields) {
                                     if (error) {
                                         conn.rollback();
+                                        conn.release();
                                         console.error(error);
                                         reject(new SQLError('E_SQL_ERROR', error));
-                                        if (type == 2)
-                                            conn.release();
+
                                         return;
                                     };
                                     // Neat!
 
                                     resolve({ results, fields });
-                                    if (type == 2)
-                                        conn.release();
+                                    conn.release();
                                 });
                             // console.log(query.sql);
                         }
                         catch (e) {
-                            reject(new SQLError('E_SQL_ERROR', e));
                             conn.release();
+                            reject(new SQLError('E_SQL_ERROR', e));
+
                         }
                     });
                 },
@@ -427,7 +424,7 @@ module.exports = class MySQL {
                                 where = 'WHERE ' + where;
                             }
                             var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
-
+                                conn.release();
                                 if (error) {
                                     reject(new SQLError('E_SQL_ERROR', error));
                                     return;
@@ -436,8 +433,7 @@ module.exports = class MySQL {
 
                                 resolve({ results, fields });
 
-                                if (type == 2)
-                                    conn.release();
+
                             });
                             console.log(query.sql);
                         }
@@ -445,8 +441,8 @@ module.exports = class MySQL {
                             conn.rollback();
                             //console.error(e);
                             reject(new SQLError('E_SQL_ERROR', e));
-                            if (type == 2)
-                                conn.release();
+
+                            conn.release();
                         }
                     });
                 },
@@ -457,23 +453,21 @@ module.exports = class MySQL {
                         try {
                             values = values || [];
                             let query = conn.query(sql, values, function (error, results, fields) {
+                                conn.release();
                                 if (error) {
                                     console.error(error);
                                     reject(new SQLError('E_SQL_ERROR', error));
                                     return;
                                 }
                                 resolve({ results, fields });
-
-                                if (type == 2)
-                                    conn.release();
                             });
                             // console.log(query.sql);
                         }
                         catch (e) {
                             conn.rollback();
+                            conn.release();
                             console.error(e);
-                            if (type == 2)
-                                conn.release();
+
                             reject(new SQLError('E_SQL_ERROR', e));
                         }
                     });
@@ -491,15 +485,13 @@ module.exports = class MySQL {
                                 where = 'WHERE ' + where;
                             }
                             var query = conn.query('DELETE FROM ' + table + ' ' + where, values, function (error, results, fields) {
+                                conn.release();
                                 if (error) {
                                     reject(new SQLError('E_SQL_ERROR', error));
                                     return;
                                 }
                                 // Neat!
                                 resolve({ results, fields });
-
-                                if (type == 2)
-                                    conn.release();
                             });
                         }
                         catch (e) {
