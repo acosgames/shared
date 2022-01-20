@@ -143,27 +143,27 @@ module.exports = class MySQL {
 
     async db() {
         try {
-            var conn = await this.getConnection();
+            // var conn = this.pool;//await this.getConnection();
             return {
-                commit: () => {
-                    conn.commit((err) => {
-                        if (err) throw new SQLError('E_SQL_ERROR', err);
+                // commit: () => {
+                //     conn.commit((err) => {
+                //         if (err) throw new SQLError('E_SQL_ERROR', err);
 
-                    })
-                },
-                rollback: () => {
-                    conn.rollback((err) => {
-                        if (err) throw new SQLError('E_SQL_ERROR', err);
-                    })
-                },
+                //     })
+                // },
+                // rollback: () => {
+                //     conn.rollback((err) => {
+                //         if (err) throw new SQLError('E_SQL_ERROR', err);
+                //     })
+                // },
                 insert: (table, row) => {
 
                     return new Promise((resolve, reject) => {
                         try {
-                            if (!conn) {
-                                reject(new SQLError('E_SQL_ERROR', "No defined connection"));
-                                return;
-                            }
+                            // if (!conn) {
+                            //     reject(new SQLError('E_SQL_ERROR', "No defined connection"));
+                            //     return;
+                            // }
 
                             // var post = { id: 1, title: 'Hello MySQL' };
                             if (!row) {
@@ -178,20 +178,20 @@ module.exports = class MySQL {
 
                             row.tsupdate = utcDATETIME();
                             row.tsinsert = row.tsupdate;
-                            var query = conn.query('INSERT INTO ' + table + ' SET ?', row, function (error, results, fields) {
+                            var query = this.pool.query('INSERT INTO ' + table + ' SET ?', row, function (error, results, fields) {
                                 if (error) {
-                                    conn.rollback();
+                                    // conn.rollback();
                                     // console.error(error);
                                     reject(new SQLError('E_SQL_ERROR', error));
 
-                                    conn.release();
+                                    // conn.release();
                                     return;
                                 };
                                 // Neat!
 
                                 resolve({ results, fields });
 
-                                conn.release();
+                                // conn.release();
                             });
                             // console.log(query.sql);
                         }
@@ -225,24 +225,24 @@ module.exports = class MySQL {
                             if (where && where.indexOf("WHERE") == -1) {
                                 where = 'WHERE ' + where;
                             }
-                            var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
+                            var query = this.pool.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
 
                                 if (error) {
                                     reject(new SQLError('E_SQL_ERROR', error));
-                                    conn.release();
+                                    // conn.release();
                                     return;
                                 }
 
                                 resolve({ results, fields });
 
 
-                                conn.release();
+                                // conn.release();
                             });
                             console.log(query.sql);
                         }
                         catch (e) {
-                            conn.rollback();
-                            conn.release();
+                            // conn.rollback();
+                            // conn.release();
                             //console.error(e);
                             reject(new SQLError('E_SQL_ERROR', e));
 
@@ -274,7 +274,7 @@ module.exports = class MySQL {
                             if (where && where.indexOf("WHERE") == -1) {
                                 where = 'WHERE ' + where;
                             }
-                            var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values,
+                            var query = this.pool.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values,
                                 function (error, results, fields) {
 
                                     if (error) {
@@ -285,13 +285,13 @@ module.exports = class MySQL {
                                     resolve({ results, fields });
 
 
-                                    conn.release();
+                                    // conn.release();
                                 });
                             console.log(query.sql);
                         }
                         catch (e) {
-                            conn.rollback();
-                            conn.release();
+                            // conn.rollback();
+                            // conn.release();
                             //console.error(e);
                             reject(new SQLError('E_SQL_ERROR', e));
 
@@ -313,10 +313,10 @@ module.exports = class MySQL {
 
                     return new Promise((resolve, reject) => {
                         try {
-                            if (!conn) {
-                                reject(new SQLError('E_SQL_ERROR', "No defined connection"));
-                                return;
-                            }
+                            // if (!conn) {
+                            //     reject(new SQLError('E_SQL_ERROR', "No defined connection"));
+                            //     return;
+                            // }
 
                             // var post = { id: 1, title: 'Hello MySQL' };
                             if (!rows || rows.length == 0) {
@@ -375,13 +375,13 @@ module.exports = class MySQL {
                                 updateColumns.push(key + '=VALUES(' + key + ')');
                             }
 
-                            var query = conn.query(
+                            var query = this.pool.query(
                                 'INSERT INTO ' + table + ' (' + keyList.join(',') + ') VALUES ' + valuesProtect.join(',') + ' ON DUPLICATE KEY UPDATE ' + updateColumns.join(','),
                                 valuesList,
                                 function (error, results, fields) {
                                     if (error) {
-                                        conn.rollback();
-                                        conn.release();
+                                        // conn.rollback();
+                                        // conn.release();
                                         console.error(error);
                                         reject(new SQLError('E_SQL_ERROR', error));
 
@@ -390,12 +390,12 @@ module.exports = class MySQL {
                                     // Neat!
 
                                     resolve({ results, fields });
-                                    conn.release();
+                                    // conn.release();
                                 });
                             // console.log(query.sql);
                         }
                         catch (e) {
-                            conn.release();
+                            // conn.release();
                             reject(new SQLError('E_SQL_ERROR', e));
 
                         }
@@ -423,8 +423,8 @@ module.exports = class MySQL {
                             if (where && where.indexOf("WHERE") == -1) {
                                 where = 'WHERE ' + where;
                             }
-                            var query = conn.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
-                                conn.release();
+                            var query = this.pool.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
+                                // conn.release();
                                 if (error) {
                                     reject(new SQLError('E_SQL_ERROR', error));
                                     return;
@@ -438,11 +438,11 @@ module.exports = class MySQL {
                             console.log(query.sql);
                         }
                         catch (e) {
-                            conn.rollback();
+                            // conn.rollback();
                             //console.error(e);
                             reject(new SQLError('E_SQL_ERROR', e));
 
-                            conn.release();
+                            // conn.release();
                         }
                     });
                 },
@@ -452,8 +452,8 @@ module.exports = class MySQL {
                     return new Promise((resolve, reject) => {
                         try {
                             values = values || [];
-                            let query = conn.query(sql, values, function (error, results, fields) {
-                                conn.release();
+                            let query = this.pool.query(sql, values, function (error, results, fields) {
+                                // conn.release();
                                 if (error) {
                                     console.error(error);
                                     reject(new SQLError('E_SQL_ERROR', error));
@@ -464,8 +464,8 @@ module.exports = class MySQL {
                             // console.log(query.sql);
                         }
                         catch (e) {
-                            conn.rollback();
-                            conn.release();
+                            // conn.rollback();
+                            // conn.release();
                             console.error(e);
 
                             reject(new SQLError('E_SQL_ERROR', e));
@@ -484,8 +484,8 @@ module.exports = class MySQL {
                             if (where.indexOf("WHERE") == -1) {
                                 where = 'WHERE ' + where;
                             }
-                            var query = conn.query('DELETE FROM ' + table + ' ' + where, values, function (error, results, fields) {
-                                conn.release();
+                            var query = this.pool.query('DELETE FROM ' + table + ' ' + where, values, function (error, results, fields) {
+                                // conn.release();
                                 if (error) {
                                     reject(new SQLError('E_SQL_ERROR', error));
                                     return;
@@ -496,7 +496,7 @@ module.exports = class MySQL {
                         }
                         catch (e) {
                             console.error(e);
-                            conn.release();
+                            // conn.release();
                             reject(new SQLError('E_SQL_ERROR', e));
 
                         }
