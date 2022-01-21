@@ -1,3 +1,4 @@
+// const JSBI = require('jsbi');
 const encoderVersion = '1.1';
 
 // const pako = require('pako');
@@ -18,6 +19,227 @@ function str2ab(str) {
     }
     return buf;
 }
+
+function getBigUint64(view, position, littleEndian = false) {
+    if ("getBigUint64" in DataView.prototype) {
+        return view.getBigUint64(position, littleEndian);
+    }
+
+    const lsb = BigInt(view.getUint32(position + (littleEndian ? 0 : 4), littleEndian));
+    const gsb = BigInt(view.getUint32(position + (littleEndian ? 4 : 0), littleEndian));
+    return lsb + 4294967296n * gsb;
+
+}
+
+function getBigInt64(view, position, littleEndian = false) {
+    // if ("getBigInt64" in DataView.prototype) {
+    //     return view.getBigInt64(position, littleEndian);
+    // }
+
+    let value = 0n;
+    let isNegative = (view.getUint8(position + (littleEndian ? 7 : 0)) & 0x80) > 0;
+    let carrying = true;
+    for (let i = 0; i < 8; i++) {
+        let byte = view.getUint8(position + (littleEndian ? i : 7 - i));
+        if (isNegative) {
+            if (carrying) {
+                if (byte != 0x00) {
+                    byte = (~(byte - 1)) & 0xFF;
+                    carrying = false;
+                }
+            }
+            else {
+                byte = (~byte) & 0xFF;
+            }
+        }
+        value += BigInt(byte) * 256n ** BigInt(i);
+    }
+    if (isNegative) {
+        value = -value;
+    }
+    return value;
+
+}
+
+
+const fromHexString = hexString =>
+    new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+
+
+function setBigInt64(view, byteOffset, value, littleEndian) {
+
+    // if ("setBigInt64" in DataView.prototype) {
+    //     return view.setBigInt64(byteOffset, BigInt(value), littleEndian);
+    // }
+
+    let hex = bnToHex(value);
+
+    let buffer = fromHexString(hex);
+    for (var i = 0; i < buffer.length; i++) {
+        view.setUint8(byteOffset + i, buffer[i]);
+    }
+
+    return true;
+}
+
+function setBigUint64(view, byteOffset, value, littleEndian) {
+    if ("setBigUint64" in DataView.prototype) {
+        view.setBigUint64(byteOffset, BigInt(value), littleEndian);
+        return true;
+    }
+    // if (typeof value === 'bigint' && typeof view.setBigUint64 !== 'undefined') {
+    //     // the original native implementation for bigint
+    //     view.setBigUint64(byteOffset, value, littleEndian);
+    //   } else if (value.constructor === JSBI && typeof value.sign === 'bigint' && typeof view.setBigUint64 !== 'undefined') {
+    //     // JSBI wrapping a native bigint
+    //     view.setBigUint64(byteOffset, value.sign, littleEndian);
+    //   } else 
+    {
+        let buff = bnToBuf(value);
+        for (var i = 0; i < buff.length; i++) {
+            view.setUint8(byteOffset + i, buff[i]);
+        }
+
+        // value = JSBI.BigInt(value + "");
+        // console.log("BigUint: ", value);
+
+        // // JSBI polyfill implementation
+        // const lowWord = value[0];
+        // let highWord = 0;
+        // if (value.length >= 2) {
+        //     highWord = value[1];
+        // }
+        // view.setUint32(byteOffset + (littleEndian ? 0 : 4), lowWord, littleEndian);
+        // view.setUint32(byteOffset + (littleEndian ? 4 : 0), highWord, littleEndian);
+    }
+    return true;
+}
+
+// Convert a hex string to a byte array
+function hexToBytes(hex) {
+    for (var bytes = [], c = 0; c < hex.length; c += 2)
+        bytes.push(parseInt(hex.substr(c, 2), 16));
+    return bytes;
+}
+
+// Convert a byte array to a hex string
+function bytesToHex(bytes) {
+    for (var hex = [], i = 0; i < bytes.length; i++) {
+        var current = bytes[i] < 0 ? bytes[i] + 256 : bytes[i];
+        hex.push((current >>> 4).toString(16));
+        hex.push((current & 0xF).toString(16));
+    }
+    return hex.join("");
+}
+
+function hexToBn(hex) {
+    if (hex.length % 2) {
+        hex = '0' + hex;
+    }
+
+    var highbyte = parseInt(hex.slice(0, 2), 16)
+    var bn = BigInt('0x' + hex);
+
+    if (0x80 & highbyte) {
+        // bn = ~bn; WRONG in JS (would work in other languages)
+
+        // manually perform two's compliment (flip bits, add one)
+        // (because JS binary operators are incorrect for negatives)
+        bn = BigInt('0b' + bn.toString(2).split('').map(function (i) {
+            return '0' === i ? 1 : 0
+        }).join('')) + BigInt(1);
+        // add the sign character to output string (bytes are unaffected)
+        bn = -bn;
+    }
+
+    return bn;
+}
+
+function bnToHex(bn) {
+    var pos = true;
+    bn = BigInt(bn);
+
+    // I've noticed that for some operations BigInts can
+    // only be compared to other BigInts (even small ones).
+    // However, <, >, and == allow mix and match
+    if (bn < 0) {
+        pos = false;
+        bn = bitnot(bn);
+    }
+
+    var base = 16;
+    var hex = bn.toString(base);
+    if (hex.length % 2) {
+        hex = '0' + hex;
+    }
+
+    // Check the high byte _after_ proper hex padding
+    var highbyte = parseInt(hex.slice(0, 2), 16);
+    var highbit = (0x80 & highbyte);
+
+    if (pos && highbit) {
+        // A 32-byte positive integer _may_ be
+        // represented in memory as 33 bytes if needed
+        hex = '00' + hex;
+    }
+
+    return hex;
+}
+
+function bitnot(bn) {
+    // JavaScript's bitwise not doesn't work on negative BigInts (bn = ~bn; // WRONG!)
+    // so we manually implement our own two's compliment (flip bits, add one)
+    bn = -bn;
+    var bin = (bn).toString(2)
+    var prefix = '';
+    while (bin.length % 8) {
+        bin = '0' + bin;
+    }
+    if ('1' === bin[0] && -1 !== bin.slice(1).indexOf('1')) {
+        prefix = '11111111';
+    }
+    bin = bin.split('').map(function (i) {
+        return '0' === i ? '1' : '0';
+    }).join('');
+    return BigInt('0b' + prefix + bin) + BigInt(1);
+}
+
+function bnToBuf(bn) {
+    var hex = BigInt(bn).toString(16);
+    if (hex.length % 2) { hex = '0' + hex; }
+
+    var len = hex.length / 2;
+    var u8 = [];
+
+    for (let x = 0; x < 8 - len; x++) {
+        u8.push(0);
+    }
+    var i = 0;
+    var j = 0;
+    while (i < len) {
+
+        u8.push(parseInt(hex.slice(j, j + 2), 16));
+        i += 1;
+        j += 2;
+    }
+
+    return u8;
+}
+
+function bufToBn(buf) {
+    var hex = [];
+    u8 = Uint8Array.from(buf);
+
+    u8.forEach(function (i) {
+        var h = i.toString(16);
+        if (h.length % 2) { h = '0' + h; }
+        hex.push(h);
+    });
+
+    return BigInt('0x' + hex.join(''));
+}
+
+
 
 console.log("ENCODER VERSION = " + encoderVersion);
 
@@ -295,7 +517,9 @@ function serializeEX(json, buffer, dict, cache) {
         buffer.push(TYPE_DATE);
         let epoch = json.getTime();
         // console.log('epoch', epoch);
-        dv.setBigUint64(0, BigInt(epoch));
+
+        setBigUint64(dv, 0, BigInt(epoch));
+        // dv.setBigUint64(0, BigInt(epoch));
         buffer.push(dv.getUint8(0));
         buffer.push(dv.getUint8(1));
         buffer.push(dv.getUint8(2));
@@ -438,9 +662,12 @@ function serializeEX(json, buffer, dict, cache) {
                 buffer.push(dv.getUint8(2));
                 buffer.push(dv.getUint8(3));
             }
-            else if (json < -2147483648 || json > 4294967295) {
+            else if (json < -2147483648) {
                 buffer.push(TYPE_INT64);
-                dv.setBigInt64(0, BigInt(json));
+
+                json = -json;
+                setBigUint64(dv, 0, json);
+                // dv.setBigInt64(0, BigInt(json));
                 buffer.push(dv.getUint8(0));
                 buffer.push(dv.getUint8(1));
                 buffer.push(dv.getUint8(2));
@@ -452,7 +679,9 @@ function serializeEX(json, buffer, dict, cache) {
             }
             else if (json > 4294967295) {
                 buffer.push(TYPE_UINT64);
-                dv.setBigUint64(0, BigInt(json));
+
+                setBigUint64(dv, 0, json);
+                // dv.setBigUint64(0, BigInt(json));
                 buffer.push(dv.getUint8(0));
                 buffer.push(dv.getUint8(1));
                 buffer.push(dv.getUint8(2));
@@ -584,7 +813,7 @@ function deserializeEX(ref) {
     let json;
     let arr, i;
     let data;
-    let type = ref.buffer.getInt8(ref.pos++);
+    let type = ref.buffer.getUint8(ref.pos++);
 
     switch (type) {
         case TYPE_EMPTY_OBJ:
@@ -672,7 +901,8 @@ function deserializeEX(ref) {
             json = false;
             break;
         case TYPE_DATE:
-            json = ref.buffer.getBigUint64(ref.pos);
+            json = getBigUint64(ref.buffer, ref.pos);
+            // json = ref.buffer.getBigUint64(ref.pos);
             json = new Date(Number(json));
             ref.pos += 8;
             break;
@@ -701,12 +931,16 @@ function deserializeEX(ref) {
             ref.pos += 4;
             break;
         case TYPE_INT64:
-            json = ref.buffer.getBigInt64(ref.pos);
+            json = getBigUint64(ref.buffer, ref.pos);
+            json = -json;
+            // json = getBigInt64(ref.buffer, ref.pos);
+            // json = ref.buffer.getBigInt64(ref.pos);
             json = Number(json);
             ref.pos += 8;
             break;
         case TYPE_UINT64:
-            json = ref.buffer.getBigUint64(ref.pos);
+            json = getBigUint64(ref.buffer, ref.pos);
+            // json = ref.buffer.getBigUint64(ref.pos);
             json = Number(json);
             ref.pos += 8;
             break;
