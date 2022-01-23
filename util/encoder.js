@@ -570,7 +570,7 @@ function serializeEX(json, buffer, dict, cache) {
 
         if (json in cache) {
             let pos = cache[json];
-            console.log("Found cache for:", json, "at", pos);
+            // console.log("Found cache for:", json, "at", pos);
             if (json.length <= 255) {
                 buffer.push(TYPE_STRING_DICT1);
                 dv.setUint8(0, pos);
