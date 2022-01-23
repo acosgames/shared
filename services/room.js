@@ -355,7 +355,7 @@ class RoomService {
             let key = shortid + '/' + game_slug;
             let rating = await cache.get(key);
             if (rating) {
-                console.log("Getting player rating for: ", key, rating.rating);
+                console.log("[Cached] Getting player rating for: ", key, rating.rating);
                 return rating;
             }
 
@@ -367,7 +367,7 @@ class RoomService {
             if (response.results && response.results.length > 0) {
                 rating = response.results[0];
                 cache.set(key, rating, 600);
-                console.log("Getting player rating for: ", key, rating.rating);
+                console.log("[MySQL] Getting player rating for: ", key, rating.rating);
                 return rating;
             }
 
@@ -389,7 +389,7 @@ class RoomService {
                 played: 0
             };
             response = await db.insert('person_rank', rating);
-            console.log("Getting player rating for: ", key, rating.rating);
+            console.log("Created player rating for: ", key, rating.rating);
 
             delete rating.shortid;
             delete rating.game_slug;
