@@ -457,7 +457,7 @@ var defaultOrder = [
     'Grand Champion III',
     'Grand Champion IV',
     'board',
-    'test', 'hello'
+    'playerCount'
 ]
 
 var defaultDict = null;
