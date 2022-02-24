@@ -111,6 +111,28 @@ module.exports = class GameService {
 
     }
 
+    async getGameSiteMap() {
+        try {
+            let db = await mysql.db();
+            var response;
+            console.log("Getting list of games for sitemap");
+            response = await db.sql(`
+                SELECT  
+                    a.game_slug
+                FROM game_info a
+                LIMIT 100
+            `);
+
+            return response.results;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+        return [];
+    }
+
     async findGames() {
         try {
             let db = await mysql.db();
@@ -140,6 +162,7 @@ module.exports = class GameService {
                 WHERE (a.status = 2 or a.status = 3)
                 AND (a.gameid = cur.gameid AND a.version = cur.version)
                 AND (a.gameid = latest.gameid AND a.latest_version = latest.version)
+                LIMIT 100
             `);
 
             return response.results;
@@ -182,6 +205,7 @@ module.exports = class GameService {
                 return null;
             }
             let game = response.results[0];
+            console.log("Game Found: ", JSON.stringify(game, null, 2));
             game.votes = await this.findGameVotes(game_slug);
 
             if (ignoreExtra)
