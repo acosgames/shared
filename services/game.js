@@ -120,7 +120,8 @@ module.exports = class GameService {
                 SELECT  
                     a.game_slug
                 FROM game_info a
-                LIMIT 100
+                WHERE (a.status = 2 or a.status = 3)
+                LIMIT 1000
             `);
 
             return response.results;
