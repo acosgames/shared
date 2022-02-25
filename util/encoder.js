@@ -1410,9 +1410,9 @@ function encode(json, storedDict) {
         // console.log("ENCODING: ", JSON.stringify(json, null, 2));
         let dict = createDefaultDict(storedDict);
         dict.frozen = true;
-        console.time('serialize');
+        // console.time('serialize');
         let encoded = serialize(json, dict);
-        console.timeEnd('serialize');
+        // console.timeEnd('serialize');
         console.log('Encoded Size: ', encoded.byteLength)
         // let jsonStr = JSON.stringify(json);
         // let buffer = encoder.encode(jsonStr);
@@ -1443,9 +1443,9 @@ function decode(raw, storedDict) {
             var buf = new Uint8Array(raw).buffer;
             dataview = new DataView(buf);
         }
-        console.time('deserialize');
+        // console.time('deserialize');
         let decoded = deserialize(dataview, 0, dict);
-        console.timeEnd('deserialize');
+        // console.timeEnd('deserialize');
         // let inflated = pako.inflate(raw);
         // let jsonStr = decoder.decode(inflated);
         // let json = JSON.parse(jsonStr);
