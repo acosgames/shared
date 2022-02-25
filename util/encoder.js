@@ -1093,7 +1093,7 @@ function deserializeEX(ref) {
             let startPos = ref.pos;
             json = deserializeArrDelta([], ref);
             let dist = ref.pos - startPos;
-            console.log("ArrDelta Length: ", dist);
+            // console.log("ArrDelta Length: ", dist);
             break;
         case TYPE_ARR_NESTED:
             json = deserializeArrDelta([], ref);
