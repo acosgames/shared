@@ -163,6 +163,7 @@ module.exports = class GameService {
                 WHERE (a.status = 2 or a.status = 3)
                 AND (a.gameid = cur.gameid AND a.version = cur.version)
                 AND (a.gameid = latest.gameid AND a.latest_version = latest.version)
+                AND a.visible = 1
                 LIMIT 100
             `);
 
@@ -200,6 +201,7 @@ module.exports = class GameService {
                 AND a.ownerid = b.id
                 AND (a.gameid = current.gameid AND a.version = current.version)
                 AND (a.gameid = latest.gameid AND a.latest_version = latest.version)
+                AND a.visible != 2
             `, [game_slug]);
 
             if (response.results && response.results.length == 0) {
@@ -443,6 +445,7 @@ module.exports = class GameService {
                 AND a.ownerid = d.id
                 AND (a.gameid = cur.gameid AND a.version = cur.version)
                 AND (a.gameid = latest.gameid AND a.latest_version = latest.version)
+                AND a.visible != 2
             `, [game_slug, shortid, game_slug, shortid, game_slug]);
 
             if (response.results && response.results.length == 0) {

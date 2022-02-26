@@ -429,6 +429,13 @@ module.exports = class DevGameService {
             //game.ownerid = user.id;
             // game.apikey = generateAPIKEY();
 
+            let version = game.version;
+            if (!Number.isInteger(version) || version < 0 || version > gameFull.latest_version) {
+                version = gameFull.version;
+            }
+            if (game.visible < 0 || game.visible > 2)
+                game.visible = 1;
+
             let newGame = {
                 name: game.name,
                 shortdesc: game.shortdesc,
@@ -436,6 +443,8 @@ module.exports = class DevGameService {
                 minplayers: game.minplayers,
                 maxplayers: game.maxplayers,
                 teams: game.teams,
+                visible: game.visible,
+                version,
                 opensource: game.opensource ? 1 : 0
             }
 
@@ -496,7 +505,49 @@ module.exports = class DevGameService {
         return null;
     }
 
+    async updateGameAPIKey(game, user, db) {
+        console.log(game);
+        try {
+            db = db || await mysql.db();
 
+            let gameFull = await this.findGame(game, user);
+            if (!gameFull) {
+                throw new GeneralError("E_NOTAUTHORIZED");
+            }
+
+            if (gameFull.status == 5) {
+                throw new GeneralError("E_SUSPENDED");
+            }
+
+            let dev = await this.findDevByGame(game.gameid, user.id);
+            if (!dev)
+                throw new GeneralError("E_NOTAUTHORIZED");
+
+
+            let newGameDev = {
+                apikey: generateAPIKEY()
+            }
+
+            let { results } = await db.update('game_dev', newGameDev, 'gameid=? AND ownerid = ?', [game.gameid, user.id]);
+            console.log(results);
+
+            dev.apikey = newGameDev.apikey;
+
+            if (results.affectedRows > 0)
+                return dev;
+
+        }
+        catch (e) {
+            console.log(e);
+
+
+            //revert back to normal
+            if (e.ecode)
+                throw e;
+            throw new GeneralError("E_GAME_INVALID");
+        }
+        return null;
+    }
 
     async deployGame(game, user, db) {
         console.log(game);
