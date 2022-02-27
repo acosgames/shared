@@ -13,7 +13,7 @@ const game = new GameService();
 
 const webpush = require('web-push');
 
-webpush.setVapidDetails(credentials.webpush.contact, credentials.webpush.publickey, credentials.webpush.privatekey)
+
 
 
 function sleep(ms) {
@@ -36,7 +36,7 @@ class RoomService {
 
     constructor(credentials) {
         this.credentials = credentials || credutil();
-
+        webpush.setVapidDetails(this.credentials.webpush.contact, this.credentials.webpush.publickey, this.credentials.webpush.privatekey)
     }
 
     getGameModeID(name) {
