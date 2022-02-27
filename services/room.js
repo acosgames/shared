@@ -43,6 +43,45 @@ class RoomService {
         return ModeFromID[id];
     }
 
+    async notifyPlayerRoom(room_slug, gameinfo) {
+        try {
+            //{"body":"Tic Tac Toe", "title":"You joined a game!", "icon": "https://cdn.acos.games/file/acospub/g/test-game-1/preview/QCH6JB.png"}
+            let subscriptions = await this.findRoomUserSubscriptions(room_slug);
+            console.log("Room Notif Subscriptions: ", room_slug, subscriptions);
+            if (subscriptions) {
+
+                let urlprefix = this.credentials.platform.website.url;
+
+                const payload = JSON.stringify({
+                    title: 'You joined a game!',
+                    body: `${gameinfo.name}, click to join.`,
+                    icon: `https://cdn.acos.games/file/acospub/g/${gameinfo.game_slug}/preview/${gameinfo.preview_images}`,
+                    data: {
+                        url: `${urlprefix}/g/${gameinfo.game_slug}/${room_slug}`
+                    }
+                })
+
+                for (var i = 0; i < subscriptions.length; i++) {
+                    let sub = subscriptions[i];
+                    let subscription = JSON.parse(sub.webpush);
+                    try {
+                        console.log("Sending Notification: ", sub.shortid, payload);
+                        webpush.sendNotification(subscription, payload)
+                            .then(result => console.log(result))
+                            .catch(e => console.error(e))
+                    }
+                    catch (e) {
+                        console.error(e);
+                    }
+
+                }
+            }
+        }
+        catch (e) {
+            console.error(e);
+        }
+    }
+
     async assignPlayerRoom(shortid, room_slug, game_slug) {
         try {
             let db = await mysql.db();
