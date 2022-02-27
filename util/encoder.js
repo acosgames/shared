@@ -903,7 +903,7 @@ function serializeObj(json, buffer, dict, cache) {
             let startPos = buffer.length;
             let skey = key.substring(1);
             if (!(skey in dict.keys)) {
-                mapKey(key, buffer, dict, cache);
+                mapKey(skey, buffer, dict, cache);
             }
             else {
                 let id = dict.keys[skey];
