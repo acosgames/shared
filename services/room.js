@@ -11,6 +11,10 @@ const redis = require('./redis');
 const GameService = require('./game');
 const game = new GameService();
 
+const webpush = require('web-push');
+
+webpush.setVapidDetails(credentials.webpush.contact, credentials.webpush.publickey, credentials.webpush.privatekey)
+
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));

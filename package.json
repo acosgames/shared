@@ -32,7 +32,8 @@
     "postgres": "^1.0.2",
     "redis": "^4.0.0",
     "simple-git": "^2.35.2",
-    "uuid": "^8.3.2"
+    "uuid": "^8.3.2",
+    "web-push": "^3.4.5"
   },
   "devDependencies": {
     "core-js": "^3.12.1"
