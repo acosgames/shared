@@ -608,6 +608,7 @@ class RoomService {
                 AND a.webpush IS NOT NULL
             `, [room_slug])
 
+            console.log("findRoomUserSubscriptions:", room_slug, response);
             if (response.results && response.results.length == 0) {
                 return null;
             }
