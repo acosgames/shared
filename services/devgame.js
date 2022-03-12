@@ -442,6 +442,7 @@ module.exports = class DevGameService {
                 longdesc: game.longdesc,
                 minplayers: game.minplayers,
                 maxplayers: game.maxplayers,
+                lbscore: game.lbscore,
                 teams: game.teams,
                 visible: game.visible,
                 version,

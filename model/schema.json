@@ -66,6 +66,12 @@
             "min": 1,
             "greaterthanequal": "minplayers"
         },
+        "lbscore": {
+            "label": "Enable Highscore Leaderboard",
+            "required": true,
+            "max": 1,
+            "min": 0
+        },
         "minplayers": {
             "label": "Max players",
             "type": "number",

@@ -94,6 +94,7 @@ module.exports = class UserService {
                     a.loss,
                     a.tie,
                     a.played,
+                    a.highscore,
                     a.tsinsert,
                     b.name,
                     b.preview_images
@@ -294,6 +295,11 @@ module.exports = class UserService {
             for (var i = 0; i < rankResults.length; i++) {
                 let rank = rankResults[i];
                 redis.zrem(rank.game_slug + '/lb', [rank.displayname]);
+            }
+
+            for (var i = 0; i < rankResults.length; i++) {
+                let rank = rankResults[i];
+                redis.zrem(rank.game_slug + '/lbhs', [rank.displayname]);
             }
 
             let { results2 } = await db.delete('person_rank', 'WHERE shortid = ?', [user.shortid]);

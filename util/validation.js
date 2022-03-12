@@ -64,7 +64,7 @@ const validationRules = {
     required: (fields, table, rules, value, errors) => {
         if (!rules.required)
             return;
-        if (!value || value.length < 0) {
+        if (typeof value === 'undefined' || value == null || (typeof value === 'string' && value.length <= 0)) {
             errors.push(ValidateError('E_FIELD_REQUIRED', rules.label));
         }
         else if (rules.type && typeof value !== rules.type) {

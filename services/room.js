@@ -277,6 +277,23 @@ class RoomService {
         return false;
     }
 
+    async updateLeaderboardHighscore(game_slug, players) {
+        try {
+            let members = [];
+            for (var id in players) {
+                let player = players[id];
+                members.push({ value: player.name, score: player.highscore || 0 });
+            }
+
+            let result = await redis.zadd(game_slug + '/lbhs', members);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return false;
+    }
+
     async updateAllPlayerRatings(ratings) {
         try {
             let db = await mysql.db();
@@ -299,7 +316,8 @@ class RoomService {
             let update = {
                 rating: ratingData.rating,
                 mu: ratingData.mu,
-                sigma: ratingData.sigma
+                sigma: ratingData.sigma,
+                highscore: ratingData.highscore
             }
 
             let db = await mysql.db();
@@ -334,7 +352,8 @@ class RoomService {
                     b.win, 
                     b.loss, 
                     b.tie, 
-                    b.played 
+                    b.played,
+                    b.highscore
                 FROM person_room a
                 LEFT JOIN person_rank b 
                     ON a.shortid = b.shortid AND b.game_slug = a.game_slug
@@ -370,7 +389,8 @@ class RoomService {
                         win: 0,
                         loss: 0,
                         tie: 0,
-                        played: 0
+                        played: 0,
+                        highscore: 0
                     };
                     results[i] = newRating;
                     response = await db.insert('person_rank', newRating);
@@ -405,7 +425,7 @@ class RoomService {
             let db = await mysql.db();
             var response;
 
-            response = await db.sql('SELECT rating, mu, sigma, win, loss, tie, played from person_rank WHERE shortid = ? AND game_slug = ?', [shortid, game_slug]);
+            response = await db.sql('SELECT rating, mu, sigma, win, loss, tie, played, highscore from person_rank WHERE shortid = ? AND game_slug = ?', [shortid, game_slug]);
 
             if (response.results && response.results.length > 0) {
                 rating = response.results[0];
@@ -429,7 +449,8 @@ class RoomService {
                 win: 0,
                 loss: 0,
                 tie: 0,
-                played: 0
+                played: 0,
+                highscore: 0
             };
             response = await db.insert('person_rank', rating);
             console.log("Created player rating for: ", key, rating.rating);
