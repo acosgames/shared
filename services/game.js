@@ -168,7 +168,18 @@ module.exports = class GameService {
                 LIMIT 100
             `);
 
-            return response.results;
+            let games = response.results;
+
+            let queueCounts = await this.getAllGamesQueueCount();
+            for (var i = 0; i < games.length; i++) {
+                let game = games[i];
+                if (typeof queueCounts[game.game_slug] !== 'undefined')
+                    game.queueCount = queueCounts[game.game_slug];
+                else
+                    game.queueCount = 0;
+            }
+
+            return games;
         }
         catch (e) {
             if (e instanceof GeneralError)
@@ -211,7 +222,7 @@ module.exports = class GameService {
             let game = response.results[0];
             console.log("Game Found: ", JSON.stringify(game, null, 2));
             game.votes = await this.findGameVotes(game_slug);
-
+            game.queueCount = await this.getGameQueueCount(game_slug) || 0;
             if (ignoreExtra)
                 return { game }
             let top10 = await this.getGameTop10Players(game_slug) || [];
@@ -276,6 +287,33 @@ module.exports = class GameService {
 
     async updateVotes(game_slug, votes) {
 
+    }
+
+    async getAllGamesQueueCount() {
+        try {
+            let queues = await cache.getLocal('queueCount');
+            if (!queues) {
+                queues = await redis.hgetall('queueCount');
+                cache.setLocal('queueCount', queues, 5);
+            }
+            console.log("queues=", queues);
+            return queues;
+        }
+        catch (e) {
+            console.error(e);
+            return {};
+        }
+    }
+    async getGameQueueCount(game_slug) {
+        try {
+            let queueCount = await redis.hget('queueCount', game_slug);
+            console.log(game_slug, "queueCount=", queueCount);
+            return Number.parseInt(queueCount);
+        }
+        catch (e) {
+            console.error(e);
+            return 0;
+        }
     }
 
     async getGameTop10Players(game_slug) {
@@ -458,6 +496,7 @@ module.exports = class GameService {
             let playerRank = await this.getPlayerGameRank(game_slug, displayname);
             game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank) || [];
             game.lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
+            game.queueCount = await this.getGameQueueCount(game_slug) || 0;
             let cleaned = {
                 game: {
                     gameid: game.gameid,
@@ -489,6 +528,7 @@ module.exports = class GameService {
                     preview_images: game.preview_images,
                     status: game.status,
                     votes: game.votes,
+                    queueCount: game.queueCount,
                     tsupdate: game.tsupdate,
                     tsinsert: game.tsinsert,
                 },

@@ -216,9 +216,9 @@ class RedisService {
     async hset(key, field, value) {
         try {
             // ttl = ttl || this.credentials.defaultExpireTime || 300
-            if (typeof value === 'object') {
-                value = JSON.stringify(value);
-            }
+
+            value = JSON.stringify(value);
+
 
             let result = await this.client.HSET(key, field, value);
             return result;
@@ -239,6 +239,50 @@ class RedisService {
         }
     }
 
+    async sadd(key, field) {
+        try {
+            let result = await this.client.SADD(key, field);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            throw new GeneralError('ERROR_REDISclient.sadd', { key, field });
+        }
+    }
+
+    async srem(key, field) {
+        try {
+            let result = await this.client.SREM(key, field);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            throw new GeneralError('ERROR_REDISclient.srem', { key, field });
+        }
+    }
+
+    async smembers(key) {
+        try {
+            let result = await this.client.SMEMBERS(key);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            throw new GeneralError('ERROR_REDISclient.smembers', { key, field });
+        }
+    }
+
+    async scard(key) {
+        try {
+            let result = await this.client.SCARD(key);
+            return result;
+        }
+        catch (e) {
+            console.error(e);
+            throw new GeneralError('ERROR_REDISclient.scard', { key, field });
+        }
+    }
+
     async hget(key, field) {
         try {
             let data = await this.client.HGET(key, field);
@@ -252,6 +296,19 @@ class RedisService {
         catch (e) {
             console.error(e);
             throw new GeneralError('ERROR_REDISclient.hget', { key, field });
+        }
+    }
+
+    async hdel(key, field) {
+        try {
+            let data = await this.client.HDEL(key, field);
+            if (!data)
+                return null;
+            return data;
+        }
+        catch (e) {
+            console.error(e);
+            throw new GeneralError('ERROR_REDISclient.hdel', { key, field });
         }
     }
 
