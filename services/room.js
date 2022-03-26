@@ -285,6 +285,7 @@ class RoomService {
                 members.push({ value: player.name, score: player.highscore || 0 });
             }
 
+            console.log('updating leaderboard redis', members);
             let result = await redis.zadd(game_slug + '/lbhs', members);
             return result;
         }
