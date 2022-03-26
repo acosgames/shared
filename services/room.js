@@ -102,7 +102,7 @@ class RoomService {
             }
             game_slug = meta.game_slug;
 
-            let mode = this.getGameModeName(meta.mode);
+            let mode = meta.mode;// this.getGameModeName(meta.mode);
             let version = meta.mode == 'experimental' ? meta.latest_version : meta.version;
             let personRoom = {
                 shortid,
@@ -780,6 +780,7 @@ class RoomService {
                 console.error(e);
             }
 
+            room.mode = this.getGameModeName(room.mode);
             cache.set(room.room_slug + '/meta', room);
 
             return room;
