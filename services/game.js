@@ -430,8 +430,13 @@ module.exports = class GameService {
 
             let game = {};
             game.top10 = await this.getGameTop10Players(game_slug) || [];
-            let playerRank = await this.getPlayerGameRank(game_slug, displayname);
-            game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank) || [];
+            if (displayname) {
+                let playerRank = await this.getPlayerGameRank(game_slug, displayname);
+                game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank) || [];
+            }
+            else {
+                game.lb = [];
+            }
             game.lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
             return game;
         }
@@ -675,8 +680,13 @@ module.exports = class GameService {
 
             let game = {};
             game.top10hs = await this.getGameTop10PlayersHighscore(game_slug) || [];
-            let playerRank = await this.getPlayerGameHighscore(game_slug, displayname);
-            game.lbhs = await this.getPlayerGameLeaderboardHighscore(game_slug, displayname, playerRank) || [];
+            if (displayname) {
+                let playerRank = await this.getPlayerGameHighscore(game_slug, displayname);
+                game.lbhs = await this.getPlayerGameLeaderboardHighscore(game_slug, displayname, playerRank) || [];
+            }
+            else {
+                game.lbhs = [];
+            }
             game.lbhsCount = await this.getGameLeaderboardCountHighscore(game_slug) || 0;
             return game;
         }
