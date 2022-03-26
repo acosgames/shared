@@ -318,23 +318,23 @@ module.exports = class GameService {
 
     async getGameTop10Players(game_slug) {
 
-        let rankings = await redis.get(game_slug + '/top10');
-        if (!rankings) {
-            rankings = await redis.zrevrange(game_slug + '/lb', 0, 10);
+        //let rankings = await redis.get(game_slug + '/top10');
+        //if (!rankings) {
+        let rankings = await redis.zrevrange(game_slug + '/lb', 0, 10);
 
-            if (rankings.length == 0) {
-                let total = await this.updateAllRankings(game_slug);
-                if (total > 0) {
-                    return this.getGameTop10Players(game_slug);
-                }
+        if (rankings.length == 0) {
+            let total = await this.updateAllRankings(game_slug);
+            if (total > 0) {
+                return this.getGameTop10Players(game_slug);
             }
-
-            for (var i = 0; i < rankings.length; i++) {
-                rankings[i].rank = (i + 1);
-            }
-
-            redis.set(game_slug + '/top10', rankings, 60);
         }
+
+        for (var i = 0; i < rankings.length; i++) {
+            rankings[i].rank = (i + 1);
+        }
+
+        //   redis.set(game_slug + '/top10', rankings, 60);
+        //}
 
         console.log("top10: ", game_slug, rankings);
         return rankings;
@@ -562,23 +562,23 @@ module.exports = class GameService {
 
     async getGameTop10PlayersHighscore(game_slug) {
 
-        let rankings = await redis.get(game_slug + '/top10hs');
-        if (!rankings) {
-            rankings = await redis.zrevrange(game_slug + '/lbhs', 0, 10);
+        //let rankings = await redis.get(game_slug + '/top10hs');
+        //if (!rankings) {
+        let rankings = await redis.zrevrange(game_slug + '/lbhs', 0, 10);
 
-            if (rankings.length == 0) {
-                let total = await this.updateAllHighscores(game_slug);
-                if (total > 0) {
-                    return this.getGameTop10PlayersHighscore(game_slug);
-                }
+        if (rankings.length == 0) {
+            let total = await this.updateAllHighscores(game_slug);
+            if (total > 0) {
+                return this.getGameTop10PlayersHighscore(game_slug);
             }
-
-            for (var i = 0; i < rankings.length; i++) {
-                rankings[i].rank = (i + 1);
-            }
-
-            redis.set(game_slug + '/top10hs', rankings, 60);
         }
+
+        for (var i = 0; i < rankings.length; i++) {
+            rankings[i].rank = (i + 1);
+        }
+
+        //redis.set(game_slug + '/top10hs', rankings, 60);
+        //}
 
         console.log("getGameTop10PlayersHighscore: ", game_slug, rankings);
         return rankings;
