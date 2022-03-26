@@ -363,6 +363,7 @@ var defaultOrder = [
     'rating',
     'ratingTxt',
     'score',
+    'highscore',
     '_win',
     '_loss',
     '_tie',
@@ -473,7 +474,6 @@ var defaultOrder = [
     'item',
     'items',
     'bestOf',
-
     'achievements',
     'achievement'
 ]
