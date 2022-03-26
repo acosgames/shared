@@ -294,6 +294,24 @@ class RoomService {
         return false;
     }
 
+    async updateAllPlayerHighscores(ratings) {
+        try {
+            let db = await mysql.db();
+
+            let incrementList = ['played'];
+
+            var response = await db.insertBatch('person_rank', ratings, ['shortid', 'game_slug'], incrementList);
+            if (response && response.results.affectedRows > 0) {
+                return true;
+            }
+            return true;
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return false;
+    }
+
     async updateAllPlayerRatings(ratings) {
         try {
             let db = await mysql.db();
@@ -335,6 +353,11 @@ class RoomService {
     setPlayerRating(shortid, game_slug, rating) {
         let key = shortid + '/' + game_slug;
         cache.set(key, rating, 600);
+    }
+
+    setPlayerHighScore(shortid, game_slug, highscore) {
+        let key = shortid + '/' + game_slug + '/highscore';
+        cache.set(key, highscore, 600);
     }
 
     async findPlayerRatings(room_slug, game_slug) {
@@ -718,7 +741,7 @@ class RoomService {
             let minplayers = published.minplayers;
             let maxplayers = published.maxplayers;
             let teams = published.teams;
-
+            let lbscore = published.lbscore;
             // let rating = user.ratings[game_slug];
             // let owner = user.id;
 
@@ -737,6 +760,7 @@ class RoomService {
                 teams,
                 mode,
                 rating,
+                lbscore,
                 owner: shortid,
                 // preview_images,
                 isprivate: 0

@@ -562,7 +562,7 @@ module.exports = class GameService {
 
     async getGameTop10PlayersHighscore(game_slug) {
 
-        let rankings = await redis.get(game_slug + '/top10');
+        let rankings = await redis.get(game_slug + '/top10hs');
         if (!rankings) {
             rankings = await redis.zrevrange(game_slug + '/lbhs', 0, 10);
 
@@ -577,7 +577,7 @@ module.exports = class GameService {
                 rankings[i].rank = (i + 1);
             }
 
-            redis.set(game_slug + '/top10', rankings, 60);
+            redis.set(game_slug + '/top10hs', rankings, 60);
         }
 
         console.log("getGameTop10PlayersHighscore: ", game_slug, rankings);
@@ -590,7 +590,7 @@ module.exports = class GameService {
         console.log("updateAllHighscores ", game_slug);
 
         let total = 0;
-        let responseCnt = await db.sql(`SELECT count(*) as cnt FROM person_rank WHERE game_slug = ? and season = ? and played > 0`, [game_slug, 0]);
+        let responseCnt = await db.sql(`SELECT count(*) as cnt FROM person_rank WHERE game_slug = ? and season = ? and played > 0 and highscore > 0`, [game_slug, 0]);
         if (responseCnt && responseCnt.results && responseCnt.results.length > 0) {
             total = Number(responseCnt.results[0]?.cnt) || 0;
         }
@@ -614,6 +614,7 @@ module.exports = class GameService {
                 AND b.game_slug = ?
                 AND b.season = ?
                 AND b.played > 0
+                AND b.highscore > 0
                 LIMIT ?,?
             `, [game_slug, 0, offset, count]);
 
