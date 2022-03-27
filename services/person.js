@@ -306,6 +306,8 @@ module.exports = class UserService {
 
             let { results3 } = await db.delete('person_room', 'WHERE shortid = ?', [user.shortid]);
 
+            let { results4 } = await db.delete('game_review', 'WHERE shortid = ?', [user.shortid]);
+
             let key = `rooms/${user.shortid}`;
             redis.del(key);
 
