@@ -495,11 +495,26 @@ module.exports = class GameService {
             }
 
             let game = response.results[0];
-            game.ratingTxt = await this.ratingToRank(game.rating);
+
             game.votes = await this.findGameVotes(game_slug);
             game.top10 = await this.getGameTop10Players(game_slug) || [];
-            let playerRank = await this.getPlayerGameRank(game_slug, displayname);
-            game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank) || [];
+            let playerRank = -1;
+            if (displayname) {
+                playerRank = await this.getPlayerGameRank(game_slug, displayname);
+                if (playerRank) {
+                    game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank) || [];
+                    game.ratingTxt = await this.ratingToRank(game.rating);
+                }
+                else {
+                    game.lb = [];
+                    game.ratingTxt = 'Unranked'
+                }
+
+            }
+            else {
+                game.lb = [];
+                game.ratingTxt = 'Unranked'
+            }
             game.lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
             game.queueCount = await this.getGameQueueCount(game_slug) || 0;
             let cleaned = {
@@ -682,7 +697,12 @@ module.exports = class GameService {
             game.top10hs = await this.getGameTop10PlayersHighscore(game_slug) || [];
             if (displayname) {
                 let playerRank = await this.getPlayerGameHighscore(game_slug, displayname);
-                game.lbhs = await this.getPlayerGameLeaderboardHighscore(game_slug, displayname, playerRank) || [];
+                if (playerRank) {
+                    game.lbhs = await this.getPlayerGameLeaderboardHighscore(game_slug, displayname, playerRank) || [];
+                }
+                else {
+                    game.lbhs = [];
+                }
             }
             else {
                 game.lbhs = [];
