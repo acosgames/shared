@@ -295,11 +295,13 @@ class RoomService {
         return false;
     }
 
-    async updateAllPlayerHighscores(ratings) {
+    async updateAllPlayerHighscores(ratings, isSinglePlayer) {
         try {
             let db = await mysql.db();
 
-            let incrementList = ['played'];
+            let incrementList = null;
+            if (isSinglePlayer)
+                incrementList = ['played'];
 
             var response = await db.insertBatch('person_rank', ratings, ['shortid', 'game_slug'], incrementList);
             if (response && response.results.affectedRows > 0) {
