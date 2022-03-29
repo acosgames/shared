@@ -303,6 +303,7 @@ class RoomService {
             if (isSinglePlayer)
                 incrementList = ['played'];
 
+            console.log("Updating highscores to person_rank: ", incrementList, ratings);
             var response = await db.insertBatch('person_rank', ratings, ['shortid', 'game_slug'], incrementList);
             if (response && response.results.affectedRows > 0) {
                 return true;
@@ -321,6 +322,7 @@ class RoomService {
 
             let incrementList = ['played'];
 
+            console.log("Updating ratings to person_rank: ", incrementList, ratings);
             var response = await db.insertBatch('person_rank', ratings, ['shortid', 'game_slug'], ['played']);
             if (response && response.results.affectedRows > 0) {
                 return true;
