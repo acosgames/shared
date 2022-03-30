@@ -584,7 +584,7 @@ module.exports = class GameService {
 
         //let rankings = await redis.get(game_slug + '/top10hs');
         //if (!rankings) {
-        let rankings = await redis.zrevrange(game_slug + '/lbhs', 0, 9);
+        let rankings = await redis.zrevrange(game_slug + '/lbhs', 0, 19);
 
         if (rankings.length == 0) {
             let total = await this.updateAllHighscores(game_slug);
