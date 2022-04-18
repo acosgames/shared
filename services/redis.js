@@ -19,8 +19,8 @@ class RedisService {
         this.retry();
     }
 
-    retry(options) {
-        setTimeout(() => { this.getRedisServers(options) }, this.credentials.platform.retryTime);
+    retry() {
+        setTimeout(() => { this.connect() }, this.credentials.platform.retryTime);
     }
 
     isActive() {
@@ -31,7 +31,7 @@ class RedisService {
 
         try {
             if (options) {
-                await this.connect(options);
+                await this.connect();
                 return;
             }
 
@@ -53,7 +53,7 @@ class RedisService {
                 host, port
             }
 
-            await this.connect(options);
+            await this.connect();
         }
         catch (e) {
             this.retry(options);
