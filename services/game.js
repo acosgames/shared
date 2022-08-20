@@ -144,6 +144,7 @@ module.exports = class GameService {
                     a.gameid,
                     a.game_slug, 
                     a.version, 
+                    a.shortdesc,
                     a.latest_version, 
                     cur.db as db,
                     cur.screentype as screentype,
