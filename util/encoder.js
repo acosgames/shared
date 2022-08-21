@@ -475,7 +475,9 @@ var defaultOrder = [
     'items',
     'bestOf',
     'achievements',
-    'achievement'
+    'achievement',
+    'chat',
+    'message'
 ]
 
 var defaultDict = null;
