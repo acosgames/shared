@@ -477,7 +477,10 @@ var defaultOrder = [
     'achievements',
     'achievement',
     'chat',
-    'message'
+    'message',
+    'displayname',
+    'timestamp',
+    'icon'
 ]
 
 var defaultDict = null;
@@ -1132,7 +1135,7 @@ function deserializeEX(ref) {
                 }
                 arr.push(val);
             }
-            ref.pos += 2; //skip null terminated
+            ref.pos++; //skip null terminated
             data = new Uint8Array(arr);
             json = decoder.decode(data);
             break;
@@ -1415,7 +1418,7 @@ function encode(json, storedDict) {
         // console.time('serialize');
         let encoded = serialize(json, dict);
         // console.timeEnd('serialize');
-        console.log('Encoded Size: ', encoded.byteLength)
+        console.log('Encoded Size: ', encoded.byteLength, json)
         // let jsonStr = JSON.stringify(json);
         // let buffer = encoder.encode(jsonStr);
         // let deflated = pako.deflate(encoded);
