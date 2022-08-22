@@ -393,9 +393,9 @@ module.exports = class GameService {
 
     async getPlayerGameRank(game_slug, player) {
         let rank = await redis.zrevrank(game_slug + '/lb', player);
-        console.log("rank: ", game_slug, player, rank);
+        console.log("rank: ", game_slug, player, (rank + 1));
 
-        return rank;
+        return rank + 1;
     }
 
     async getPlayerGameLeaderboard(game_slug, player, rank) {
@@ -414,7 +414,7 @@ module.exports = class GameService {
         let otherRank = 0;
         for (var i = 0; i < rankings.length; i++) {
 
-            rankings[i].rank = rank + (playerPos + i + 1)
+            rankings[i].rank = rank + (playerPos + i)
         }
 
         console.log("range: ", game_slug, rankings);

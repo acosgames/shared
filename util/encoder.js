@@ -605,7 +605,7 @@ function serializeEX(json, buffer, dict, cache) {
         if (json in cache) {
             let pos = cache[json];
             // console.log("Found cache for:", json, "at", pos);
-            if (json.length <= 255) {
+            if (pos <= 255) {
                 buffer.push(TYPE_STRING_DICT1);
                 dv.setUint8(0, pos);
                 buffer.push(dv.getUint8(0));
@@ -1135,7 +1135,7 @@ function deserializeEX(ref) {
                 }
                 arr.push(val);
             }
-            ref.pos++; //skip null terminated
+            ref.pos += 2; //skip null terminated
             data = new Uint8Array(arr);
             json = decoder.decode(data);
             break;
