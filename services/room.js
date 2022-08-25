@@ -208,7 +208,7 @@ class RoomService {
     async addError(gameid, version, error) {
 
         let row = {
-            gameid,
+            game_slug,
             version,
             type: error.type,
             title: error.title,
@@ -228,13 +228,13 @@ class RoomService {
                 var response = await db.sql(`
                     UPDATE game_error
                     SET count = IFNULL(count, 0) + 1
-                    WHERE gameid = ? AND version = ? AND body = ?
-                `, [{ toSqlString: () => row.gameid }, row.version, row.body]);
+                    WHERE game_slug = ? AND version = ? AND body = ?
+                `, [row.game_slug, row.version, row.body]);
                 //console.log(response);
             }
             catch (e) {
                 console.error(e);
-                console.log("Failed to find record.", row.gameid, row.version, row.body);
+                console.log("Failed to find record.", row.game_slug, row.version, row.body);
             }
         }
     }
@@ -654,6 +654,42 @@ class RoomService {
             throw new CodeError(e);
         }
     }
+
+    // async getGameInfoByRoom(room_slug) {
+    //     try {
+    //         let room = await this.findRoom(room_slug);
+
+    //         let gameinfo = await cache.get(room.game_slug);
+    //         if (gameinfo) {
+    //             let now = (new Date()).getTime()
+    //             if (typeof gameinfo.expires !== 'undefined' && gameinfo.expires > now)
+    //                 return gameinfo;
+    //         }
+
+    //         let db = await mysql.db();
+    //         var response;
+    //         console.log("Getting game info: ", game_slug);
+
+    //         response = await db.sql(`SELECT * FROM game_info a WHERE game_slug = ?`, [game_slug]);
+
+    //         if (!response.results || response.results.length == 0)
+    //             throw new GeneralError("E_GAMENOTEXIST");
+
+    //         gameinfo = response.results[0];
+
+    //         let now = (new Date()).getTime()
+    //         gameinfo.expires = now + 120 * 1000;
+
+    //         cache.set(game_slug, gameinfo, 120);
+    //         return gameinfo;
+    //     }
+    //     catch (e) {
+    //         if (e instanceof GeneralError)
+    //             throw e;
+    //         throw new CodeError(e);
+    //     }
+    // }
+
     async getGameInfo(game_slug) {
         try {
             let gameinfo = await cache.get(game_slug);
@@ -667,7 +703,7 @@ class RoomService {
             var response;
             console.log("Getting game info: ", game_slug);
 
-            response = await db.sql(`SELECT a.* FROM game_info a, game_version b WHERE game_slug = ?`, [game_slug]);
+            response = await db.sql(`SELECT * FROM game_info a WHERE game_slug = ?`, [game_slug]);
 
             if (!response.results || response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
@@ -734,6 +770,13 @@ class RoomService {
             let gameid = published.gameid;
             let database = published.db || false;
             let latest_tsupdate = published.tsupdate;
+
+            // let scaled = published.scaled;
+            let screentype = published.screentype;
+            let resow = published.resow;
+            let resoh = published.resoh;
+            let screenwidth = published.screenwidth;
+
             // let preview_images = published.preview_images;
 
             //experimental uses the latest version that is not in production
@@ -741,6 +784,12 @@ class RoomService {
                 version = published.latest_version;
                 database = published.latest_db || false;
                 latest_tsupdate = published.latest_tsupdate;
+
+                // scaled = published.latest_scaled;
+                screentype = published.latest_screentype;
+                resow = published.latest_resow;
+                resoh = published.latest_resoh;
+                screenwidth = published.latest_screenwidth;
             }
 
             let minplayers = published.minplayers;
@@ -768,7 +817,13 @@ class RoomService {
                 lbscore,
                 owner: shortid,
                 // preview_images,
-                isprivate: 0
+                isprivate: 0,
+                // scaled,
+                screentype,
+                resow,
+                resoh,
+                screenwidth
+
             }
 
             if (private_key) {
@@ -783,6 +838,12 @@ class RoomService {
             catch (e) {
                 console.error(e);
             }
+
+            //extend to add attributes
+            // room.screentype = screentype;
+            // room.resow = resow;
+            // room.resoh = resoh;
+            // room.screenwidth = screenwidth;
 
             room.mode = this.getGameModeName(room.mode);
             cache.set(room.room_slug + '/meta', room);

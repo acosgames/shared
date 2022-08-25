@@ -182,7 +182,7 @@ module.exports = class MySQL {
                                 if (error) {
                                     // conn.rollback();
                                     // console.error(error);
-                                    reject(new SQLError('E_SQL_ERROR', error));
+                                    reject(new SQLError('E_SQL_ERROR', error, query));
 
                                     // conn.release();
                                     return;
