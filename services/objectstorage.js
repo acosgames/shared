@@ -2,13 +2,17 @@
 const credutil = require('../util/credentials')
 const { utcDATETIME } = require('../util/datefns');
 
-const UploadFile = require('./uploadfile');
-const upload = new UploadFile();
+// const UploadFile = require('./uploadfile');
+// const upload = new UploadFile();
+
 
 const AWS = require('aws-sdk');
 const fs = require('fs');
 const zlib = require("zlib");
 const { rejects } = require('assert');
+
+const { Readable } = require('stream');
+
 
 module.exports = class ObjectStorage {
 
@@ -31,6 +35,69 @@ module.exports = class ObjectStorage {
 
     upload(key, data) {
 
+    }
+
+    async multiPartUpload(Bucket, Key, buffer, options) {
+
+        let defaultOptions = {
+            Bucket, Key
+        }
+
+        options = options || {};
+
+        if (options)
+            options = Object.assign({}, defaultOptions, options);
+
+        options.ContentType = options.ContentType || 'application/octet-stream';
+        options.ACL = options.ACL || 'public-read';
+        options.StorageClass = options.StorageClass || 'STANDARD';
+        options.ContentEncoding = options.ContentEncoding || 'gzip';
+
+        let multipartCreateResult = await this.s3.createMultipartUpload(options).promise()
+
+        let chunks = [];
+        let chunkCount = 1;
+        let uploadPartResults = [];
+        const stream = Readable.from(buffer);
+
+        stream.on('readable', async () => {
+            let chunk;
+            console.log('Stream is now readable');
+            while (null !== (chunk = stream.read(5242880))) {
+                console.log(`Chunk read: ${chunk}`)
+                chunks.push(chunk)
+            }
+            console.log(`Null returned`)
+        })
+
+        stream.on('end', async () => {
+            for (let i = 0; i < chunks.length; i++) {
+                let uploadPromiseResult = await this.s3.uploadPart({
+                    Body: chunks[i],
+                    Bucket,
+                    Key,
+                    PartNumber: i + 1,
+                    UploadId: multipartCreateResult.UploadId,
+                }).promise()
+
+                uploadPartResults.push({
+                    PartNumber: i + 1,
+                    ETag: uploadPromiseResult.ETag
+                })
+            }
+        })
+
+
+        let completeUploadResponce = await this.s3.completeMultipartUpload({
+            Bucket,
+            Key,
+            MultipartUpload: {
+                Parts: uploadPartResults
+            },
+            UploadId: multipartCreateResult.UploadId
+        }).promise()
+
+        return completeUploadResponce;
     }
 
     downloadClientFile(Key) {

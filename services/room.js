@@ -750,6 +750,29 @@ class RoomService {
         }
     }
 
+    async createRoomReplay(game_slug, version, mode, filename) {
+        try {
+            let replay = {
+                game_slug, version, mode, filename
+            }
+
+            try {
+                let db = await mysql.db();
+
+                console.log("Creating Replay: ", replay);
+                let response = await db.insert('game_replay', replay);
+            }
+            catch (e) {
+                console.error(e);
+            }
+
+            return replay;
+        }
+        catch (e) {
+            console.error(e);
+        }
+    }
+
     async createRoom(shortid, rating, game_slug, mode, private_key) {
         try {
             let db = await mysql.db();
