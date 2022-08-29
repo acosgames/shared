@@ -86,6 +86,46 @@ class RoomService {
         }
     }
 
+    async assignPlayersToRoom(shortids, room_slug, game_slug) {
+        try {
+            let db = await mysql.db();
+
+            let meta = await this.findRoom(room_slug);
+            if (!meta) {
+                console.error("[assignPlayersToRoom] Room does not exist: " + room_slug);
+                return null;
+            }
+
+            let roomPlayers = [];
+
+            let mode = meta.mode;
+            let version = meta.mode == 'experimental' ? meta.latest_version : meta.version;
+
+            for (const shortid of shortids) {
+                let roomPlayer = {
+                    shortid,
+                    room_slug,
+                    game_slug,
+                    mode,
+                    version
+                }
+                roomPlayers.push(roomPlayer);
+            }
+
+            // console.log("Updating highscores to person_rank: ", incrementList, ratings);
+            var response = await db.insertBatch('person_room', roomPlayers, ['shortid', 'room_slug']);
+            if (response && response.results.affectedRows > 0) {
+                return true;
+            }
+            return true;
+        }
+        catch (e) {
+            if (e instanceof GeneralError) {
+                throw e
+            }
+        }
+    }
+
     async assignPlayerRoom(shortid, room_slug, game_slug) {
         try {
             let db = await mysql.db();
@@ -440,6 +480,80 @@ class RoomService {
 
     }
 
+    async findGroupRatings(shortids, game_slugs) {
+        try {
+
+            let db = await mysql.db();
+            var response;
+
+            response = await db.sql(`SELECT b.shortid, b.displayname, a.game_slug, a.rating, a.mu, a.sigma, a.win, a.loss, a.tie, a.played, a.highscore 
+                from person b
+                LEFT JOIN person_rank a
+                    ON b.shortid = a.shortid AND a.game_slug in (?)
+                WHERE a.shortid in (?)`, [game_slugs, shortids]);
+
+
+            //build players list first
+            let playerNames = {};
+            let players = {};
+            for (const result of response.results) {
+                if (!(result.shortid in players))
+                    players[result.shortid] = {};
+
+                playerNames[result.shortid] = result.displayname;
+                players[result.shortid][result.game_slug] = result;
+            }
+
+            for (const shortid in players) {
+                let player = players[shortid];
+                for (const game_slug of game_slugs) {
+
+                    let key = result.shortid + '/' + result.game_slug;
+                    if (game_slug in player) {
+                        cache.set(key, player, 600);
+                        continue;
+                    }
+
+                    //player needs a rating, create a new one
+
+                    // let mu = Math.floor(Math.random() * 32) + 2
+                    // let sigma = 1.5;
+                    // rating = mu * 100;
+                    // let rating = 2000;
+                    let mu = 25.0;
+                    let sigma = 5;
+                    let newRating = {
+                        shortid,
+                        game_slug,
+                        rating: mu * 100,
+                        mu,
+                        sigma,
+                        win: 0,
+                        loss: 0,
+                        tie: 0,
+                        played: 0,
+                        highscore: 0
+                    };
+
+                    response = await db.insert('person_rank', newRating);
+                    console.log("Created player rating for: ", key, newRating.rating);
+
+                    //make sure we add displayname into the rating object stored in cache/redis
+                    newRating.displayname = playerNames[result.shortid].displayname;
+
+                    cache.set(key, newRating, 600);
+                    player[game_slug] = newRating;
+                }
+            }
+
+            return players;
+        }
+        catch (e) {
+            console.error(e);
+            return null;
+        }
+    }
+
     async findPlayerRating(shortid, game_slug) {
         try {
 
@@ -453,14 +567,25 @@ class RoomService {
             let db = await mysql.db();
             var response;
 
-            response = await db.sql('SELECT rating, mu, sigma, win, loss, tie, played, highscore from person_rank WHERE shortid = ? AND game_slug = ?', [shortid, game_slug]);
+            response = await db.sql(`SELECT b.displayname, a.rating, a.mu, a.sigma, a.win, a.loss, a.tie, a.played, a.highscore 
+                from person b
+                LEFT JOIN person_rank a
+                    ON b.shortid = a.shortid AND a.game_slug = ?
+                WHERE a.shortid = ?`, [game_slug, shortid]);
 
+            //use the first result
             if (response.results && response.results.length > 0) {
                 rating = response.results[0];
+            }
+
+            //player has a rating, we are good to go
+            if (rating.rating != null && rating.played != null) {
                 cache.set(key, rating, 600);
                 console.log("[MySQL] Getting player rating for: ", key, rating.rating);
                 return rating;
             }
+
+            //player needs a rating, create a new one
 
             // let mu = Math.floor(Math.random() * 32) + 2
             // let sigma = 1.5;
@@ -468,7 +593,7 @@ class RoomService {
             // let rating = 2000;
             let mu = 25.0;
             let sigma = 5;
-            rating = {
+            let newRating = {
                 shortid,
                 game_slug,
                 rating: mu * 100,
@@ -480,12 +605,15 @@ class RoomService {
                 played: 0,
                 highscore: 0
             };
-            response = await db.insert('person_rank', rating);
-            console.log("Created player rating for: ", key, rating.rating);
+            response = await db.insert('person_rank', newRating);
+            console.log("Created player rating for: ", key, newRating.rating);
 
-            delete rating.shortid;
-            delete rating.game_slug;
-            cache.set(key, rating, 600);
+            //make sure we add displayname into the rating object stored in cache/redis
+            newRating.displayname = rating.displayname;
+
+            delete newRating.shortid;
+            delete newRating.game_slug;
+            cache.set(key, newRating, 600);
 
             return rating;
         }
@@ -703,12 +831,19 @@ class RoomService {
             var response;
             console.log("Getting game info: ", game_slug);
 
-            response = await db.sql(`SELECT * FROM game_info a WHERE game_slug = ?`, [game_slug]);
+            response = await db.sql(`SELECT * FROM game_info a WHERE a.game_slug = ?`, [game_slug]);
 
             if (!response.results || response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
 
             gameinfo = response.results[0];
+
+            if (gameinfo.teams > 0) {
+                let response2 = await db.sql(`SELECT a.game_slug, a.team_slug, a.team_name, a.minplayers, a.maxplayers, a.color, a.icon FROM game_team a WHERE a.game_slug = ?`, [game_slug]);
+                if (response2.results && response2.results.length > 0) {
+                    gameinfo.teamlist = response2.results;
+                }
+            }
 
             let now = (new Date()).getTime()
             gameinfo.expires = now + 120 * 1000;
