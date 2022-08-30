@@ -490,7 +490,7 @@ class RoomService {
                 from person b
                 LEFT JOIN person_rank a
                     ON b.shortid = a.shortid AND a.game_slug in (?)
-                WHERE a.shortid in (?)`, [game_slugs, shortids]);
+                WHERE b.shortid in (?)`, [game_slugs, shortids]);
 
 
             //build players list first
@@ -501,14 +501,16 @@ class RoomService {
                     players[result.shortid] = {};
 
                 playerNames[result.shortid] = result.displayname;
-                players[result.shortid][result.game_slug] = result;
+
+                if (result.game_slug)
+                    players[result.shortid][result.game_slug] = result;
             }
 
             for (const shortid in players) {
                 let player = players[shortid];
                 for (const game_slug of game_slugs) {
 
-                    let key = result.shortid + '/' + result.game_slug;
+                    let key = shortid + '/' + game_slug;
                     if (game_slug in player) {
                         cache.set(key, player, 600);
                         continue;
@@ -539,7 +541,7 @@ class RoomService {
                     console.log("Created player rating for: ", key, newRating.rating);
 
                     //make sure we add displayname into the rating object stored in cache/redis
-                    newRating.displayname = playerNames[result.shortid].displayname;
+                    newRating.displayname = playerNames[shortid].displayname;
 
                     cache.set(key, newRating, 600);
                     player[game_slug] = newRating;
@@ -838,7 +840,7 @@ class RoomService {
 
             gameinfo = response.results[0];
 
-            if (gameinfo.teams > 0) {
+            if (gameinfo.maxteams > 0) {
                 let response2 = await db.sql(`SELECT a.game_slug, a.team_slug, a.team_name, a.minplayers, a.maxplayers, a.color, a.icon FROM game_team a WHERE a.game_slug = ?`, [game_slug]);
                 if (response2.results && response2.results.length > 0) {
                     gameinfo.teamlist = response2.results;
@@ -952,7 +954,8 @@ class RoomService {
 
             let minplayers = published.minplayers;
             let maxplayers = published.maxplayers;
-            let teams = published.teams;
+            let maxteams = published.maxteams;
+            let minteams = published.minteams;
             let lbscore = published.lbscore;
             // let rating = user.ratings[game_slug];
             // let owner = user.id;
@@ -969,7 +972,8 @@ class RoomService {
                 latest_tsupdate,
                 minplayers,
                 maxplayers,
-                teams,
+                maxteams,
+                minteams,
                 mode,
                 rating,
                 lbscore,
