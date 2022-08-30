@@ -52,6 +52,13 @@
             "min": 1,
             "greaterthanequal": "minplayers"
         },
+        "order": {
+            "label": "Team Number",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 0
+        },
         "minplayers": {
             "label": "Min players",
             "type": "number",
@@ -59,6 +66,14 @@
             "max": 100,
             "min": 1,
             "lessthanequal": "maxplayers"
+        },
+        "color": {
+            "label": "Team Color",
+            "type": "string",
+            "required": true,
+            "max": 7,
+            "min": 4,
+            "iscolor": "hex"
         }
     },
     "update-game_info": {

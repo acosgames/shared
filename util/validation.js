@@ -53,6 +53,8 @@ function validateField(tableName, key, value, fields) {
     return errors;
 }
 
+const regexColorHex = /^#([0-9a-f]{3}){1,2}$/i;
+
 const validationRules = {
     type: (fields, table, rules, value, errors) => {
         if (value == null)
@@ -132,6 +134,17 @@ const validationRules = {
         if (value > otherValue) {
             errors.push(ValidateError('E_NUMBER_TOOBIG', [rules.label, otherValue]))
             return;
+        }
+    },
+    iscolor: (fields, table, rules, value, errors) => {
+        if (typeof value !== 'string') {
+            errors.push(ValidateError('E_FIELD_INCOMPATIBLE', [rules.label]))
+        }
+
+        if (typeof value === 'string') {
+            if (!regexColorHex.test(value)) {
+                errors.push(ValidateError('E_INVALID_COLOR', [rules.label, value]))
+            }
         }
     }
 }

@@ -340,15 +340,12 @@ module.exports = class DevGameService {
             response = await db.sql(`
                     SELECT * FROM game_team a
                     WHERE a.game_slug = ?
+                    ORDER BY a.order ASC
                 `, [game_slug]);
 
 
-            var teams = [];
-            if (response && response.results.length > 0) {
-                teams = response.results[0];
-            }
 
-            return teams;
+            return response.results;
         }
         catch (e) {
             if (e instanceof GeneralError)
