@@ -82,27 +82,57 @@ module.exports = class DevGameService {
             var response;
             console.log("Searching for devgames with player count: ", userid);
             response = await db.sql(`
-                select 
-                    a.*, 
-                    cur.db as db,
-                    cur.screentype as screentype,
-                    cur.resow as resow,
-                    cur.resoh as resoh,
-                    cur.screenwidth as screenwidth,
-                    latest.screentype as latest_screentype,
-                    latest.resow as latest_resow,
-                    latest.resoh as latest_resoh,
-                    latest.screenwidth as latest_screenwidth,
-                    latest.db as latest_db,
-                    latest.tsupdate as latest_tsupdate,
-                    b.role,
-                    b.apikey
-                from game_info a
-                LEFT JOIN game_dev b ON b.gameid = a.gameid
-                LEFT JOIN game_version cur ON cur.gameid = a.gameid AND cur.version = a.version
-                LEFT JOIN game_version latest ON latest.gameid = a.gameid AND latest.version = a.latest_version
-                where b.ownerid = ?
-            `, [userid]);
+            SELECT 
+                votes.totalVotes,
+                ranks.totalPlays,
+                a.*,
+                cur.db AS db,
+                cur.screentype AS screentype,
+                cur.resow AS resow,
+                cur.resoh AS resoh,
+                cur.screenwidth AS screenwidth,
+                latest.screentype AS latest_screentype,
+                latest.resow AS latest_resow,
+                latest.resoh AS latest_resoh,
+                latest.screenwidth AS latest_screenwidth,
+                latest.db AS latest_db,
+                latest.tsupdate AS latest_tsupdate,
+                b.role,
+                b.apikey
+            FROM
+                game_info a
+                LEFT JOIN game_dev b 
+                    ON b.gameid = a.gameid
+                LEFT JOIN game_version cur 
+                    ON cur.gameid = a.gameid AND cur.version = a.version
+                LEFT JOIN game_version latest 
+                    ON latest.gameid = a.gameid AND latest.version = a.latest_version
+                LEFT JOIN (
+                    SELECT 
+                        r.game_slug, SUM(r.vote) AS totalVotes
+                    FROM
+                        game_review r, game_info info, game_dev dev
+                    WHERE
+                        info.gameid = dev.gameid
+                            AND r.game_slug = info.game_slug
+                            AND dev.ownerid = ?
+                    GROUP BY r.game_slug
+                ) votes 
+                    ON a.game_slug = votes.game_slug
+                LEFT JOIN (
+                    SELECT 
+                        r.game_slug, SUM(r.played) AS totalPlays
+                    FROM
+                        person_rank r, game_info info, game_dev dev
+                    WHERE
+                        info.gameid = dev.gameid
+                            AND r.game_slug = info.game_slug
+                            AND dev.ownerid = ?
+                    GROUP BY r.game_slug
+                ) ranks 
+                    ON a.game_slug = ranks.game_slug
+            WHERE b.ownerid = ?
+            `, [userid, userid, userid]);
 
             return response.results;
         }
@@ -283,6 +313,12 @@ module.exports = class DevGameService {
             var foundGame = null;
             if (response && response.results.length > 0) {
                 foundGame = response.results[0];
+
+                let teams = await this.findGameTeams(foundGame.game_slug);
+
+                if (teams) {
+                    foundGame.teams = teams;
+                }
             }
 
             return foundGame;
@@ -294,7 +330,71 @@ module.exports = class DevGameService {
         }
     }
 
+    async findGameTeams(game_slug) {
+        try {
 
+            let db = await mysql.db();
+            var response;
+
+            console.log("Searching for dev game teams by game_slug: ", game_slug);
+            response = await db.sql(`
+                    SELECT * FROM game_team a
+                    WHERE a.game_slug = ?
+                `, [game_slug]);
+
+
+            var teams = [];
+            if (response && response.results.length > 0) {
+                teams = response.results[0];
+            }
+
+            return teams;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
+    async updateGameTeams(game_slug, teams) {
+        try {
+            let db = await mysql.db();
+
+            let existingTeams = await this.findGameTeams(game_slug);
+            let existingMap = {};
+            if (existingTeams) {
+                for (const team of existingTeams) {
+                    existingMap[team.team_slug] = team;
+                }
+            }
+
+            let updatedMap = {};
+            for (const team of teams) {
+                updatedMap[team.team_slug] = team;
+            }
+
+            let removedTeams = [];
+            for (const team_slug in existingMap) {
+                if (!(team_slug in updatedMap)) {
+                    removedTeams.push(team_slug);
+                }
+            }
+
+            console.log("Removing teams: ", removedTeams);
+            const { results2, fields2 } = await db.delete('game_teams', 'game_slug = ? AND team_slug in (?)', [game_slug, removedTeams]);
+
+            console.log("Adding/Updating teams: ", teams);
+            const { results, fields } = await db.insertBatch('game_teams', teams, ['game_slug', 'team_slug']);
+            return results;
+
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
 
     statusId(name) {
         if (name in StatusByName)
@@ -443,11 +543,14 @@ module.exports = class DevGameService {
                 minplayers: game.minplayers,
                 maxplayers: game.maxplayers,
                 lbscore: game.lbscore,
-                teams: game.teams,
+                maxteams: game.maxteams,
+                minteams: game.minteams,
                 visible: game.visible,
                 version,
                 opensource: game.opensource ? 1 : 0
             }
+
+
 
             let dbresult;
             if (apikey) {
@@ -466,6 +569,18 @@ module.exports = class DevGameService {
                 console.log(dbresult);
                 game.gameid = gameid;
                 game.ownerid = ownerid;
+
+                let teams = [];
+                if (game.teams) {
+                    teams = game.teams;
+                    delete game.teams;
+
+                    let teamResult = await this.updateGameTeams(game.game_slug, teams);
+
+                    game.teams = teams;
+                }
+
+
                 return game;
 
             }
@@ -482,6 +597,17 @@ module.exports = class DevGameService {
                 if (dbresult.affectedRows > 0) {
                     game.gameid = gameid;
                     game.ownerid = ownerid;
+
+                    let teams = [];
+                    if (game.teams) {
+                        teams = game.teams;
+                        delete game.teams;
+
+                        let teamResult = await this.updateGameTeams(game.game_slug, teams);
+
+                        game.teams = teams;
+                    }
+
                     return game;
                 }
 

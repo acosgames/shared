@@ -29,6 +29,38 @@
             "min": 1
         }
     },
+    "update-game_team": {
+        "team_name": {
+            "label": "Team Name",
+            "type": "string",
+            "required": true,
+            "max": 64,
+            "min": 3
+        },
+        "team_slug": {
+            "label": "Team Slug",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "maxplayers": {
+            "label": "Max players",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 1,
+            "greaterthanequal": "minplayers"
+        },
+        "minplayers": {
+            "label": "Min players",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 1,
+            "lessthanequal": "maxplayers"
+        }
+    },
     "update-game_info": {
         "name": {
             "label": "Game Name",
@@ -66,6 +98,22 @@
             "min": 1,
             "greaterthanequal": "minplayers"
         },
+        "maxteams": {
+            "label": "Max Teams",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 0,
+            "greaterthanequal": "minteams"
+        },
+        "minteams": {
+            "label": "Min Teams",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 0,
+            "lessthanequal": "maxteams"
+        },
         "lbscore": {
             "label": "Enable Highscore Leaderboard",
             "required": true,
@@ -73,10 +121,10 @@
             "min": 0
         },
         "minplayers": {
-            "label": "Max players",
+            "label": "Min players",
             "type": "number",
             "required": true,
-            "max": 10,
+            "max": 100,
             "min": 1,
             "lessthanequal": "maxplayers"
         },
