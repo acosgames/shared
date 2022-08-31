@@ -340,7 +340,7 @@ module.exports = class DevGameService {
             response = await db.sql(`
                     SELECT * FROM game_team a
                     WHERE a.game_slug = ?
-                    ORDER BY a.order ASC
+                    ORDER BY a.team_order ASC
                 `, [game_slug]);
 
 
@@ -378,11 +378,13 @@ module.exports = class DevGameService {
                 }
             }
 
-            console.log("Removing teams: ", removedTeams);
-            const { results2, fields2 } = await db.delete('game_teams', 'game_slug = ? AND team_slug in (?)', [game_slug, removedTeams]);
+            if (removedTeams.length > 0) {
+                console.log("Removing teams: ", removedTeams);
+                const { results2, fields2 } = await db.delete('game_team', 'game_slug = ? AND team_slug in (?)', [game_slug, removedTeams]);
+            }
 
             console.log("Adding/Updating teams: ", teams);
-            const { results, fields } = await db.insertBatch('game_teams', teams, ['game_slug', 'team_slug']);
+            const { results, fields } = await db.insertBatch('game_team', teams, ['game_slug', 'team_slug']);
             return results;
 
         }
@@ -572,7 +574,7 @@ module.exports = class DevGameService {
                     teams = game.teams;
                     delete game.teams;
 
-                    let teamResult = await this.updateGameTeams(game.game_slug, teams);
+                    let teamResult = await this.updateGameTeams(gameFull.game_slug, teams);
 
                     game.teams = teams;
                 }
@@ -600,7 +602,7 @@ module.exports = class DevGameService {
                         teams = game.teams;
                         delete game.teams;
 
-                        let teamResult = await this.updateGameTeams(game.game_slug, teams);
+                        let teamResult = await this.updateGameTeams(gameFull.game_slug, teams);
 
                         game.teams = teams;
                     }

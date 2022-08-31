@@ -375,9 +375,9 @@ module.exports = class MySQL {
                                 updateColumns.push(key + '=VALUES(' + key + ')');
                             }
 
-                            var query = this.pool.query(
-                                'INSERT INTO ' + table + ' (' + keyList.join(',') + ') VALUES ' + valuesProtect.join(',') + ' ON DUPLICATE KEY UPDATE ' + updateColumns.join(','),
-                                valuesList,
+                            let sql = 'INSERT INTO ' + table + ' (' + keyList.join(',') + ') VALUES ' + valuesProtect.join(',') + ' ON DUPLICATE KEY UPDATE ' + updateColumns.join(',');
+                            console.log(sql, valuesList);
+                            var query = this.pool.query(sql, valuesList,
                                 function (error, results, fields) {
                                     if (error) {
                                         // conn.rollback();

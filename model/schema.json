@@ -52,7 +52,7 @@
             "min": 1,
             "greaterthanequal": "minplayers"
         },
-        "order": {
+        "team_order": {
             "label": "Team Number",
             "type": "number",
             "required": true,

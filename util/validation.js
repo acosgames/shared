@@ -25,6 +25,11 @@ function validate(tableName, fields) {
         let rules = table[key];
         let value = fields[key];
 
+        //these should be validated separatetly or REMOVED completely
+        if (Array.isArray(value)) {
+            continue;
+        }
+
         let errors = validateField(tableName, key, value, fields);
         if (errors.length > 0) {
             results[key] = errors;
