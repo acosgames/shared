@@ -190,6 +190,35 @@ module.exports = class GameService {
         return [];
     }
 
+    async findGameReplays(game_slug) {
+        try {
+            let db = await mysql.db();
+            var response;
+            console.log("Getting game replay: ", game_slug);
+            response = await db.sql(`
+                SELECT a.version, a.mode, a.filename, c.screentype, c.resow, c.resoh, c.screenwidth
+                FROM game_replay a, game_info b, game_version c
+                WHERE a.game_slug = ?
+                AND a.game_slug = b.game_slug 
+                AND b.gameid = c.gameid
+                AND b.version = c.version
+                ORDER BY a.tsupdate DESC
+                LIMIT 100
+            `, [game_slug]);
+
+            if (!response.results) {
+                return [];
+            }
+
+            return response.results;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
     async findGame(game_slug, ignoreExtra) {
         try {
             let db = await mysql.db();
