@@ -480,7 +480,8 @@ var defaultOrder = [
     'message',
     'displayname',
     'timestamp',
-    'icon'
+    'icon',
+    'lastUpdate'
 ]
 
 var defaultDict = null;
