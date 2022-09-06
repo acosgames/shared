@@ -481,7 +481,12 @@ var defaultOrder = [
     'displayname',
     'timestamp',
     'icon',
-    'lastUpdate'
+    'lastUpdate',
+    'status',
+    'sequence',
+    'timeseq',
+    'starttime',
+    'endtime',
 ]
 
 var defaultDict = null;
