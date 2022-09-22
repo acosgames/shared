@@ -510,21 +510,24 @@ module.exports = class DevGameService {
                 throw new GeneralError("E_SUSPENDED");
             }
 
-            let gameid = game.gameid;
-            delete game['gameid'];
+            let gameid = gameFull.gameid;
+            if (game.gameid)
+                delete game['gameid'];
 
-            let ownerid = game.ownerid;
-            delete game['ownerid'];
+            let ownerid = gameFull.ownerid;
+            if (game.ownerid)
+                delete game['ownerid'];
 
-            let clients = game.clients;
-            let servers = game.servers;
-            delete game['clients'];
-            delete game['servers'];
+            // let clients = game.clients;
+            // let servers = game.servers;
+            // delete game['clients'];
+            // delete game['servers'];
 
             if (game.game_slug)
                 delete game['game_slug'];
             let apikey = game.apikey;
-            delete game['apikey'];
+            if (game.apikey)
+                delete game['apikey'];
             //game.ownerid = user.id;
             // game.apikey = generateAPIKEY();
 
@@ -535,19 +538,31 @@ module.exports = class DevGameService {
             if (game.visible < 0 || game.visible > 2)
                 game.visible = 1;
 
-            let newGame = {
-                name: game.name,
-                shortdesc: game.shortdesc,
-                longdesc: game.longdesc,
-                minplayers: game.minplayers,
-                maxplayers: game.maxplayers,
-                lbscore: game.lbscore,
-                maxteams: game.maxteams,
-                minteams: game.minteams,
-                visible: game.visible,
-                version,
-                opensource: game.opensource ? 1 : 0
-            }
+            let newGame = {};
+
+            if ('name' in game)
+                newGame.name = game.name;
+            if ('shortdesc' in game)
+                newGame.shortdesc = game.shortdesc;
+            if ('longdesc' in game)
+                newGame.longdesc = game.longdesc;
+            if ('minplayers' in game)
+                newGame.minplayers = game.minplayers;
+            if ('maxplayers' in game)
+                newGame.maxplayers = game.maxplayers;
+            if ('lbscore' in game)
+                newGame.lbscore = game.lbscore;
+            if ('maxteams' in game)
+                newGame.maxteams = game.maxteams;
+            if ('minteams' in game)
+                newGame.minteams = game.minteams;
+            if ('visible' in game)
+                newGame.visible = game.visible;
+            if ('version' in game)
+                newGame.version = game.version;
+            if ('opensource' in game)
+                newGame.opensource = game.opensource ? 1 : 0;
+
 
 
 
@@ -573,6 +588,9 @@ module.exports = class DevGameService {
                 if (game.teams) {
                     teams = game.teams;
                     delete game.teams;
+
+                    for (const team of teams)
+                        team.game_slug = gameFull.game_slug;
 
                     let teamResult = await this.updateGameTeams(gameFull.game_slug, teams);
 
@@ -601,6 +619,9 @@ module.exports = class DevGameService {
                     if (game.teams) {
                         teams = game.teams;
                         delete game.teams;
+
+                        for (const team of teams)
+                            team.game_slug = gameFull.game_slug;
 
                         let teamResult = await this.updateGameTeams(gameFull.game_slug, teams);
 
