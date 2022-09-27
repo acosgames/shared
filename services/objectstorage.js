@@ -22,7 +22,7 @@ module.exports = class ObjectStorage {
         this.s3cred = new AWS.SharedIniFileCredentials({ profile: 'b2' });
         //AWS.config.credentials = credentials;
         //var ep = new AWS.Endpoint('s3.us-west-002.backblazeb2.com');
-        this.s3 = new AWS.S3(this.credentials.backblaze);
+        this.s3 = new AWS.S3({ ...this.credentials.backblaze, logger: console });
     }
 
     connect() {
@@ -33,8 +33,14 @@ module.exports = class ObjectStorage {
         return this.s3;
     }
 
-    upload(key, data) {
+    upload(params, options, cb) {
+        if (!params) {
+            console.error("S3 Upload Failed, missing params.");
+            return;
+        }
 
+        options = options || { partSize: 20 * 1024 * 1024, queueSize: 5 };
+        return this.s3.upload(params, options, cb)
     }
 
     async multiPartUpload(Bucket, Key, buffer, options) {

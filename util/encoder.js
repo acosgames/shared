@@ -487,6 +487,7 @@ var defaultOrder = [
     'timeseq',
     'starttime',
     'endtime',
+    'updated'
 ]
 
 var defaultDict = null;

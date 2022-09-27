@@ -269,6 +269,8 @@ module.exports = class UploadFile {
                     let zipped
                         = zlib.createGzip();
                     // var cnt = 0;
+
+                    console.log("Transformed: ", file.fieldname);
                     file.stream.on('data', (chunk) => {
                         // console.log("chunk[" + cnt + "]", chunk);
                         // cnt++;
