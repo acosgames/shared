@@ -384,8 +384,13 @@ module.exports = class DevGameService {
             }
 
             console.log("Adding/Updating teams: ", teams);
-            const { results, fields } = await db.insertBatch('game_team', teams, ['game_slug', 'team_slug']);
-            return results;
+            if (teams.length > 0) {
+                const { results, fields } = await db.insertBatch('game_team', teams, ['game_slug', 'team_slug']);
+                return results;
+
+            }
+
+            return true;
 
         }
         catch (e) {

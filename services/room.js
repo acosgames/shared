@@ -245,7 +245,7 @@ class RoomService {
         }
     }
 
-    async addError(gameid, version, error) {
+    async addError(game_slug, version, error) {
 
         let row = {
             game_slug,
