@@ -535,17 +535,17 @@ module.exports = class GameService {
                 playerRank = await this.getPlayerGameRank(game_slug, displayname);
                 if (playerRank) {
                     game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank) || [];
-                    game.ratingTxt = await this.ratingToRank(game.rating);
+                    //game.ratingTxt = await this.ratingToRank(game.rating);
                 }
                 else {
                     game.lb = [];
-                    game.ratingTxt = 'Unranked'
+                    //game.ratingTxt = 'Unranked'
                 }
 
             }
             else {
                 game.lb = [];
-                game.ratingTxt = 'Unranked'
+                //game.ratingTxt = 'Unranked'
             }
             game.lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
             game.queueCount = await this.getGameQueueCount(game_slug) || 0;
@@ -586,7 +586,7 @@ module.exports = class GameService {
                 },
                 player: {
                     rating: game.rating,
-                    ratingTxt: game.ratingTxt,
+                    //ratingTxt: game.ratingTxt,
                     ranking: playerRank + 1,
                     vote: game.vote,
                     report: game.report,
