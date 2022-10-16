@@ -33,7 +33,7 @@ module.exports = class GameService {
     async rateGame(game_slug, shortid, vote, previousVote) {
         try {
             let db = await mysql.db();
-            const { results, fields } = await db.insertBatch('game_review', [{ game_slug, shortid, vote }], ['game_slug', 'shortid']);
+            const { results, fields } = await db.insertBatch('game_review', [{ game_slug, shortid, vote: (vote ? 1 : -1) }], ['game_slug', 'shortid']);
 
             let key = game_slug + '/votes';
             let votes = await cache.get(key) || 0;
@@ -293,7 +293,7 @@ module.exports = class GameService {
                 FROM game_info a
                 LEFT JOIN (SELECT count(*) as likes, game_slug FROM game_review WHERE game_slug = ? AND vote = 1 GROUP BY game_slug) b
                     ON a.game_slug = b.game_slug
-                LEFT JOIN (SELECT count(*) as dislikes, game_slug FROM game_review WHERE game_slug = ? and vote = 0 GROUP BY game_slug) c
+                LEFT JOIN (SELECT count(*) as dislikes, game_slug FROM game_review WHERE game_slug = ? and vote = -1 GROUP BY game_slug) c
                     ON a.game_slug = c.game_slug
                 WHERE a.game_slug = ?
                 `, [game_slug, game_slug, game_slug]);
@@ -309,6 +309,29 @@ module.exports = class GameService {
             }
 
             return 0;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
+    async findGameTeams(game_slug) {
+        try {
+            let db = await mysql.db();
+            var response;
+            console.log("Getting game teams: ", game_slug);
+            response = await db.sql(`
+                SELECT * FROM game_team a
+                WHERE a.game_slug = ?
+                `, [game_slug]);
+
+            if (response.results && response.results.length == 0) {
+                return [];
+            }
+
+            return response.results;
         }
         catch (e) {
             if (e instanceof GeneralError)

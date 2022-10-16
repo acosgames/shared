@@ -643,6 +643,14 @@ class RoomService {
             if (response.results && response.results.length > 0) {
                 let room = response.results[0];
                 //convert from id to name
+
+                if (room.maxteams > 0) {
+                    let teamResponse = await db.sql('SELECT * from game_team WHERE game_slug = ?', [room.game_slug]);
+                    if (teamResponse.results && teamResponse.results.length > 0) {
+                        room.teams = teamResponse.results;
+                    }
+                }
+
                 room.mode = this.getGameModeName(room.mode);
                 delete room['tsupdate'];
                 delete room['tsinsert'];
@@ -996,6 +1004,15 @@ class RoomService {
             try {
                 console.log("Creating room: ", room);
                 response = await db.insert('game_room', room);
+
+                if (room.maxteams > 0) {
+                    let teamResponse = await db.sql('SELECT * from game_team WHERE game_slug = ?', [room.game_slug]);
+                    if (teamResponse.results && teamResponse.results.length > 0) {
+                        room.teams = teamResponse.results;
+                    }
+                }
+
+
             }
             catch (e) {
                 console.error(e);
