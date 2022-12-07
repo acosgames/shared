@@ -27,8 +27,9 @@ module.exports = RatingText = {
             'Grand Champion IV',
         ]
 
-        let rt = Math.min(3000, Math.max(0, rating));
-        rt = rt / 3000;
+        const maxRating = 5000;
+        let rt = Math.min(maxRating, Math.max(0, rating));
+        rt = rt / maxRating;
         rt = rt * (ranks.length - 1);
 
         rt = Math.round(rt);
