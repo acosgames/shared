@@ -285,7 +285,13 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of player rooms", shortid);
-            response = await db.sql('SELECT a.shortid, b.* FROM person_room a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ?', [shortid]);
+            response = await db.sql(`SELECT a.shortid, b.*, c.name
+            FROM person_room a 
+            LEFT JOIN game_room b 
+                ON a.room_slug = b.room_slug 
+            LEFT JOIN game_info c
+                ON b.game_slug = c.game_slug
+            WHERE a.shortid = ?`, [shortid]);
 
             if (response.results && response.results.length > 0) {
                 let filtered = response.results.filter(room => room.room_slug)
@@ -638,7 +644,7 @@ class RoomService {
             var response;
             console.log("Getting room info for: ", room_slug);
             //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
-            response = await db.sql('SELECT * from game_room WHERE room_slug = ?', [room_slug]);
+            response = await db.sql('SELECT r.*, i.name from game_room r, game_info i WHERE r.room_slug = ? AND r.game_slug = i.game_slug', [room_slug]);
 
             if (response.results && response.results.length > 0) {
                 let room = response.results[0];
@@ -976,6 +982,7 @@ class RoomService {
                 game_slug,
                 gameid,
                 version,
+
                 db: database,
                 latest_tsupdate,
                 minplayers,
@@ -1011,6 +1018,8 @@ class RoomService {
                         room.teams = teamResponse.results;
                     }
                 }
+
+                room.name = published.name;
 
 
             }

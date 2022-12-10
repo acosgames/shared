@@ -251,10 +251,13 @@ module.exports = class GameService {
             }
             let game = response.results[0];
             console.log("Game Found: ", JSON.stringify(game, null, 2));
-            game.votes = await this.findGameVotes(game_slug);
 
             if (ignoreExtra)
                 return { game }
+
+            game.votes = await this.findGameVotes(game_slug);
+
+
 
             game.queueCount = await this.getGameQueueCount(game_slug) || 0;
             let top10 = await this.getGameTop10Players(game_slug) || [];
