@@ -36,6 +36,6 @@
     "web-push": "^3.4.5"
   },
   "devDependencies": {
-    "core-js": "^3.12.1"
+    "core-js": "^3.26.1"
   }
 }
