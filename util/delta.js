@@ -253,6 +253,12 @@ class Delta {
 
             if (!(key in from)) {
                 from[key] = delta[key];
+
+                if (this.isObject(delta[key])) {
+                    from[key] = this.merge(from[key], delta[key])
+                    continue;
+                }
+
                 continue;
             }
 

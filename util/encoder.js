@@ -1565,7 +1565,9 @@ function test() {
 
 // test();
 const EXPORTS = { encode, decode, serialize, deserialize, defaultDict };
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = EXPORTS;
-}
-export default EXPORTS;
+// const encoderService = new EncoderService();
+// if (typeof module !== 'undefined' && module.exports) {
+module.exports = EXPORTS
+// }
+// export default EXPORTS;
+
