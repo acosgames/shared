@@ -865,8 +865,8 @@ module.exports = class DevGameService {
             console.log(response2.results);
 
 
-            await this.createGitHubRepos(game, user, db);
-            await this.assignUserToRepo(game, user, db);
+            // await this.createGitHubRepos(game, user, db);
+            // await this.assignUserToRepo(game, user, db);
 
             if (response.results.affectedRows > 0 && response2.results.affectedRows > 0) {
                 game.gameid = game.gameid.toSqlString();
