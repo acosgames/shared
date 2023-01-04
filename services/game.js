@@ -524,8 +524,6 @@ module.exports = class GameService {
                 latest.db as latest_db,
                 latest.tsupdate as latest_tsupdate,
                 d.shortid, d.displayname, d.github,
-                a.gameid, a.game_slug,  a.version, a.lbscore,
-                a.votes, 
                 b.vote, 
                 b.report, 
                 coalesce(c.rating,0) as rating, 
@@ -534,10 +532,7 @@ module.exports = class GameService {
                 coalesce(c.tie,0) as tie, 
                 coalesce(c.played,0) as played, 
                 coalesce(c.highscore,0) as highscore,
-                a.latest_version, a.minplayers, a.maxplayers, 
-                a.ownerid, a.name, a.shortdesc, a.longdesc, 
-                a.opensource, a.preview_images, a.status, 
-                a.tsupdate, a.tsinsert 
+                a.*
                 FROM game_info a, person d, game_version cur, game_version latest
                 LEFT JOIN game_review b ON (b.game_slug = ? AND b.shortid = ?)
                 LEFT JOIN person_rank c ON (c.game_slug = ? AND c.shortid = ?)
