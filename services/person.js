@@ -56,7 +56,7 @@ module.exports = class UserService {
             let user = await this.findUser({ displayname });
 
             if (!user) {
-                throw new GeneralError('E_PLAYER_NOTFOUND');
+                throw new GeneralError('E_PLAYER_NOTFOUND', { displayname });
             }
 
             // let ranks = await this.findPlayerRanks(user.shortid);
