@@ -33,13 +33,22 @@ module.exports = class ObjectStorage {
         return this.s3;
     }
 
-    upload(params, cb) {
+    deleteObject(params, cb) {
+        if (!params) {
+            console.error("S3 Upload Failed, missing params.");
+            return;
+        }
+        return this.s3.deleteObject(params, cb);
+
+    }
+
+    upload(params, options, cb) {
         if (!params) {
             console.error("S3 Upload Failed, missing params.");
             return;
         }
 
-        let options = { partSize: 20 * 1024 * 1024, queueSize: 5 };
+        options = options || { partSize: 20 * 1024 * 1024, queueSize: 5 };
         return this.s3.upload(params, options, cb)
     }
 

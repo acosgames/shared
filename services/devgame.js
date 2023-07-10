@@ -4,9 +4,9 @@ const credutil = require('../util/credentials')
 const { genUnique64string, generateAPIKEY } = require('../util/idgen');
 const { utcDATETIME } = require('../util/datefns');
 const { GeneralError, CodeError, SQLError } = require('../util/errorhandler');
-const { validateSimple } = require('../util/validation');
+// const { validateSimple } = require('../util/validation');
 
-const simpleGit = require('simple-git');
+// const simpleGit = require('simple-git');
 
 
 
@@ -846,6 +846,7 @@ module.exports = class DevGameService {
             game.version = 0;
             game.latest_version = 0;
 
+            let { validateSimple } = await import('shared/util/validation.mjs');
             let errors = validateSimple('game_info', game);
             if (errors.length > 0) {
                 throw new GeneralError("E_GAME_INVALID");
