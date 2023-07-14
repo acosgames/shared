@@ -5,6 +5,7 @@ const { utcDATETIME } = require('../util/datefns');
 // const UploadFile = require('./uploadfile');
 // const upload = new UploadFile();
 
+const path = require('path');
 
 const AWS = require('aws-sdk');
 const fs = require('fs');
@@ -155,7 +156,7 @@ module.exports = class ObjectStorage {
                 let folderPath = '/' + Key.split('/')[0];
                 let localPath = rootPath + '/' + Key;
                 if (fs.existsSync(localPath)) {
-                    let data = await fs.promises.readFile(localPath);
+                    let data = fs.readFileSync(localPath);
                     let js = $this.unzipServerFile(data);
                     rs(js);
                     console.log('file loaded from filesystem successfully')
@@ -167,10 +168,10 @@ module.exports = class ObjectStorage {
                         return;
                     }
 
-                    await fs.promises.mkdir(rootPath + folderPath, { recursive: true });
-                    await fs.promises.writeFile('./serverScripts/' + Key, data.Body)
+                    fs.mkdirSync(rootPath + folderPath, { recursive: true });
+                    fs.writeFileSync('./serverScripts/' + Key, data.Body)
 
-                    let js = await $this.unzipServerFile(data.Body);
+                    let js = $this.unzipServerFile(data.Body);
                     console.log('file downloaded successfully: ', Key)
 
                     rs(js);
@@ -214,17 +215,17 @@ module.exports = class ObjectStorage {
                     Bucket: 'acospriv'
                 }
 
-                let rootPath = './serverScripts';
+                let rootPath = path.resolve(process.cwd(), './serverScripts');
                 let folderPath = '/' + Key.split('/')[0];
                 let localPath = rootPath + '/' + Key;
                 let fileExists = false;
                 try {
-                    fileExists = await fs.promises.access(localPath);
+                    fileExists = fs.accessSync(localPath);
                 } catch (e) {
                     console.error(e);
                 }
                 if (fileExists) {
-                    let data = await fs.promises.readFile(localPath);
+                    let data = fs.readFileSync(localPath);
                     let js = await $this.unzipServerFile(data);
                     rs(js);
                     console.log('file loaded from filesystem successfully')
@@ -236,8 +237,8 @@ module.exports = class ObjectStorage {
                         return;
                     }
 
-                    await fs.promises.mkdir(rootPath + folderPath, { recursive: true });
-                    await fs.promises.writeFile('./serverScripts/' + Key, data.Body)
+                    fs.mkdirSync(rootPath + folderPath, { recursive: true });
+                    fs.writeFileSync('./serverScripts/' + Key, data.Body)
 
                     let js = await $this.unzipServerFile(data.Body);
                     console.log('file downloaded successfully: ', Key)

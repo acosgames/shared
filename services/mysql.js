@@ -24,6 +24,7 @@ module.exports = class MySQL {
                 user: this.credentials.mysql.user,
                 password: this.credentials.mysql.pass,
                 database: this.credentials.mysql.db,
+                dateStrings: true,
                 supportBigNumbers: true,
                 bigNumberStrings: true,
                 typeCast: function (field, next) {

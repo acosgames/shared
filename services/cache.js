@@ -5,7 +5,7 @@ const RedisService = require('./redis');
 
 class Cacher {
     constructor() {
-        this.cache = new NodeCache({ stdTTL: 15, checkperiod: 10 });
+        this.cache = new NodeCache({ stdTTL: 120, checkperiod: 10 });
         this.dict = {};
         this.redis = RedisService;
     }
