@@ -378,7 +378,24 @@ module.exports = class GameService {
 
         //let rankings = await redis.get(game_slug + '/top10');
         //if (!rankings) {
-        let rankings = await redis.zrevrange(game_slug + '/lb', 0, 9);
+        let db = await mysql.db();
+        let sqlTop10 = await db.sql(`
+            SELECT a.displayname, b.rating, concat(c.category, '-', c.sortid, '.', c.ext) as filename
+            FROM person a
+            LEFT JOIN person_rank b
+                ON a.shortid = b.shortid
+            LEFT JOIN avatar c
+                ON a.avatarid = c.avatarid
+            WHERE b.game_slug = ?
+            AND b.season = ?
+            AND b.played > 0
+            ORDER BY b.rating DESC
+            LIMIT 10
+        `, [game_slug, 0]);
+
+        let rankings = sqlTop10.results;
+
+        // let rankings = await redis.zrevrange(game_slug + '/lb', 0, 25);
 
         if (rankings.length == 0) {
             let total = await this.updateAllRankings(game_slug);

@@ -17,6 +17,10 @@ lib-cov
 # Coverage directory used by tools like istanbul
 coverage
 
+test/avatars
+test/backgrounds
+test/flags
+test/ranks
 
 # versions.json
 credential
