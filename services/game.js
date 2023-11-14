@@ -380,7 +380,7 @@ module.exports = class GameService {
         //if (!rankings) {
         let db = await mysql.db();
         let sqlTop10 = await db.sql(`
-            SELECT a.displayname, b.rating, concat(c.category, '-', c.sortid, '.', c.ext) as filename
+            SELECT a.displayname, b.rating, concat(c.category, '-', c.sortid, '.', c.ext) as portrait
             FROM person a
             LEFT JOIN person_rank b
                 ON a.shortid = b.shortid
@@ -390,7 +390,7 @@ module.exports = class GameService {
             AND b.season = ?
             AND b.played > 0
             ORDER BY b.rating DESC
-            LIMIT 10
+            LIMIT 30
         `, [game_slug, 0]);
 
         let rankings = sqlTop10.results;
@@ -654,7 +654,26 @@ module.exports = class GameService {
 
         //let rankings = await redis.get(game_slug + '/top10hs');
         //if (!rankings) {
-        let rankings = await redis.zrevrange(game_slug + '/lbhs', 0, 19);
+        // let rankings = await redis.zrevrange(game_slug + '/lbhs', 0, 19);
+
+        let db = await mysql.db();
+        let sqlTop10 = await db.sql(`
+            SELECT a.displayname, b.highscore, concat(c.category, '-', c.sortid, '.', c.ext) as portrait
+            FROM person a
+            LEFT JOIN person_rank b
+                ON a.shortid = b.shortid
+            LEFT JOIN avatar c
+                ON a.avatarid = c.avatarid
+            WHERE b.game_slug = ?
+            AND b.season = ?
+            AND b.played > 0
+            AND b.highscore > 0
+            ORDER BY b.rating DESC
+            LIMIT 30
+        `, [game_slug, 0]);
+
+        let rankings = sqlTop10.results;
+
 
         if (rankings.length == 0) {
             let total = await this.updateAllHighscores(game_slug);

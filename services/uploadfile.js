@@ -38,7 +38,7 @@ module.exports = class UploadFile {
                     Body: data,
                     ACL: 'public-read',
                     ContentType: 'application/javascript',
-                    ContentEncoding: 'gzip'
+                    // ContentEncoding: 'gzip'
                 }
                 var options = { partSize: 10 * 1024 * 1024, queueSize: 1 };
 
@@ -71,7 +71,7 @@ module.exports = class UploadFile {
                     Body: data,
                     ACL: 'public-read',
                     ContentType: 'text/html',
-                    ContentEncoding: 'gzip'
+                    // ContentEncoding: 'gzip'
                 }
                 var options = { partSize: 10 * 1024 * 1024, queueSize: 1 };
 
@@ -265,9 +265,9 @@ module.exports = class UploadFile {
                 },
                 transform: function (req, file, cb) {
                     // var fileStream = file.stream;
-                    // var out = new stream.PassThrough();
-                    let zipped
-                        = zlib.createGzip();
+                    var out = new stream.PassThrough();
+                    // let zipped
+                    // = zlib.createGzip();
                     // var cnt = 0;
 
                     console.log("Transformed: ", file.fieldname);
@@ -278,7 +278,7 @@ module.exports = class UploadFile {
                         // if (cnt == 1)
                         //     zipped.write(iframeTop);
                         //write the JS into the middle
-                        zipped.write(chunk);
+                        out.write(chunk);
                     });
 
                     file.stream.on('end', () => {

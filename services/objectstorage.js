@@ -71,7 +71,7 @@ module.exports = class ObjectStorage {
         options.ContentType = options.ContentType || 'application/octet-stream';
         options.ACL = options.ACL || 'public-read';
         options.StorageClass = options.StorageClass || 'STANDARD';
-        options.ContentEncoding = options.ContentEncoding || 'gzip';
+        // options.ContentEncoding = options.ContentEncoding || 'gzip';
 
         let multipartCreateResult = await this.s3.createMultipartUpload(options).promise()
 
