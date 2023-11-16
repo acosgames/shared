@@ -6,6 +6,7 @@ const mysql = new MySQL();
 const mimetypes = require("../util/mimetypes.json");
 const { genShortId } = require("../util/idgen");
 
+const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
@@ -391,6 +392,117 @@ const uploadGameRanks = async (folderPath, prefix) => {
     }
 }
 
+const resizeAchievements = async (buffer) => {
+
+    let original = await sharp(buffer).resize(256).webp({ quality: 80 }).toBuffer({ resolveWithObject: true })
+    let medium = await sharp(buffer).resize(128).webp({ quality: 80 }).toBuffer({ resolveWithObject: true })
+    let thumbnail = await sharp(buffer).resize(80).webp({ quality: 80 }).toBuffer({ resolveWithObject: true })
+
+    return { original, medium, thumbnail }
+}
+
+async function processAchievements(folderPath, outputPath) {
+    let dirents = fs.readdirSync(folderPath, { withFileTypes: true });
+    const filesNames = dirents
+        .filter(dirent => dirent.isFile())
+        .map(dirent => dirent.name);
+
+    if (!fs.existsSync(outputPath)) {
+        fs.mkdirSync(outputPath);
+    }
+
+    for (file of filesNames) {
+        try {
+            let imageBuffer = fs.readFileSync(folderPath + '/' + file);
+
+            let output = await resizeAchievements(imageBuffer);
+
+            fs.writeFileSync(outputPath + '/' + file.replace('.png', '-thumbnail.webp'), output.thumbnail.data, { encoding: 'binary' });
+            fs.writeFileSync(outputPath + '/' + file.replace('.png', '-original.webp'), output.original.data, { encoding: 'binary' });
+            fs.writeFileSync(outputPath + '/' + file.replace('.png', '-medium.webp'), output.medium.data, { encoding: 'binary' });
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+    }
+}
+
+
+async function uploadAchievements(folderPath, prefix) {
+    let dirents = fs.readdirSync(folderPath, { withFileTypes: true });
+    const filesNames = dirents
+        .filter(dirent => dirent.isFile())
+        .map(dirent => dirent.name);
+
+    let db = await mysql.db();
+
+    for (let file of filesNames) {
+
+        let imageBuffer = fs.readFileSync(folderPath + '/' + file);
+
+        //upload to backblaze object storage
+        try {
+
+            let parts = file.split('-');
+            let iconid = Number.parseInt(parts[0]);
+
+
+            let on_filename = file.replace('-black', '-green').replace('-original', '').replace('-medium', '').replace('-thumbnail', '')
+            let off_filename = file.replace('-green', '-black').replace('-original', '').replace('-medium', '').replace('-thumbnail', '')
+            // let filename = mipmap.hash + '.' + fileExt;
+            //upload to mysql database
+            try {
+
+                let result = await db.insert('achievement_icons', {
+                    iconid,
+                    on_filename,
+                    off_filename
+                })
+                console.log("Insert result:", result);
+            }
+            catch (e) {
+                if (e.payload.code != 'ER_DUP_ENTRY')
+                    console.error(e);
+                // continue;
+                // continue;
+            }
+
+            // let number = Number.parseInt(parts[0]);
+            // if (number <= 25)
+            //     continue;
+            parts = file.split('.');
+            let fileExt = parts[parts.length - 1];
+
+            let Key = prefix + '/' + file;
+            let ContentType = mimetypes['.' + fileExt] || 'application/octet-stream'
+            let ACL = 'public-read'
+
+            let params = {
+                Bucket: 'acospub',
+                Key,
+                Body: imageBuffer,
+                ContentType,
+                ACL,
+                // metadata
+            };
+
+            console.log("S3 Uploading:", Key);
+            let uploader = await s3.upload(params)
+            uploader.on('httpUploadProgress', function (progress) {
+                if (cb) {
+                    cb(null, progress);
+                }
+            });
+
+            let data = await uploader.promise();
+            console.log("Upload finished: ", data);
+        }
+        catch (e) {
+            console.error(e);
+        }
+    }
+}
 
 let categories = [
     // 'humans',
@@ -402,6 +514,14 @@ let categories = [
 
 
 const main = async () => {
+
+    try {
+        await processAchievements('./test/achievements', './test/achievements/final', 'icons/achievements/');
+        await uploadAchievements('./test/achievements/final', 'icons/achievements');
+    }
+    catch (e) {
+        console.error(e);
+    }
 
     //MAKE MIPMAP FOR AVATARS
     for (let category of categories) {
@@ -440,7 +560,7 @@ const main = async () => {
     }
 
     //ASSIGN RANDOM AVATARS TO EXISTING PLAYERS
-    await assignAvatars();
+    // await assignAvatars();
 
     process.exit();
 

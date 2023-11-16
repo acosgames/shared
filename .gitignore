@@ -21,6 +21,7 @@ test/avatars
 test/backgrounds
 test/flags
 test/ranks
+test/achievements
 
 # versions.json
 credential

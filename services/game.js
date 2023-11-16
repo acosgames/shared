@@ -19,6 +19,8 @@ module.exports = class GameService {
     async reportGame(game_slug, shortid, report) {
         try {
             let db = await mysql.db();
+            if (report == 0)
+                report = null;
             const { results, fields } = await db.insertBatch('game_review', [{ game_slug, shortid, report }], ['game_slug', 'shortid']);
             return results;
 

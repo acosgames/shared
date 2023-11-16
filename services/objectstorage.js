@@ -20,10 +20,10 @@ module.exports = class ObjectStorage {
     constructor(credentials) {
         this.credentials = credentials || credutil();
 
-        this.s3cred = new AWS.SharedIniFileCredentials({ profile: 'b2' });
+        this.s3cred = new AWS.SharedIniFileCredentials({});
         //AWS.config.credentials = credentials;
         //var ep = new AWS.Endpoint('s3.us-west-002.backblazeb2.com');
-        this.s3 = new AWS.S3({ ...this.credentials.backblaze });
+        this.s3 = new AWS.S3({ ...this.credentials.cloudflare_r2 });
     }
 
     connect() {
