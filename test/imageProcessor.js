@@ -401,6 +401,27 @@ const resizeAchievements = async (buffer) => {
     return { original, medium, thumbnail }
 }
 
+
+async function renameFiles(folderPath, from, to) {
+    let dirents = fs.readdirSync(folderPath, { withFileTypes: true });
+    const filesNames = dirents
+        .filter(dirent => dirent.isFile())
+        .map(dirent => dirent.name);
+
+
+    for (file of filesNames) {
+        try {
+
+            fs.renameSync(folderPath + '/' + file, folderPath + '/' + file.replace(from, to))
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+    }
+}
+
+
 async function processAchievements(folderPath, outputPath) {
     let dirents = fs.readdirSync(folderPath, { withFileTypes: true });
     const filesNames = dirents
@@ -516,6 +537,7 @@ let categories = [
 const main = async () => {
 
     try {
+        // await renameFiles('./test/achievements', '-white', '-yellow');
         await processAchievements('./test/achievements', './test/achievements/final', 'icons/achievements/');
         await uploadAchievements('./test/achievements/final', 'icons/achievements');
     }
