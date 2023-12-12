@@ -543,13 +543,13 @@ class RoomService {
                         highscore: 0
                     };
 
+                    cache.set(key, newRating, 600);
                     response = await db.insert('person_rank', newRating);
                     console.log("Created player rating for: ", key, newRating.rating);
 
                     //make sure we add displayname into the rating object stored in cache/redis
                     newRating.displayname = playerNames[shortid].displayname;
 
-                    cache.set(key, newRating, 600);
                     player[game_slug] = newRating;
                 }
             }
@@ -613,6 +613,7 @@ class RoomService {
                 played: 0,
                 highscore: 0
             };
+            cache.set(key, newRating, 600);
             response = await db.insert('person_rank', newRating);
             console.log("Created player rating for: ", key, newRating.rating);
 
@@ -621,7 +622,6 @@ class RoomService {
 
             delete newRating.shortid;
             delete newRating.game_slug;
-            cache.set(key, newRating, 600);
 
             return rating;
         }

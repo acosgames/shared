@@ -12,7 +12,9 @@ class RedisService {
     constructor(credentials) {
         this.credentials = credentials || credutil();
         this.redisCredentials = this.credentials.platform.redisCluster;
-
+        this.redisCredentials.socket = {
+            reconnectStrategy: retries => Math.min(retries * 50, 1000)
+        }
         this.callbacks = {};
         this.active = false;
 
@@ -378,7 +380,7 @@ class RedisService {
         }
         catch (e) {
             console.error(e);
-            rj(new GeneralError('ERROR_REDISClient.ZRANGE', { name, start, end }));
+            throw (new GeneralError('ERROR_REDISClient.ZRANGE', { name, start, end }));
         }
     }
 
@@ -394,7 +396,7 @@ class RedisService {
         }
         catch (e) {
             console.error(e);
-            rj(new GeneralError('ERROR_REDISClient.ZREVRANGE', { name, start, end, }));
+            throw (new GeneralError('ERROR_REDISClient.ZREVRANGE', { name, start, end, }));
         }
     }
 
@@ -410,7 +412,7 @@ class RedisService {
         }
         catch (e) {
             console.error(e);
-            rj(new GeneralError('ERROR_REDISClient.ZCOUNT', { name, start, end }));
+            throw (new GeneralError('ERROR_REDISClient.ZCOUNT', { name, start, end }));
         }
     }
 
@@ -426,7 +428,7 @@ class RedisService {
         }
         catch (e) {
             console.error(e);
-            rj(new GeneralError('ERROR_REDISClient.ZRANK', { name, key }));
+            throw (new GeneralError('ERROR_REDISClient.ZRANK', { name, key }));
         }
     }
 
@@ -442,7 +444,7 @@ class RedisService {
         }
         catch (e) {
             console.error(e);
-            rj(new GeneralError('ERROR_REDISClient.ZREVRANK', { name, key }));
+            throw (new GeneralError('ERROR_REDISClient.ZREVRANK', { name, key }));
         }
     }
 
@@ -460,7 +462,7 @@ class RedisService {
         }
         catch (e) {
             console.error(e);
-            rj(new GeneralError('ERROR_REDISClient.ZREM', { name, members }));
+            throw (new GeneralError('ERROR_REDISClient.ZREM', { name, members }));
         }
     }
 

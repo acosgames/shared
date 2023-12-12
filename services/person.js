@@ -18,7 +18,7 @@ module.exports = class UserService {
 
     encodeUserToken(user, privateKey) {
         return new Promise((rs, rj) => {
-            jwt.sign(user, privateKey, { algorithm: 'RS256', expiresIn: '30d' }, function (err, token) {
+            jwt.sign(user, this.credentials.jwt.secret, { algorithm: 'HS256', expiresIn: '30d', noTimestamp: true }, function (err, token) {
                 if (err) {
                     rj(err);
                     return;
@@ -41,7 +41,7 @@ module.exports = class UserService {
                 }
             }
 
-            jwt.verify(token, publicKey, function (err, user) {
+            jwt.verify(token, this.credentials.jwt.secret, function (err, user) {
                 if (err) {
                     rj(err);
                     return;
@@ -282,8 +282,8 @@ module.exports = class UserService {
     async deleteUser(user, db) {
         try {
             db = db || await mysql.db();
-            let id = user.id;
-            let { results } = await db.delete('person', 'WHERE id = ?', [{ toSqlString: () => id }]);
+            let shortid = user.shortid;
+            let { results } = await db.delete('person', 'WHERE shortid = ?', [shortid]);
 
             let rankResults = await db.sql(`
                 SELECT a.displayname, b.game_slug
