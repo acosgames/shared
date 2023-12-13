@@ -527,8 +527,8 @@ class RoomService {
                     // let mu = Math.floor(Math.random() * 32) + 2
                     // let sigma = 1.5;
                     // rating = mu * 100;
-                    // let rating = 2000;
-                    let mu = 25.0;
+                    // let rating = 100;
+                    let mu = 0.1;
                     let sigma = 5;
                     let newRating = {
                         shortid,
