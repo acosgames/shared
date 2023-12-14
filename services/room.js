@@ -977,8 +977,14 @@ class RoomService {
             //use ID instead of name for database
             mode = this.getGameModeID(mode);
 
+            let id = genShortId(5);
+            let checkRoom = await this.findRoom(id);
+            while (checkRoom) {
+                id = genShortId(5);
+                checkRoom = await this.findRoom(id);
+            }
             let room = {
-                room_slug: genShortId(5),
+                room_slug: id,
                 game_slug,
                 gameid,
                 version,

@@ -382,7 +382,7 @@ module.exports = class GameService {
         //if (!rankings) {
         let db = await mysql.db();
         let sqlTop10 = await db.sql(`
-            SELECT a.displayname, b.rating, concat(c.category, '-', c.sortid, '.', c.ext) as portrait
+            SELECT a.displayname, b.rating, c.sortid as portrait
             FROM person a
             LEFT JOIN person_rank b
                 ON a.shortid = b.shortid
@@ -660,7 +660,7 @@ module.exports = class GameService {
 
         let db = await mysql.db();
         let sqlTop10 = await db.sql(`
-            SELECT a.displayname, b.highscore, concat(c.category, '-', c.sortid, '.', c.ext) as portrait
+            SELECT a.displayname, b.highscore, c.sortid as portrait
             FROM person a
             LEFT JOIN person_rank b
                 ON a.shortid = b.shortid
