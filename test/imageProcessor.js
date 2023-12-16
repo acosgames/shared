@@ -175,15 +175,15 @@ const uploadDBandStorage = async (folderPath, category) => {
 
         parts = filename.split('-');
 
-        let sortid = Number.parseInt(parts[1]);
+        let portraitid = Number.parseInt(parts[1]);
         // let filename = mipmap.hash + '.' + fileExt;
         //upload to mysql database
         try {
 
-            let result = await db.insert('avatar', {
+            let result = await db.insert('portrait', {
                 category,
                 ext,
-                sortid
+                portraitid
             })
             console.log("Insert result:", result);
         }
@@ -249,7 +249,7 @@ const assignAvatars = async () => {
     try {
         let db = await mysql.db();
 
-        let sqlAvatars = await db.sql(`SELECT * FROM avatar`);
+        let sqlAvatars = await db.sql(`SELECT * FROM portrait`);
 
         let sqlPersons = await db.sql(`SELECT * FROM person`);
         console.log(sqlAvatars.results.length, sqlPersons.results.length);
@@ -257,7 +257,7 @@ const assignAvatars = async () => {
 
             let person = sqlPersons.results[i];
             let randomAvatar = sqlAvatars.results[Math.floor(Math.random() * sqlAvatars.results.length)];
-            let updateResult = await db.sql(`UPDATE person SET avatarid = ? WHERE id = ?`, [randomAvatar.avatarid, person.id])
+            let updateResult = await db.sql(`UPDATE person SET portraitid = ? WHERE id = ?`, [randomAvatar.avatarid, person.id])
             console.log("updating", randomAvatar.avatarid, person.id)
         }
 
@@ -525,6 +525,70 @@ async function uploadAchievements(folderPath, prefix) {
     }
 }
 
+
+const is2cc = new RegExp('^[A-Z][A-Z][\.\-]+');
+function remove3CharacterCountryCodes(folderPath) {
+    let dirents = fs.readdirSync(folderPath, { withFileTypes: true });
+    const filesNames = dirents
+        .filter(dirent => dirent.isFile() && !is2cc.test(dirent.name))
+        .map(dirent => dirent.name);
+
+    for (let filename of filesNames) {
+        fs.renameSync(folderPath + '/' + filename, folderPath + '/3code/' + filename);
+    }
+    console.log(filesNames);
+}
+
+
+const uploadCountryFlags = async (folderPath, prefix) => {
+    let dirents = fs.readdirSync(folderPath, { withFileTypes: true });
+    const filesNames = dirents
+        .filter(dirent => dirent.isFile() && is2cc.test(dirent.name))
+        .map(dirent => dirent.name);
+
+    for (let file of filesNames) {
+
+        let imageBuffer = fs.readFileSync(folderPath + '/' + file);
+
+        //upload to backblaze object storage
+        try {
+            let parts = file.split('.');
+            // let number = Number.parseInt(parts[0]);
+            // if (number <= 25)
+            //     continue;
+
+            let fileExt = parts[parts.length - 1];
+
+            let Key = prefix + '/' + file;
+            let ContentType = mimetypes['.' + fileExt] || 'application/octet-stream'
+            let ACL = 'public-read'
+
+            let params = {
+                Bucket: 'acospub',
+                Key,
+                Body: imageBuffer,
+                ContentType,
+                ACL,
+                // metadata
+            };
+
+            console.log("S3 Uploading:", Key);
+            let uploader = await s3.upload(params)
+            uploader.on('httpUploadProgress', function (progress) {
+                if (cb) {
+                    cb(null, progress);
+                }
+            });
+
+            let data = await uploader.promise();
+            console.log("Upload finished: ", data);
+        }
+        catch (e) {
+            console.error(e);
+        }
+    }
+}
+
 let categories = [
     // 'humans',
     // 'elves',
@@ -537,9 +601,18 @@ let categories = [
 const main = async () => {
 
     try {
+        // remove3CharacterCountryCodes('./test/flags/');
+        await uploadCountryFlags('./test/flags/', 'images/country');
+    }
+    catch (e) {
+        console.error(e);
+    }
+
+
+    try {
         // await renameFiles('./test/achievements', '-white', '-yellow');
-        await processAchievements('./test/achievements', './test/achievements/final', 'icons/achievements/');
-        await uploadAchievements('./test/achievements/final', 'icons/achievements');
+        // await processAchievements('./test/achievements', './test/achievements/final', 'icons/achievements/');
+        // await uploadAchievements('./test/achievements/final', 'icons/achievements');
     }
     catch (e) {
         console.error(e);

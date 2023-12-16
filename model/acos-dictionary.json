@@ -139,5 +139,8 @@
   "team_16",
   "correct",
   "incorrect",
-  "queueStats"
+  "queueStats",
+  "preview_images",
+  "preview_image",
+  "count"
 ]

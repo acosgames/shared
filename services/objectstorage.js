@@ -157,7 +157,9 @@ module.exports = class ObjectStorage {
                 let localPath = rootPath + '/' + Key;
                 if (fs.existsSync(localPath)) {
                     let data = fs.readFileSync(localPath);
-                    let js = $this.unzipServerFile(data);
+
+                    let js = data.Body.toString('utf8');
+                    // let js = $this.unzipServerFile(data);
                     rs(js);
                     console.log('file loaded from filesystem successfully')
                     return;
@@ -171,7 +173,9 @@ module.exports = class ObjectStorage {
                     fs.mkdirSync(rootPath + folderPath, { recursive: true });
                     fs.writeFileSync('./serverScripts/' + Key, data.Body)
 
-                    let js = $this.unzipServerFile(data.Body);
+
+                    let js = data.Body.toString('utf8');
+                    // let js = $this.unzipServerFile(data.Body);
                     console.log('file downloaded successfully: ', Key)
 
                     rs(js);
@@ -217,7 +221,7 @@ module.exports = class ObjectStorage {
 
                 let rootPath = path.resolve(process.cwd(), './serverScripts');
                 let folderPath = '/' + Key.split('/')[0];
-                let localPath = rootPath + '/' + Key;
+                let localPath = path.resolve(rootPath, Key);
                 let fileExists = false;
                 try {
                     fileExists = fs.accessSync(localPath);
@@ -226,7 +230,9 @@ module.exports = class ObjectStorage {
                 }
                 if (fileExists) {
                     let data = fs.readFileSync(localPath);
-                    let js = await $this.unzipServerFile(data);
+
+                    let js = data.Body.toString('utf8');
+                    // let js = await $this.unzipServerFile(data);
                     rs(js);
                     console.log('file loaded from filesystem successfully')
                     return;
@@ -240,7 +246,8 @@ module.exports = class ObjectStorage {
                     fs.mkdirSync(rootPath + folderPath, { recursive: true });
                     fs.writeFileSync('./serverScripts/' + Key, data.Body)
 
-                    let js = await $this.unzipServerFile(data.Body);
+                    let js = data.Body.toString('utf8');
+                    // let js = await $this.unzipServerFile(data.Body);
                     console.log('file downloaded successfully: ', Key)
 
                     rs(js);

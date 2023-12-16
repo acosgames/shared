@@ -382,12 +382,10 @@ module.exports = class GameService {
         //if (!rankings) {
         let db = await mysql.db();
         let sqlTop10 = await db.sql(`
-            SELECT a.displayname, b.rating, c.sortid as portrait
+            SELECT a.displayname, b.rating, a.portraitid, a.countrycode
             FROM person a
             LEFT JOIN person_rank b
                 ON a.shortid = b.shortid
-            LEFT JOIN avatar c
-                ON a.avatarid = c.avatarid
             WHERE b.game_slug = ?
             AND b.season = ?
             AND b.played > 0
@@ -397,9 +395,9 @@ module.exports = class GameService {
 
         let rankings = sqlTop10.results;
 
-        // let rankings = await redis.zrevrange(game_slug + '/lb', 0, 25);
+        let redisRankings = await redis.zrevrange(game_slug + '/lb', 0, 25);
 
-        if (rankings.length == 0) {
+        if (redisRankings.length == 0) {
             let total = await this.updateAllRankings(game_slug);
             if (total > 0) {
                 return this.getGameTop10Players(game_slug);
@@ -480,20 +478,59 @@ module.exports = class GameService {
         let rankings = await redis.zrevrange(game_slug + '/lb', Math.max(0, rank - 1), rank + 1);
         console.log("rankings raw: ", rankings);
         let playerPos = 0;
+
+        let playerNames = [];
         for (var i = 0; i < rankings.length; i++) {
+            playerNames.push(rankings[i].value);
             if (rankings[i].value == player) {
                 playerPos = -i;
-                break;
+                // break;
             }
         }
 
-        let otherRank = 0;
-        for (var i = 0; i < rankings.length; i++) {
+        try {
 
-            rankings[i].rank = rank + (playerPos + i)
+            let db = await mysql.db();
+
+            let response = await db.sql(`
+            SELECT a.displayname, b.rating, a.portraitid, a.countrycode
+            FROM person a
+            LEFT JOIN person_rank b
+                ON a.shortid = b.shortid
+            WHERE b.game_slug = ?
+            AND b.season = ?
+            AND b.played > 0
+            AND a.displayname in (?)
+            ORDER BY b.rating DESC
+            LIMIT 30
+        `, [game_slug, 0, playerNames]);
+
+            if (response.results && response.results.length == 0) {
+                return new GeneralError('E_NOTFOUND');
+            }
+            let players = response.results;
+            let playersMap = {};
+            players.forEach(p => playersMap[p.displayname] = p)
+
+            let otherRank = 0;
+            for (var i = 0; i < rankings.length; i++) {
+
+                let ranker = rankings[i];
+                let player = playersMap[ranker.value];
+                ranker.rank = rank + (playerPos + i)
+                ranker.portraitid = player.portraitid;
+                ranker.countrycode = player.countrycode;
+                ranker.rating = player.rating;
+            }
+
+            console.log("range: ", game_slug, rankings);
+
+        }
+        catch (e) {
+            console.error(e);
         }
 
-        console.log("range: ", game_slug, rankings);
+
 
         return rankings;
     }
@@ -660,12 +697,10 @@ module.exports = class GameService {
 
         let db = await mysql.db();
         let sqlTop10 = await db.sql(`
-            SELECT a.displayname, b.highscore, c.sortid as portrait
+            SELECT a.displayname, b.highscore, a.portraitid, a.countrycode
             FROM person a
             LEFT JOIN person_rank b
                 ON a.shortid = b.shortid
-            LEFT JOIN avatar c
-                ON a.avatarid = c.avatarid
             WHERE b.game_slug = ?
             AND b.season = ?
             AND b.played > 0

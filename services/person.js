@@ -63,8 +63,12 @@ module.exports = class UserService {
             // let devgames = await this.findPlayerDevGames(user.id);
             let filteredUser = {
                 displayname: displayname,
+                countrycode: user.countrycode,
+                portraitid: user.portraitid,
                 github: user.github,
                 membersince: user.membersince,
+                level: user.level,
+                points: user.points,
                 isdev: user.isdev,
                 ranks: user.ranks,
                 devgames: user.devgames
@@ -156,6 +160,100 @@ module.exports = class UserService {
         }
     }
 
+    async friendRequest(personid, friendid) {
+        try {
+            db = db || await mysql.db();
+            let person_friend = {
+                personid,
+                friendid,
+                initiated: 1,
+                statusid: 0
+            }
+            let person_friend2 = {
+                friendid,
+                personid,
+                initiated: 0,
+                statusid: 0
+            }
+            let { results } = await db.insert('person_friend', person_friend);
+            console.log(results);
+
+            let { results2 } = await db.insert('person_friend', person_friend2);
+            console.log(results2);
+
+            return { results, results2 };
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return null;
+    }
+
+    async deleteFriend(personid, friendid) {
+        try {
+            db = db || await mysql.db();
+
+            let { results } = await db.delete('person_friend', 'WHERE personid = ? and friendid = ?', [personid, friendid]);
+            console.log(results);
+
+            let { results2 } = await db.delete('person_friend', 'WHERE personid = ? and friendid = ?', [friendid, personid]);
+            console.log(results2);
+
+            return { results, results2 };
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return null;
+    }
+
+    async friendResponse(personid, friendid, statusid) {
+        try {
+            db = db || await mysql.db();
+
+
+            let { results } = await db.update('person_friend', { statusid }, 'WHERE personid = ? and friendid = ?', [personid, friendid]);
+
+            console.log(results);
+
+            let { results2 } = await db.update('person_friend', { statusid }, 'WHERE personid = ? and friendid = ?', [friendid, personid]);
+
+            console.log(results2);
+
+            return { results, results2 };
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return null;
+    }
+
+    async getFriends(shortid) {
+        try {
+            let db = await mysql.db();
+            let user = null;
+            if (!shortid)
+                return null;
+
+            let response = await db.sql(`select b.shortid, b.displayname, b.portraitid, b.countrycode
+                from person_friend a, person b
+                where a.personid = ?
+                AND b.shortid = a.friendid`, [shortid]);
+
+            if (response && response.results.length == 0) {
+                return null;
+            } else {
+                user = response.results[0];
+            }
+
+            return user;
+        }
+        catch (e) {
+            //console.error(e);
+            throw e;
+        }
+    }
+
     async findUser(user, isSimple) {
         try {
             let db = await mysql.db();
@@ -166,14 +264,14 @@ module.exports = class UserService {
             else if (user.shortid) {
                 response = await db.sql('select *, YEAR(tsinsert) as membersince from person where shortid = ?', [user.shortid]);
             }
+            else if (user.displayname) {
+                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where LOWER(displayname) = ?', [user?.displayname?.toLowerCase()]);
+            }
             else if (user.email) {
                 response = await db.sql('select *, YEAR(tsinsert) as membersince from person where email = ?', [user.email]);
             }
             else if (user.apikey) {
                 response = await db.sql('select *, YEAR(tsinsert) as membersince from person where apikey = ?', [user.apikey]);
-            }
-            else if (user.displayname) {
-                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where LOWER(displayname) = ?', [user?.displayname?.toLowerCase()]);
             }
             else if (user.github) {
                 response = await db.sql('select *, YEAR(tsinsert) as membersince from person where github = ?', [user.github]);
@@ -195,10 +293,10 @@ module.exports = class UserService {
                 return user;
             }
 
-            user.ranks = await this.findPlayerRanks(user.shortid);
-            if (user.isdev)
-                user.devgames = await this.findPlayerDevGames(user.id);
-            else user.devgames = [];
+            // user.ranks = await this.findPlayerRanks(user.shortid);
+            // if (user.isdev)
+            // user.devgames = await this.findPlayerDevGames(user.id);
+            // else user.devgames = [];
 
             return user;
         }
@@ -217,9 +315,9 @@ module.exports = class UserService {
                 let existingUser = await this.findUser(user, true);
                 if (('github' in user) &&
                     (existingUser.github != user.github || existingUser.github_id != user.github_id)) {
-                    user.id = existingUser.id;
+                    user.shortid = existingUser.shortid;
                     user.isdev = false;
-                    user = await this.updateUser(user, db);
+                    user = await this.updateUser({ shortid: user.shortid, isdev: user.isdev }, db);
                     user = Object.assign({}, existingUser, user)
 
                     console.log(user);
@@ -257,10 +355,13 @@ module.exports = class UserService {
             if (existingUser?.displayname) {
                 throw new GeneralError('E_PERSON_EXISTSNAME', user.displayname);
             }
-            // if (existingUser) {
-            //     throw new GeneralError("E_PERSON_DUPENAME", updatedUser);
-            // }
-            let { results } = await db.update('person', user, 'WHERE id = ?', [user.id]);
+
+            existingUser = await this.findUser({ shortid: user.shortid });
+            if (existingUser && existingUser.displayname != null) {
+                throw new GeneralError("E_PERSON_ALREADYCREATED", existingUser);
+            }
+
+            let { results } = await db.update('person', user, 'WHERE shortid = ?', [user.shortid]);
             console.log(results);
             if (results.affectedRows == 0)
                 throw new GeneralError('E_PERSON_UPDATEFAILED', user);
@@ -327,8 +428,8 @@ module.exports = class UserService {
     async updateUser(user, db) {
         try {
             db = db || await mysql.db();
-            let id = user.id;
-            delete user['id'];
+            let shortid = user.shortid;
+            delete user['shortid'];
 
             if (user.membersince)
                 delete user.membersince;
@@ -336,9 +437,9 @@ module.exports = class UserService {
                 delete user.iat;
             if (user.exp)
                 delete user.exp;
-            let { results } = await db.update('person', user, 'WHERE id = ?', [{ toSqlString: () => id }]);
+            let { results } = await db.update('person', user, 'WHERE shortid = ?', [shortid]);
 
-            user.id = id;
+            user.shortid = shortid;
             console.log(results);
             if (results.affectedRows == 0)
                 throw new GeneralError('E_PERSON_UPDATEFAILED', user);
@@ -371,22 +472,24 @@ module.exports = class UserService {
             user.isdev = false;
             user.tsapikey = utcDATETIME();
 
+            user.points = 0;
+            user.level = 1.0;
             try {
                 let { results } = await db.insert('person', user);
                 console.log(results);
             }
             catch (e) {
-                if (e instanceof SQLError && e.payload.errno == 1062) {
-                    if (e.payload.sqlMessage.indexOf("person.PRIMARY") > -1) {
+                console.error(e);
+                if (e?.payload?.errno == 1062) {
+                    if (e.payload?.sqlMessage.indexOf("person.PRIMARY") > -1) {
                         //user id already exists, try creating again
                         return this.createUser(user);
                     }
-                    else if (e.payload.sqlMessage.indexOf('shortid_UNIQUE') > -1) {
+                    else if (e.payload?.sqlMessage.indexOf('shortid_UNIQUE') > -1) {
                         //shortid already exists, try creating again
                         return this.createUser(user);
                     }
                 }
-                console.error(e);
             }
 
 
