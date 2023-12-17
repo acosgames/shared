@@ -142,5 +142,9 @@
   "queueStats",
   "preview_images",
   "preview_image",
-  "count"
+  "count",
+  "portraitid",
+  "countrycode",
+  "US",
+  "UK"
 ]
