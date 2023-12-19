@@ -516,11 +516,16 @@ module.exports = class GameService {
             for (var i = 0; i < rankings.length; i++) {
 
                 let ranker = rankings[i];
-                let player = playersMap[ranker.value];
+                let p = playersMap[ranker.value];
+                if (!p) {
+
+                    await redis.zrem(game_slug + '/lb', [ranker.value]);
+                    return await this.getGameLeaderboardCount(game_slug, player, rank)
+                }
                 ranker.rank = rank + (playerPos + i)
-                ranker.portraitid = player.portraitid;
-                ranker.countrycode = player.countrycode;
-                ranker.rating = player.rating;
+                ranker.portraitid = p.portraitid;
+                ranker.countrycode = p.countrycode;
+                ranker.rating = p.rating;
             }
 
             console.log("range: ", game_slug, rankings);
