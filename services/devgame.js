@@ -169,15 +169,20 @@ module.exports = class DevGameService {
     }
 
 
-    async findDevByGame(gameid, ownerid) {
+    async findDevByGame(gameid, shortid) {
         try {
             if (gameid == 'undefined')
                 return null;
             let db = await mysql.db();
 
-            console.log("Searching for specific game developer: ", gameid, ownerid);
+            console.log("Searching for specific game developer: ", gameid, shortid);
 
-            var response = await db.sql('select * from game_dev where (gameid = ?) AND ownerid = ?', [{ toSqlString: () => gameid }, { toSqlString: () => ownerid }]);
+            var response = await db.sql(`select a.* 
+            from game_dev a
+            LEFT JOIN person p ON p.id = a.ownerid
+            where (a.gameid = ?) 
+            AND a.ownerid = p.id
+            AND p.shortid = ?`, [{ toSqlString: () => gameid }, shortid]);
 
             var dev = null;
             if (response && response.results.length > 0) {
@@ -225,7 +230,7 @@ module.exports = class DevGameService {
 
             if (game.gameid) {
 
-                console.log("Searching for dev game by gameid/ownerid: ", game.gameid, user.id);
+                console.log("Searching for dev game by gameid/ownerid: ", game.gameid, user.shortid);
                 response = await db.sql(`
                     select 
                         a.*, 
@@ -244,14 +249,15 @@ module.exports = class DevGameService {
                         b.apikey
                     from game_info a
                     LEFT JOIN game_dev b ON b.gameid = a.gameid
+                    LEFT JOIN person p ON b.ownerid = p.id
                     LEFT JOIN game_version cur ON cur.gameid = a.gameid AND cur.version = a.version
                     LEFT JOIN game_version latest ON latest.gameid = a.gameid AND latest.version = a.latest_version
                     where a.gameid = ? 
-                    AND b.ownerid = ?
-                `, [game.gameid, user.id]);
+                    AND p.shortid = ?
+                `, [{ toSqlString: () => game.gameid }, user.shortid]);
             }
             else if (game.game_slug) {
-                console.log("Searching for dev game by gameid/ownerid: ", game.game_slug, user.id);
+                console.log("Searching for dev game by gameid/ownerid: ", game.game_slug, user.shortid);
                 response = await db.sql(`
                     select 
                         a.*, 
@@ -270,11 +276,13 @@ module.exports = class DevGameService {
                         b.apikey
                     from game_info a
                     LEFT JOIN game_dev b ON b.gameid = a.gameid
+                    LEFT JOIN person p ON b.ownerid = p.id
                     LEFT JOIN game_version cur ON cur.gameid = a.gameid AND cur.version = a.version
                     LEFT JOIN game_version latest ON latest.gameid = a.gameid AND latest.version = a.latest_version
                     where a.game_slug = ? 
-                    AND b.ownerid = ?
-                `, [game.game_slug, user.id]);
+                    AND p.shortid = ?
+                    AND b.ownerid = p.id
+                `, [game.game_slug, user.shortid]);
             }
             // else if (game.shortid) {
             //     response = await db.sql('select * from game_info where shortid = ? AND ownerid = ?', [game.shortid, { toSqlString: () => user.id }]);
@@ -608,7 +616,7 @@ module.exports = class DevGameService {
             }
             else {
 
-                let dev = await this.findDevByGame(gameid, user.id);
+                let dev = await this.findDevByGame(gameid, user.shortid);
                 if (!dev) {
                     throw new GeneralError("E_NOTAUTHORIZED");
                 }
@@ -715,7 +723,7 @@ module.exports = class DevGameService {
                 throw new GeneralError("E_SUSPENDED");
             }
 
-            let dev = await this.findDevByGame(game.gameid, user.id);
+            let dev = await this.findDevByGame(gameFull.gameid, user.shortid);
             if (!dev)
                 throw new GeneralError("E_NOTAUTHORIZED");
 
@@ -725,7 +733,7 @@ module.exports = class DevGameService {
                 status: 3 //production
             }
 
-            let { results } = await db.update('game_info', deployedGame, 'gameid=?', [game.gameid]);
+            let { results } = await db.update('game_info', deployedGame, 'gameid=?', [gameFull.gameid]);
             console.log(results);
 
             if (results.affectedRows > 0)

@@ -252,7 +252,7 @@ module.exports = class GameService {
                 return null;
             }
             let game = response.results[0];
-            console.log("Game Found: ", JSON.stringify(game, null, 2));
+            console.log("Game Found: ", game.game_slug);//JSON.stringify(game, null, 2));
 
             if (ignoreExtra)
                 return { game }
@@ -411,7 +411,7 @@ module.exports = class GameService {
         //   redis.set(game_slug + '/top10', rankings, 60);
         //}
 
-        console.log("top10: ", game_slug, rankings);
+        // console.log("top10: ", game_slug, rankings);
         return rankings;
     }
 
@@ -522,6 +522,7 @@ module.exports = class GameService {
                     await redis.zrem(game_slug + '/lb', [ranker.value]);
                     return await this.getGameLeaderboardCount(game_slug, player, rank)
                 }
+                ranker.displayname = ranker.value;
                 ranker.rank = rank + (playerPos + i)
                 ranker.portraitid = p.portraitid;
                 ranker.countrycode = p.countrycode;
@@ -731,7 +732,7 @@ module.exports = class GameService {
         //redis.set(game_slug + '/top10hs', rankings, 60);
         //}
 
-        console.log("getGameTop10PlayersHighscore: ", game_slug, rankings);
+        // console.log("getGameTop10PlayersHighscore: ", game_slug, rankings);
         return rankings;
     }
 
