@@ -951,7 +951,7 @@ class RoomService {
             let resoh = published.resoh;
             let screenwidth = published.screenwidth;
 
-            // let preview_images = published.preview_images;
+            let preview_images = published.preview_images;
 
             //experimental uses the latest version that is not in production
             if (mode == 'experimental') {
@@ -999,7 +999,7 @@ class RoomService {
                 rating,
                 lbscore,
                 owner: shortid,
-                // preview_images,
+                preview_images,
                 isprivate: 0,
                 // scaled,
                 screentype,
