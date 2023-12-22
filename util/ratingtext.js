@@ -51,6 +51,7 @@ const ranks = [
     'C',
     'B',
     'A',
+    'Ω'
 ]
 
 module.exports = RatingText = {
