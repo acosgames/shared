@@ -395,7 +395,7 @@ module.exports = class UserService {
 
             for (var i = 0; i < rankResults.length; i++) {
                 let rank = rankResults[i];
-                redis.zrem(rank.game_slug + '/lb', [rank.displayname]);
+                redis.zrem(rank.game_slug + '/rankings', [rank.displayname]);
             }
 
             for (var i = 0; i < rankResults.length; i++) {

@@ -261,17 +261,17 @@ module.exports = class GameService {
 
 
 
-            game.queueCount = await this.getGameQueueCount(game_slug) || 0;
-            let top10 = await this.getGameTop10Players(game_slug) || [];
+            // game.queueCount = await this.getGameQueueCount(game_slug) || 0;
+            // let top10 = await this.getGameTop10Players(game_slug) || [];
             // game.lb = await this.getPlayerGameLeaderboard(game_slug, game.displayname) || [];
-            let lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
+            // let lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
 
-            let cleaned = {
-                game,
-                top10,
-                lbCount
-            }
-            return cleaned;
+            // let cleaned = {
+            // game,
+            // top10,
+            // lbCount
+            // }
+            return game;
         }
         catch (e) {
             if (e instanceof GeneralError)
@@ -376,7 +376,7 @@ module.exports = class GameService {
         }
     }
 
-    async getGameTop10Players(game_slug) {
+    async getGameTop10Players(game_slug, countrycode) {
 
         //let rankings = await redis.get(game_slug + '/top10');
         //if (!rankings) {
@@ -389,18 +389,23 @@ module.exports = class GameService {
             WHERE b.game_slug = ?
             AND b.season = ?
             AND b.played > 0
+            ${countrycode ? 'AND a.countrycode = ?' : ''}
             ORDER BY b.rating DESC
-            LIMIT 30
-        `, [game_slug, 0]);
+            LIMIT 100
+        `, [game_slug, 0, countrycode]);
 
         let rankings = sqlTop10.results;
 
-        let redisRankings = await redis.zrevrange(game_slug + '/lb', 0, 25);
+        let redisKey = game_slug + '/rankings';
+        if (countrycode)
+            redisKey += '/' + countrycode;
+
+        let redisRankings = await redis.zrevrange(redisKey, 0, 1);
 
         if (redisRankings.length == 0) {
             let total = await this.updateAllRankings(game_slug);
             if (total > 0) {
-                return this.getGameTop10Players(game_slug);
+                return this.getGameTop10Players(game_slug, countrycode);
             }
         }
 
@@ -421,7 +426,14 @@ module.exports = class GameService {
         console.log("updateAllRankings ", game_slug);
 
         let total = 0;
-        let responseCnt = await db.sql(`SELECT count(*) as cnt FROM person_rank WHERE game_slug = ? and season = ? and played > 0`, [game_slug, 0]);
+        let responseCnt = await db.sql(`SELECT count(*) as cnt 
+        FROM person_rank b
+        LEFT JOIN person a
+            ON b.shortid = a.shortid
+        WHERE b.game_slug = ? 
+        and b.season = ? 
+        and b.played > 0
+        `, [game_slug, 0]);
         if (responseCnt && responseCnt.results && responseCnt.results.length > 0) {
             total = Number(responseCnt.results[0]?.cnt) || 0;
         }
@@ -433,13 +445,13 @@ module.exports = class GameService {
 
         while (offset < total) {
 
-            let count = 1000;
+            let count = 10000;
             if (offset + count > total) {
                 count = total - offset;
             }
 
             response = await db.sql(`
-                SELECT a.displayname as value, b.rating as score
+                SELECT a.displayname as value, b.rating as score, a.countrycode
                 FROM person a, person_rank b
                 WHERE a.shortid = b.shortid
                 AND b.game_slug = ?
@@ -448,34 +460,53 @@ module.exports = class GameService {
                 LIMIT ?,?
             `, [game_slug, 0, offset, count]);
 
+
+
             if (!response || !response.results || response.results.length == 0)
                 break;
 
             let members = response.results;
-            let result = await redis.zadd(game_slug + '/lb', members);
+            let redisKey = game_slug + '/rankings';
+
+            let result = await redis.zadd(redisKey, members);
+
+            for (let i = 0; i < response.results.length; i++) {
+                let player = response.results[i];
+                redis.zadd(redisKey + '/' + player.countrycode, [{ value: player.value, score: player.score }]);
+            }
             offset += count;
         }
 
         return total;
     }
 
-    async getGameLeaderboardCount(game_slug) {
-        let count = await redis.zcount(game_slug + '/lb', 0, 10000000);
+    async getGameLeaderboardCount(game_slug, countrycode) {
+        let redisKey = game_slug + '/rankings';
+        if (countrycode)
+            redisKey += '/' + countrycode;
+        let count = await redis.zcount(redisKey, 0, 10000000);
         console.log("count: ", game_slug, count);
         return count;
     }
 
-    async getPlayerGameRank(game_slug, player) {
-        let rank = await redis.zrevrank(game_slug + '/lb', player);
+    async getPlayerGameRank(game_slug, player, countrycode) {
+        let redisKey = game_slug + '/rankings';
+        if (countrycode)
+            redisKey += '/' + countrycode;
+        let rank = await redis.zrevrank(redisKey, player);
         console.log("rank: ", game_slug, player, (rank + 1));
 
         return rank + 1;
     }
 
-    async getPlayerGameLeaderboard(game_slug, player, rank) {
+    async getPlayerGameLeaderboard(game_slug, player, rank, countrycode) {
         if (!rank)
             return [];
-        let rankings = await redis.zrevrange(game_slug + '/lb', Math.max(0, rank - 1), rank + 1);
+
+        let redisKey = game_slug + '/rankings';
+        if (countrycode)
+            redisKey += '/' + countrycode;
+        let rankings = await redis.zrevrange(redisKey, Math.max(0, rank - 1), rank + 1);
         console.log("rankings raw: ", rankings);
         let playerPos = 0;
 
@@ -501,12 +532,13 @@ module.exports = class GameService {
             AND b.season = ?
             AND b.played > 0
             AND a.displayname in (?)
+            ${countrycode ? ' AND a.countrycode = ?' : ''}
             ORDER BY b.rating DESC
             LIMIT 30
-        `, [game_slug, 0, playerNames]);
+        `, [game_slug, 0, playerNames, countrycode]);
 
             if (response.results && response.results.length == 0) {
-                return new GeneralError('E_NOTFOUND');
+                return []
             }
             let players = response.results;
             let playersMap = {};
@@ -519,8 +551,8 @@ module.exports = class GameService {
                 let p = playersMap[ranker.value];
                 if (!p) {
 
-                    await redis.zrem(game_slug + '/lb', [ranker.value]);
-                    return await this.getGameLeaderboardCount(game_slug, player, rank)
+                    await redis.zrem(redisKey, [ranker.value]);
+                    return await this.getPlayerGameLeaderboard(game_slug, player, rank, countrycode)
                 }
                 ranker.displayname = ranker.value;
                 ranker.rank = rank + (playerPos + i)
@@ -541,12 +573,37 @@ module.exports = class GameService {
         return rankings;
     }
 
-
-    async findGameLeaderboard(game_slug, shortid, displayname) {
+    async findGameRankNational(game_slug, shortid, displayname, countrycode) {
         try {
             // let db = await mysql.db();
 
-            console.log("findGameLeaderboard: ", game_slug, shortid, displayname);
+            console.log("findGameRankGlobal: ", game_slug, shortid, displayname, countrycode);
+
+            let game = {};
+            game.top10 = await this.getGameTop10Players(game_slug, countrycode) || [];
+            if (displayname) {
+                let playerRank = await this.getPlayerGameRank(game_slug, displayname, countrycode);
+                game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank, countrycode) || [];
+            }
+            else {
+                game.lb = [];
+            }
+            game.lbCount = await this.getGameLeaderboardCount(game_slug, countrycode) || 0;
+            return game;
+        }
+        catch (e) {
+            console.error(e);
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
+    async findGameRankGlobal(game_slug, shortid, displayname) {
+        try {
+            // let db = await mysql.db();
+
+            console.log("findGameRankGlobal: ", game_slug, shortid, displayname);
 
             let game = {};
             game.top10 = await this.getGameTop10Players(game_slug) || [];

@@ -54,12 +54,29 @@ const ranks = [
     'Ω'
 ]
 
-module.exports = RatingText = {
+module.exports = RatingConfig = {
+
+    muDefault: () => { return 25.0 },
+    sigmaDefault: () => { return 1.33 },
+
+    clampMu: (mu) => {
+        return Math.min(60, Math.max(-10, mu))
+    },
+    clampSigma: (sigma) => {
+        return Math.min(10, Math.max(0, sigma))
+    },
+    muRating: (mu) => {
+        //mu should only be between -10 and 60
+        let muRating = (mu + 10);
+        //rating will be between 0 - 7000
+        muRating = Math.min(70, Math.max(0, muRating));
+        return muRating * 100;
+    },
 
     ranks: () => { return ranks },
 
     ratingToRankNumber: (rating) => {
-        const maxRating = 5000;
+        const maxRating = 7000;
         let rt = Math.min(maxRating, Math.max(0, rating));
         rt = rt / maxRating;
         rt = rt * (ranks.length - 1);
@@ -69,7 +86,7 @@ module.exports = RatingText = {
     },
 
     ratingToRank: (rating) => {
-        const maxRating = 5000;
+        const maxRating = 7000;
         let rt = Math.min(maxRating, Math.max(0, rating));
         rt = rt / maxRating;
         rt = rt * (ranks.length - 1);

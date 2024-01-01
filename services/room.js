@@ -6,6 +6,8 @@ const { genUnique64string, genShortId } = require('../util/idgen');
 const { utcDATETIME } = require('../util/datefns');
 const { GeneralError, CodeError, SQLError } = require('../util/errorhandler');
 
+const { uniqueName } = require('../util/utils');
+
 const redis = require('./redis');
 
 const GameService = require('./game');
@@ -21,6 +23,7 @@ function sleep(ms) {
 }
 
 const cache = require('./cache');
+const { muRating, muDefault, sigmaDefault } = require('../util/ratingconfig');
 
 const ModeFromID = [
     'experimental', 'rank', 'public', 'private'
@@ -231,7 +234,7 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting player room:", shortid, game_slug);
-            response = await db.sql('SELECT a.shortid, b.* FROM person_room a LEFT JOIN game_room b ON a.room_slug = b.room_slug WHERE a.shortid = ? AND b.game_slug = ?', [shortid, game_slug]);
+            response = await db.sql('SELECT a.shortid, b.* FROM person_room a LEFT JOIN game_room b ON a.room_id = b.room_id WHERE a.shortid = ? AND b.game_slug = ?', [shortid, game_slug]);
 
             if (response.results && response.results.length > 0) {
                 return response.results;
@@ -288,7 +291,7 @@ class RoomService {
             response = await db.sql(`SELECT a.shortid, b.*, c.name
             FROM person_room a 
             LEFT JOIN game_room b 
-                ON a.room_slug = b.room_slug 
+                ON a.room_id = b.room_id 
             LEFT JOIN game_info c
                 ON b.game_slug = c.game_slug
             WHERE a.shortid = ?`, [shortid]);
@@ -312,9 +315,11 @@ class RoomService {
             for (var id in players) {
                 let player = players[id];
                 members.push({ value: player.name, score: player.rating });
+                redis.zadd(game_slug + '/rankings/' + player.countrycode, [{ value: player.name, score: player.rating }]);
             }
 
-            let result = await redis.zadd(game_slug + '/lb', members);
+            let result = await redis.zadd(game_slug + '/rankings', members);
+            console.log(result);
             return result;
         }
         catch (e) {
@@ -411,7 +416,7 @@ class RoomService {
         cache.set(key, highscore, 600);
     }
 
-    async findPlayerRatings(room_slug, game_slug) {
+    async findPlayerRatings(playerShortids, game_slug) {
         try {
             let db = await mysql.db();
             var response;
@@ -419,7 +424,6 @@ class RoomService {
             response = await db.sql(`
                 SELECT 
                     a.shortid,
-                    a.game_slug,
                     b.rating, 
                     b.mu, 
                     b.sigma, 
@@ -427,53 +431,30 @@ class RoomService {
                     b.loss, 
                     b.tie, 
                     b.played,
+                    b.division,
+                    b.season,
                     b.highscore
-                FROM person_room a
-                LEFT JOIN person_rank b 
-                    ON a.shortid = b.shortid AND b.game_slug = a.game_slug
-                WHERE a.game_slug = ?
-                AND a.room_slug = ?
-            `, [game_slug, room_slug]);
+                FROM person a
+                LEFT JOIN person_rank b
+                    ON a.shortid = b.shortid AND b.game_slug = ? AND b.season = ?
+                WHERE a.shortid in (?)
+            `, [game_slug, 0, playerShortids]);
 
             let results = response.results;
             if (results && results.length > 0) {
 
                 for (var i = 0; i < results.length; i++) {
-                    let rating = results[i];
-
-                    let key = rating.shortid + '/' + rating.game_slug;
+                    let personRank = results[i];
+                    let key = personRank.shortid + '/' + game_slug;
 
                     //rating exists, cache it
-                    if (rating.rating != null) {
-                        // delete rating.shortid;
-                        delete rating.game_slug;
-                        cache.set(key, rating, 600);
+                    if (personRank.rating == null) {
+                        let newRating = await this.createPersonRank(personRank.shortid, game_slug);
+                        results[i] = newRating;
                         continue;
                     }
 
-                    //create new rating and cache it
-                    let mu = 25.0;
-                    let sigma = 5;
-                    let newRating = {
-                        shortid: rating.shortid,
-                        game_slug: rating.game_slug,
-                        rating: mu * 100,
-                        mu,
-                        sigma,
-                        win: 0,
-                        loss: 0,
-                        tie: 0,
-                        played: 0,
-                        highscore: 0
-                    };
-                    results[i] = newRating;
-                    response = await db.insert('person_rank', newRating);
-                    console.log("Saving player rating: ", key, newRating.rating);
-
-                    // delete rating.shortid;
-                    delete rating.game_slug;
-                    cache.set(key, rating, 600);
-
+                    cache.set(key, personRank, 600);
                 }
                 // console.log("Getting player rating for: ", key, rating.rating);
                 return results;
@@ -486,22 +467,164 @@ class RoomService {
 
     }
 
+    async findAvailableDivision(db, game_slug) {
+        try {
+            // let db = await mysql.db();
+
+            let response = await db.sql(`SELECT d.division_id, d.season, d.player_count
+            FROM division d 
+            LEFT JOIN game_info gi 
+                ON gi.game_slug = d.game_slug
+            WHERE d.game_slug = ? 
+            AND d.season = gi.season
+            ORDER BY d.player_count ASC 
+            LIMIT 10`, [game_slug])
+
+            let division_id = 0;
+            if (!response.results || response.results.length == 0 || response.results[0].player_count >= 100) {
+                let division = await this.createDivision(db, game_slug);
+                return division;
+            }
+
+            return response.results[0];
+        }
+        catch (e) {
+            console.error(e);
+        }
+    }
+
+    async createDivision(db, game_slug) {
+        try {
+            // let db = await mysql.db();
+
+
+            let response2 = await db.sql(`SELECT gi.season FROM game_info gi WHERE gi.game_slug = ?`, [game_slug])
+            let season = response2.results && response2.results.length > 0 ? response2.results[0].season : 0;
+
+            let response = await db.sql(`SELECT MAX(d.division_id) as max_division_id
+            FROM division d
+            WHERE d.game_slug = ?
+            AND d.season = ?`, [game_slug, season])
+
+            let max_division_id = 0;
+            if (response.results && response.results.length > 0) {
+                max_division_id = response.results[0].max_division_id;
+            }
+
+            //create 2 divisions, to spread users around
+            // INCREASE this when game is more popular
+            let division = {
+                game_slug,
+                season,
+                division_id: max_division_id + 1,
+                division_name: await this.findUniqueDivisionName(db, game_slug, season)
+            }
+
+            let division2 = {
+                game_slug,
+                season,
+                division_id: max_division_id + 2,
+                division_name: await this.findUniqueDivisionName(db, game_slug, season)
+            }
+
+            await db.insert('division', division);
+            await db.insert('division', division2);
+
+            let division_id = max_division_id + 1;
+            return { division_id, season };
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return { division_id: 0, season: 0 }
+    }
+
+    async findUniqueDivisionName(db, game_slug, season) {
+        try {
+            // let db = await mysql.db();
+
+            let division_name = uniqueName();
+
+            let response = await db.sql(`SELECT d.division_name FROM division d WHERE d.game_slug = ? AND d.season = ? AND d.division_name = ?`, [game_slug, season, division_name])
+            while (response.results && response.results.length > 0) {
+                division_name = uniqueName();
+                if (!division_name)
+                    return 'Invalid ' + Math.random() * 100000;
+                response = await db.sql(`SELECT d.division_name FROM division d WHERE d.game_slug = ? AND d.season = ? AND d.division_name = ?`, [game_slug, season, division_name])
+            }
+
+            return division_name;
+        }
+        catch (e) {
+            console.error(e);
+        }
+    }
+
+
+    async createPersonRank(player, game_slug) {
+        try {
+            let db = await mysql.db();
+
+            let shortid = player.shortid;
+            //create new rating and cache it
+            let mu = muDefault();
+            let sigma = sigmaDefault();
+            let division = await this.findAvailableDivision(db, game_slug);
+            let personRank = {
+                shortid: shortid,
+                game_slug: game_slug,
+                rating: muRating(mu),
+                mu,
+                sigma,
+                win: 0,
+                loss: 0,
+                tie: 0,
+                played: 0,
+                highscore: 0,
+                division: division.division_id,
+                season: division.season
+            };
+
+            let response = await db.insert('person_rank', personRank);
+
+            let incrementResponse = await db.increment('division', { player_count: 0 }, 'game_slug = ? AND season = ? AND division_id = ?', [game_slug, division.season, division.division_id])
+
+            let key = shortid + '/' + game_slug;
+            console.log("Saving player rating: ", key, personRank.rating);
+
+            player.name = player.displayname;
+            player.rating = personRank.rating;
+            // delete rating.shortid;
+            delete personRank.game_slug;
+            cache.set(key, personRank, 600);
+
+            let redisResult = this.updateLeaderboard(game_slug, { [shortid]: player });
+            console.error(redisResult);
+            return personRank;
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return null;
+    }
+
     async findGroupRatings(shortids, game_slugs) {
         try {
 
             let db = await mysql.db();
             var response;
 
-            response = await db.sql(`SELECT b.shortid, b.displayname, a.game_slug, a.rating, a.mu, a.sigma, a.win, a.loss, a.tie, a.played, a.highscore 
+            response = await db.sql(`SELECT b.shortid, b.displayname, b.countrycode, a.game_slug, a.rating, a.mu, a.sigma, a.win, a.loss, a.tie, a.division, a.played, a.season, a.highscore 
                 from person b
                 LEFT JOIN person_rank a
-                    ON b.shortid = a.shortid AND a.game_slug in (?)
-                WHERE b.shortid in (?)`, [game_slugs, shortids]);
+                    ON b.shortid = a.shortid AND a.game_slug in (?) AND a.season = ?
+                WHERE b.shortid in (?)`, [game_slugs, 0, shortids]);
 
 
             //build players list first
             let playerNames = {};
             let players = {};
+            let playerInfo = {};
             for (const result of response.results) {
                 if (!(result.shortid in players))
                     players[result.shortid] = {};
@@ -510,6 +633,8 @@ class RoomService {
 
                 if (result.game_slug)
                     players[result.shortid][result.game_slug] = result;
+
+                playerInfo[result.shortid] = result;
             }
 
             for (const shortid in players) {
@@ -518,34 +643,11 @@ class RoomService {
 
                     let key = shortid + '/' + game_slug;
                     if (game_slug in player) {
-                        cache.set(key, player, 600);
+                        cache.set(key, player[game_slug], 600);
                         continue;
                     }
 
-                    //player needs a rating, create a new one
-
-                    // let mu = Math.floor(Math.random() * 32) + 2
-                    // let sigma = 1.5;
-                    // rating = mu * 100;
-                    // let rating = 100;
-                    let mu = 0.1;
-                    let sigma = 5;
-                    let newRating = {
-                        shortid,
-                        game_slug,
-                        rating: mu * 100,
-                        mu,
-                        sigma,
-                        win: 0,
-                        loss: 0,
-                        tie: 0,
-                        played: 0,
-                        highscore: 0
-                    };
-
-                    cache.set(key, newRating, 600);
-                    response = await db.insert('person_rank', newRating);
-                    console.log("Created player rating for: ", key, newRating.rating);
+                    let newRating = await this.createPersonRank(playerInfo[shortid], game_slug);
 
                     //make sure we add displayname into the rating object stored in cache/redis
                     newRating.displayname = playerNames[shortid].displayname;
@@ -575,11 +677,11 @@ class RoomService {
             let db = await mysql.db();
             var response;
 
-            response = await db.sql(`SELECT b.displayname, a.rating, a.mu, a.sigma, a.win, a.loss, a.tie, a.played, a.highscore 
+            response = await db.sql(`SELECT b.shortid, b.displayname, a.rating, a.mu, a.sigma, a.win, a.loss, a.tie, a.played, a.division, a.season, a.highscore 
                 from person b
                 LEFT JOIN person_rank a
-                    ON b.shortid = a.shortid AND a.game_slug = ?
-                WHERE a.shortid = ?`, [game_slug, shortid]);
+                    ON b.shortid = a.shortid AND a.game_slug = ? AND a.season = ?
+                WHERE b.shortid = ?`, [game_slug, 0, shortid]);
 
             //use the first result
             if (response.results && response.results.length > 0) {
@@ -593,29 +695,7 @@ class RoomService {
                 return rating;
             }
 
-            //player needs a rating, create a new one
-
-            // let mu = Math.floor(Math.random() * 32) + 2
-            // let sigma = 1.5;
-            // rating = mu * 100;
-            // let rating = 2000;
-            let mu = 25.0;
-            let sigma = 5;
-            let newRating = {
-                shortid,
-                game_slug,
-                rating: mu * 100,
-                mu,
-                sigma,
-                win: 0,
-                loss: 0,
-                tie: 0,
-                played: 0,
-                highscore: 0
-            };
-            cache.set(key, newRating, 600);
-            response = await db.insert('person_rank', newRating);
-            console.log("Created player rating for: ", key, newRating.rating);
+            let newRating = await this.createPersonRank(shortid, game_slug);
 
             //make sure we add displayname into the rating object stored in cache/redis
             newRating.displayname = rating.displayname;
@@ -678,7 +758,7 @@ class RoomService {
             var response;
             console.log("Getting list of rooms");
             //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, b.latest_version, i.maxplayers, r.* FROM game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.game_slug = ? AND isprivate = 0 AND isfull = 0 AND r.player_count < i.maxplayers ORDER BY version desc, rating desc', [game_slug]);
-            response = await db.sql('SELECT * from game_room r WHERE r.game_slug = ? AND isprivate = 0 AND isfull = 0 ORDER BY version desc, rating desc', [game_slug])
+            response = await db.sql('SELECT * from game_room r WHERE r.game_slug = ? AND isprivate = 0 AND status = 0 ORDER BY version desc, rating desc', [game_slug])
             return response.results;
         }
         catch (e) {
@@ -1090,7 +1170,7 @@ class RoomService {
     //     return [];
     // }
 
-    async deleteRoom(room_slug) {
+    async deleteRoom(room_id) {
         try {
             // cache.del(room_slug);
             // cache.del(room_slug + '/meta');
@@ -1099,10 +1179,10 @@ class RoomService {
 
             let db = await mysql.db();
             var response;
-            console.log("Deleting room: " + room_slug);
+            console.log("Deleting room: " + room_id);
 
-            response = await db.delete('game_room', 'WHERE room_slug = ?', [room_slug]);
-            response = await db.delete('person_room', 'WHERE room_slug = ?', [room_slug]);
+            response = await db.delete('game_room', 'WHERE room_id = ?', [room_id]);
+            response = await db.delete('person_room', 'WHERE room_id = ?', [room_id]);
             // response = await db.delete('game_room_meta', 'WHERE room_slug = ?', [room_meta]);
 
             return response.results;
