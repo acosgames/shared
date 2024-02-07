@@ -89,13 +89,13 @@ class RoomService {
         }
     }
 
-    async assignPlayersToRoom(shortids, room_slug, game_slug) {
+    async assignPlayersToRoom(shortids, room_slug, room_id, game_slug) {
         try {
             let db = await mysql.db();
 
-            let meta = await this.findRoom(room_slug);
+            let meta = await this.findRoomById(room_id);
             if (!meta) {
-                console.error("[assignPlayersToRoom] Room does not exist: " + room_slug);
+                console.error("[assignPlayersToRoom] Room ID does not exist: " + room_id);
                 return null;
             }
 
@@ -107,7 +107,8 @@ class RoomService {
             for (const shortid of shortids) {
                 let roomPlayer = {
                     shortid,
-                    room_slug,
+                    room_id,
+                    room_slug: meta.room_slug,
                     game_slug,
                     mode,
                     version
@@ -116,7 +117,7 @@ class RoomService {
             }
 
             // console.log("Updating highscores to person_rank: ", incrementList, ratings);
-            var response = await db.insertBatch('person_room', roomPlayers, ['shortid', 'room_slug']);
+            var response = await db.insertBatch('person_room', roomPlayers, ['shortid', 'room_id']);
             if (response && response.results.affectedRows > 0) {
                 return true;
             }
@@ -129,18 +130,18 @@ class RoomService {
         }
     }
 
-    async assignPlayerRoom(shortid, room_slug, game_slug) {
+    async assignPlayerRoom(shortid, room_id, game_slug) {
         try {
             let db = await mysql.db();
 
-            console.log("Assigning player [" + shortid + "] to: ", room_slug);
+            console.log("Assigning player [" + shortid + "] to: ", room_id);
 
             // let key = shortid + '/' + room_slug;
             // cache.set(key, true);
 
-            let meta = await this.findRoom(room_slug);
+            let meta = await this.findRoomById(room_id);
             if (!meta) {
-                console.error("[assignPlayerRoom] Room does not exist: " + room_slug);
+                console.error("[assignPlayerRoom] Room ID does not exist: " + room_id);
                 return null;
             }
             game_slug = meta.game_slug;
@@ -149,7 +150,8 @@ class RoomService {
             let version = meta.mode == 'experimental' ? meta.latest_version : meta.version;
             let personRoom = {
                 shortid,
-                room_slug,
+                room_id,
+                room_slug: meta.room_slug,
                 game_slug,
                 mode,
                 version
@@ -711,6 +713,48 @@ class RoomService {
         }
     }
 
+    async findRoomById(room_id) {
+        try {
+            // let key = room_id + '/meta';
+            // let room = await cache.get(key);
+            // if (room) return room;
+
+            // room = await redis.get(key);
+            // if( room ) return room;
+
+            let db = await mysql.db();
+            var response;
+            console.log("Getting room info by id: ", room_id);
+            //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
+            response = await db.sql('SELECT r.*, i.name from game_room r, game_info i WHERE r.room_id = ? AND r.game_slug = i.game_slug', [room_id]);
+
+            if (response.results && response.results.length > 0) {
+                let room = response.results[0];
+                //convert from id to name
+
+                if (room.maxteams > 0) {
+                    let teamResponse = await db.sql('SELECT * from game_team WHERE game_slug = ?', [room.game_slug]);
+                    if (teamResponse.results && teamResponse.results.length > 0) {
+                        room.teams = teamResponse.results;
+                    }
+                }
+
+                room.mode = this.getGameModeName(room.mode);
+                delete room['tsupdate'];
+                delete room['tsinsert'];
+                let key = room.room_slug + '/meta';
+                cache.set(key, room);
+                return room;
+            }
+            return null;
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+
     async findRoom(room_slug) {
         try {
             let key = room_slug + '/meta';
@@ -1057,14 +1101,14 @@ class RoomService {
             //use ID instead of name for database
             mode = this.getGameModeID(mode);
 
-            let id = genShortId(5);
-            let checkRoom = await this.findRoom(id);
+            let room_slug = genShortId(5);
+            let checkRoom = await this.findRoom(room_slug);
             while (checkRoom) {
-                id = genShortId(5);
-                checkRoom = await this.findRoom(id);
+                room_slug = genShortId(5);
+                checkRoom = await this.findRoom(room_slug);
             }
             let room = {
-                room_slug: id,
+                room_slug,
                 game_slug,
                 gameid,
                 version,
@@ -1106,6 +1150,11 @@ class RoomService {
                 }
 
                 room.name = published.name;
+
+                let roomResponse = await db.sql(`SELECT room_id FROM game_room WHERE room_slug = ?`, [room.room_slug])
+                if (roomResponse.results && roomResponse.results.length > 0) {
+                    room.room_id = roomResponse.results[0].room_id;
+                }
 
 
             }
