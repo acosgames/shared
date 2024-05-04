@@ -54,7 +54,7 @@ const ranks = [
     'Ω'
 ]
 
-module.exports = RatingConfig = {
+const RatingConfig = {
 
     muDefault: () => { return 25.0 },
     sigmaDefault: () => { return 1.33 },
@@ -96,3 +96,5 @@ module.exports = RatingConfig = {
 
     }
 }
+
+module.exports = RatingConfig;

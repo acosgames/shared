@@ -259,18 +259,6 @@ module.exports = class GameService {
 
             game.votes = await this.findGameVotes(game_slug);
 
-
-
-            // game.queueCount = await this.getGameQueueCount(game_slug) || 0;
-            // let top10 = await this.getGameTop10Players(game_slug) || [];
-            // game.lb = await this.getPlayerGameLeaderboard(game_slug, game.displayname) || [];
-            // let lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
-
-            // let cleaned = {
-            // game,
-            // top10,
-            // lbCount
-            // }
             return game;
         }
         catch (e) {
@@ -376,253 +364,6 @@ module.exports = class GameService {
         }
     }
 
-    async getGameTop10Players(game_slug, countrycode) {
-
-        //let rankings = await redis.get(game_slug + '/top10');
-        //if (!rankings) {
-        let db = await mysql.db();
-        let sqlTop10 = await db.sql(`
-            SELECT a.displayname, b.rating, a.portraitid, a.countrycode
-            FROM person a
-            LEFT JOIN person_rank b
-                ON a.shortid = b.shortid
-            WHERE b.game_slug = ?
-            AND b.season = ?
-            AND b.played > 0
-            ${countrycode ? 'AND a.countrycode = ?' : ''}
-            ORDER BY b.rating DESC
-            LIMIT 100
-        `, [game_slug, 0, countrycode]);
-
-        let rankings = sqlTop10.results;
-
-        let redisKey = game_slug + '/rankings';
-        if (countrycode)
-            redisKey += '/' + countrycode;
-
-        let redisRankings = await redis.zrevrange(redisKey, 0, 1);
-
-        if (redisRankings.length == 0) {
-            let total = await this.updateAllRankings(game_slug);
-            if (total > 0) {
-                return this.getGameTop10Players(game_slug, countrycode);
-            }
-        }
-
-        for (var i = 0; i < rankings.length; i++) {
-            rankings[i].rank = (i + 1);
-        }
-
-        //   redis.set(game_slug + '/top10', rankings, 60);
-        //}
-
-        // console.log("top10: ", game_slug, rankings);
-        return rankings;
-    }
-
-    async updateAllRankings(game_slug) {
-        let db = await mysql.db();
-        var response;
-        console.log("updateAllRankings ", game_slug);
-
-        let total = 0;
-        let responseCnt = await db.sql(`SELECT count(*) as cnt 
-        FROM person_rank b
-        LEFT JOIN person a
-            ON b.shortid = a.shortid
-        WHERE b.game_slug = ? 
-        and b.season = ? 
-        and b.played > 0
-        `, [game_slug, 0]);
-        if (responseCnt && responseCnt.results && responseCnt.results.length > 0) {
-            total = Number(responseCnt.results[0]?.cnt) || 0;
-        }
-
-        if (total == 0)
-            return 0;
-
-        let offset = 0;
-
-        while (offset < total) {
-
-            let count = 10000;
-            if (offset + count > total) {
-                count = total - offset;
-            }
-
-            response = await db.sql(`
-                SELECT a.displayname as value, b.rating as score, a.countrycode
-                FROM person a, person_rank b
-                WHERE a.shortid = b.shortid
-                AND b.game_slug = ?
-                AND b.season = ?
-                AND b.played > 0
-                LIMIT ?,?
-            `, [game_slug, 0, offset, count]);
-
-
-
-            if (!response || !response.results || response.results.length == 0)
-                break;
-
-            let members = response.results;
-            let redisKey = game_slug + '/rankings';
-
-            let result = await redis.zadd(redisKey, members);
-
-            for (let i = 0; i < response.results.length; i++) {
-                let player = response.results[i];
-                redis.zadd(redisKey + '/' + player.countrycode, [{ value: player.value, score: player.score }]);
-            }
-            offset += count;
-        }
-
-        return total;
-    }
-
-    async getGameLeaderboardCount(game_slug, countrycode) {
-        let redisKey = game_slug + '/rankings';
-        if (countrycode)
-            redisKey += '/' + countrycode;
-        let count = await redis.zcount(redisKey, 0, 10000000);
-        console.log("count: ", game_slug, count);
-        return count;
-    }
-
-    async getPlayerGameRank(game_slug, player, countrycode) {
-        let redisKey = game_slug + '/rankings';
-        if (countrycode)
-            redisKey += '/' + countrycode;
-        let rank = await redis.zrevrank(redisKey, player);
-        console.log("rank: ", game_slug, player, (rank + 1));
-
-        return rank + 1;
-    }
-
-    async getPlayerGameLeaderboard(game_slug, player, rank, countrycode) {
-        if (!rank)
-            return [];
-
-        let redisKey = game_slug + '/rankings';
-        if (countrycode)
-            redisKey += '/' + countrycode;
-        let rankings = await redis.zrevrange(redisKey, Math.max(0, rank - 1), rank + 1);
-        console.log("rankings raw: ", rankings);
-        let playerPos = 0;
-
-        let playerNames = [];
-        for (var i = 0; i < rankings.length; i++) {
-            playerNames.push(rankings[i].value);
-            if (rankings[i].value == player) {
-                playerPos = -i;
-                // break;
-            }
-        }
-
-        try {
-
-            let db = await mysql.db();
-
-            let response = await db.sql(`
-            SELECT a.displayname, b.rating, a.portraitid, a.countrycode
-            FROM person a
-            LEFT JOIN person_rank b
-                ON a.shortid = b.shortid
-            WHERE b.game_slug = ?
-            AND b.season = ?
-            AND b.played > 0
-            AND a.displayname in (?)
-            ${countrycode ? ' AND a.countrycode = ?' : ''}
-            ORDER BY b.rating DESC
-            LIMIT 30
-        `, [game_slug, 0, playerNames, countrycode]);
-
-            if (response.results && response.results.length == 0) {
-                return []
-            }
-            let players = response.results;
-            let playersMap = {};
-            players.forEach(p => playersMap[p.displayname] = p)
-
-            let otherRank = 0;
-            for (var i = 0; i < rankings.length; i++) {
-
-                let ranker = rankings[i];
-                let p = playersMap[ranker.value];
-                if (!p) {
-
-                    await redis.zrem(redisKey, [ranker.value]);
-                    return await this.getPlayerGameLeaderboard(game_slug, player, rank, countrycode)
-                }
-                ranker.displayname = ranker.value;
-                ranker.rank = rank + (playerPos + i)
-                ranker.portraitid = p.portraitid;
-                ranker.countrycode = p.countrycode;
-                ranker.rating = p.rating;
-            }
-
-            console.log("range: ", game_slug, rankings);
-
-        }
-        catch (e) {
-            console.error(e);
-        }
-
-
-
-        return rankings;
-    }
-
-    async findGameRankNational(game_slug, shortid, displayname, countrycode) {
-        try {
-            // let db = await mysql.db();
-
-            console.log("findGameRankGlobal: ", game_slug, shortid, displayname, countrycode);
-
-            let game = {};
-            game.top10 = await this.getGameTop10Players(game_slug, countrycode) || [];
-            if (displayname) {
-                let playerRank = await this.getPlayerGameRank(game_slug, displayname, countrycode);
-                game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank, countrycode) || [];
-            }
-            else {
-                game.lb = [];
-            }
-            game.lbCount = await this.getGameLeaderboardCount(game_slug, countrycode) || 0;
-            return game;
-        }
-        catch (e) {
-            console.error(e);
-            if (e instanceof GeneralError)
-                throw e;
-            throw new CodeError(e);
-        }
-    }
-
-    async findGameRankGlobal(game_slug, shortid, displayname) {
-        try {
-            // let db = await mysql.db();
-
-            console.log("findGameRankGlobal: ", game_slug, shortid, displayname);
-
-            let game = {};
-            game.top10 = await this.getGameTop10Players(game_slug) || [];
-            if (displayname) {
-                let playerRank = await this.getPlayerGameRank(game_slug, displayname);
-                game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank) || [];
-            }
-            else {
-                game.lb = [];
-            }
-            game.lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
-            return game;
-        }
-        catch (e) {
-            if (e instanceof GeneralError)
-                throw e;
-            throw new CodeError(e);
-        }
-    }
 
     async findGamePerson(game_slug, shortid, displayname) {
         try {
@@ -651,49 +392,42 @@ module.exports = class GameService {
                 coalesce(c.tie,0) as tie, 
                 coalesce(c.played,0) as played, 
                 coalesce(c.highscore,0) as highscore,
-                a.*
-                FROM game_info a, person d, game_version cur, game_version latest
-                LEFT JOIN game_review b ON (b.game_slug = ? AND b.shortid = ?)
-                LEFT JOIN person_rank c ON (c.game_slug = ? AND c.shortid = ?)
+                a.*,
+                dv.division_id,
+                dv.season as division_season,
+                dv.division_name,
+                dv.player_count as division_playercount
+                FROM game_info a
+                LEFT JOIN person d ON (d.id = a.ownerid)
+                LEFT JOIN game_version cur ON (cur.gameid = a.gameid AND cur.version = a.version)
+                LEFT JOIN game_version latest ON (latest.gameid = a.gameid AND latest.version = a.latest_version)
+                LEFT JOIN person_rank c ON (c.shortid = ? AND c.game_slug = a.game_slug  AND c.season = a.season)
+                LEFT JOIN game_review b ON (b.game_slug = a.game_slug AND b.shortid = c.shortid)
+                LEFT JOIN division dv ON (dv.game_slug = c.game_slug AND dv.division_id = c.division)
                 WHERE a.game_slug = ?
                 AND a.ownerid = d.id
-                AND (a.gameid = cur.gameid AND a.version = cur.version)
                 AND (a.gameid = latest.gameid AND a.latest_version = latest.version)
                 AND a.visible != 2
-            `, [game_slug, shortid, game_slug, shortid, game_slug]);
+            `, [shortid, game_slug]);
 
             if (response.results && response.results.length == 0) {
                 return new GeneralError('E_NOTFOUND');
             }
 
             let game = response.results[0];
-
             game.votes = await this.findGameVotes(game_slug);
-            game.top10 = await this.getGameTop10Players(game_slug) || [];
-            let playerRank = -1;
-            if (displayname) {
-                playerRank = await this.getPlayerGameRank(game_slug, displayname);
-                if (playerRank) {
-                    game.lb = await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank) || [];
-                    //game.ratingTxt = await this.ratingToRank(game.rating);
-                }
-                else {
-                    game.lb = [];
-                    //game.ratingTxt = 'Unranked'
-                }
-
-            }
-            else {
-                game.lb = [];
-                //game.ratingTxt = 'Unranked'
-            }
-            game.lbCount = await this.getGameLeaderboardCount(game_slug) || 0;
             game.queueCount = await this.getGameQueueCount(game_slug) || 0;
+
             let cleaned = {
                 game: {
                     gameid: game.gameid,
                     game_slug: game.game_slug,
                     name: game.name,
+                    season: game.season,
+                    division_id: game.division_id,
+                    division_name: game.division_name,
+                    division_season: game.division_season,
+                    division_playercount: game.division_playercount,
                     version: game.version,
                     screentype: game.screentype,
                     resow: game.resow,
@@ -726,8 +460,6 @@ module.exports = class GameService {
                 },
                 player: {
                     rating: game.rating,
-                    //ratingTxt: game.ratingTxt,
-                    ranking: playerRank + 1,
                     vote: game.vote,
                     report: game.report,
                     win: game.win,
@@ -735,9 +467,6 @@ module.exports = class GameService {
                     tie: game.tie,
                     played: game.played
                 },
-                top10: game.top10,
-                lb: game.lb,
-                lbCount: game.lbCount
             }
 
             return cleaned;
@@ -752,157 +481,4 @@ module.exports = class GameService {
 
 
 
-    async getGameTop10PlayersHighscore(game_slug) {
-
-        //let rankings = await redis.get(game_slug + '/top10hs');
-        //if (!rankings) {
-        // let rankings = await redis.zrevrange(game_slug + '/lbhs', 0, 19);
-
-        let db = await mysql.db();
-        let sqlTop10 = await db.sql(`
-            SELECT a.displayname, b.highscore, a.portraitid, a.countrycode
-            FROM person a
-            LEFT JOIN person_rank b
-                ON a.shortid = b.shortid
-            WHERE b.game_slug = ?
-            AND b.season = ?
-            AND b.played > 0
-            AND b.highscore > 0
-            ORDER BY b.rating DESC
-            LIMIT 30
-        `, [game_slug, 0]);
-
-        let rankings = sqlTop10.results;
-
-
-        if (rankings.length == 0) {
-            let total = await this.updateAllHighscores(game_slug);
-            if (total > 0) {
-                return this.getGameTop10PlayersHighscore(game_slug);
-            }
-        }
-
-        for (var i = 0; i < rankings.length; i++) {
-            rankings[i].rank = (i + 1);
-        }
-
-        //redis.set(game_slug + '/top10hs', rankings, 60);
-        //}
-
-        // console.log("getGameTop10PlayersHighscore: ", game_slug, rankings);
-        return rankings;
-    }
-
-    async updateAllHighscores(game_slug) {
-        let db = await mysql.db();
-        var response;
-        console.log("updateAllHighscores ", game_slug);
-
-        let total = 0;
-        let responseCnt = await db.sql(`SELECT count(*) as cnt FROM person_rank WHERE game_slug = ? and season = ? and played > 0 and highscore > 0`, [game_slug, 0]);
-        if (responseCnt && responseCnt.results && responseCnt.results.length > 0) {
-            total = Number(responseCnt.results[0]?.cnt) || 0;
-        }
-
-        if (total == 0)
-            return 0;
-
-        let offset = 0;
-
-        while (offset < total) {
-
-            let count = 1000;
-            if (offset + count > total) {
-                count = total - offset;
-            }
-
-            response = await db.sql(`
-                SELECT a.displayname as value, b.highscore as score
-                FROM person a, person_rank b
-                WHERE a.shortid = b.shortid
-                AND b.game_slug = ?
-                AND b.season = ?
-                AND b.played > 0
-                AND b.highscore > 0
-                LIMIT ?,?
-            `, [game_slug, 0, offset, count]);
-
-            if (!response || !response.results || response.results.length == 0)
-                break;
-
-            let members = response.results;
-            let result = await redis.zadd(game_slug + '/lbhs', members);
-            offset += count;
-        }
-
-        return total;
-    }
-
-    async getGameLeaderboardCountHighscore(game_slug) {
-        let count = await redis.zcount(game_slug + '/lbhs', 0, 10000000);
-        console.log("count: ", game_slug, count);
-        return count;
-    }
-
-    async getPlayerGameHighscore(game_slug, player) {
-        let highscore = await redis.zrevrank(game_slug + '/lbhs', player);
-        console.log("highscore: ", game_slug, player, highscore);
-
-        return highscore;
-    }
-
-    async getPlayerGameLeaderboardHighscore(game_slug, player, rank) {
-        if (!rank)
-            return [];
-        let rankings = await redis.zrevrange(game_slug + '/lbhs', Math.max(0, rank - 1), rank + 1);
-        console.log("highscore rankings raw: ", rankings);
-        let playerPos = 0;
-        for (var i = 0; i < rankings.length; i++) {
-            if (rankings[i].value == player) {
-                playerPos = -i;
-                break;
-            }
-        }
-
-        let otherRank = 0;
-        for (var i = 0; i < rankings.length; i++) {
-
-            rankings[i].rank = rank + (playerPos + i + 1)
-        }
-
-        console.log("highscore range: ", game_slug, rankings);
-
-        return rankings;
-    }
-
-
-    async findGameLeaderboardHighscore(game_slug, shortid, displayname) {
-        try {
-            // let db = await mysql.db();
-
-            console.log("findGameLeaderboardHighscore: ", game_slug, shortid, displayname);
-
-            let game = {};
-            game.top10hs = await this.getGameTop10PlayersHighscore(game_slug) || [];
-            if (displayname) {
-                let playerRank = await this.getPlayerGameHighscore(game_slug, displayname);
-                if (playerRank) {
-                    game.lbhs = await this.getPlayerGameLeaderboardHighscore(game_slug, displayname, playerRank) || [];
-                }
-                else {
-                    game.lbhs = [];
-                }
-            }
-            else {
-                game.lbhs = [];
-            }
-            game.lbhsCount = await this.getGameLeaderboardCountHighscore(game_slug) || 0;
-            return game;
-        }
-        catch (e) {
-            if (e instanceof GeneralError)
-                throw e;
-            throw new CodeError(e);
-        }
-    }
 }
