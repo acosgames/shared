@@ -387,6 +387,24 @@ class RoomService {
         }
         return false;
     }
+    async updatePlayerDivision(shortid, game_slug, season, divison_id) {
+        try {
+            let update = {
+                divison_id
+            }
+
+            let db = await mysql.db();
+            var response = await db.update('person_rank', update, 'shortid = ? AND game_slug = ? AND season = ?', [shortid, game_slug]);
+            if (response && response.results.affectedRows > 0) {
+                return true;
+            }
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return false;
+    }
+
     async updatePlayerRating(shortid, game_slug, ratingData) {
         try {
             let update = {
@@ -1035,7 +1053,7 @@ class RoomService {
                 let db = await mysql.db();
 
                 console.log("Creating Replay: ", replay);
-                let response = await db.insert('game_replay', replay);
+                let response = await db.insert('game_match', replay);
             }
             catch (e) {
                 console.error(e);

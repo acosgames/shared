@@ -199,7 +199,7 @@ module.exports = class GameService {
             console.log("Getting game replay: ", game_slug);
             response = await db.sql(`
                 SELECT a.version, a.mode, a.filename, c.screentype, c.resow, c.resoh, c.screenwidth
-                FROM game_replay a, game_info b, game_version c
+                FROM game_match a, game_info b, game_version c
                 WHERE a.game_slug = ?
                 AND a.game_slug = b.game_slug 
                 AND b.gameid = c.gameid
