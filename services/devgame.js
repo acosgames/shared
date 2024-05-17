@@ -94,6 +94,7 @@ module.exports = class DevGameService {
                 ranks.totalPlays,
                 a.*,
                 cur.db AS db,
+                cur.css AS css,
                 cur.screentype AS screentype,
                 cur.resow AS resow,
                 cur.resoh AS resoh,
@@ -103,6 +104,7 @@ module.exports = class DevGameService {
                 latest.resoh AS latest_resoh,
                 latest.screenwidth AS latest_screenwidth,
                 latest.db AS latest_db,
+                latest.css AS latest_css,
                 latest.tsupdate AS latest_tsupdate,
                 b.role,
                 b.apikey
@@ -252,6 +254,7 @@ module.exports = class DevGameService {
                     select 
                         a.*, 
                         cur.db as db,
+                        cur.css AS css,
                         cur.screentype as screentype,
                         cur.resow as resow,
                         cur.resoh as resoh,
@@ -261,6 +264,7 @@ module.exports = class DevGameService {
                         latest.resoh as latest_resoh,
                         latest.screenwidth as latest_screenwidth,
                         latest.db as latest_db,
+                        latest.css AS latest_css,
                         latest.tsupdate as latest_tsupdate,
                         b.role,
                         b.apikey
@@ -285,6 +289,7 @@ module.exports = class DevGameService {
                     select 
                         a.*, 
                         cur.db as db,
+                        cur.css AS css,
                         cur.screentype as screentype,
                         cur.resow as resow,
                         cur.resoh as resoh,
@@ -294,6 +299,7 @@ module.exports = class DevGameService {
                         latest.resoh as latest_resoh,
                         latest.screenwidth as latest_screenwidth,
                         latest.db as latest_db,
+                        latest.css AS latest_css,
                         latest.tsupdate as latest_tsupdate,
                         b.role,
                         b.apikey
@@ -324,6 +330,7 @@ module.exports = class DevGameService {
                     select 
                         a.*, 
                         cur.db as db,
+                        cur.css AS css,
                         cur.screentype as screentype,
                         cur.resow as resow,
                         cur.resoh as resoh,
@@ -333,6 +340,7 @@ module.exports = class DevGameService {
                         latest.resoh as latest_resoh,
                         latest.screenwidth as latest_screenwidth,
                         latest.db as latest_db,
+                        latest.css AS latest_css,
                         latest.tsupdate as latest_tsupdate,
                         b.role,
                         b.apikey
@@ -452,6 +460,7 @@ module.exports = class DevGameService {
     async createGameVersion(
         game,
         hasDB,
+        hasCSS,
         screentype,
         resow,
         resoh,
@@ -471,6 +480,7 @@ module.exports = class DevGameService {
                 resoh,
                 screenwidth,
                 db: hasDB ? 1 : 0,
+                css: hasCSS ? 1 : 0,
             };
             let { results } = await db.insert("game_version", gameVersion);
             console.log(results);
