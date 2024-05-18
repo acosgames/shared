@@ -1,28 +1,36 @@
-const { uniqueNamesGenerator, Config, adjectives, animals } = require('unique-names-generator');
+const {
+    uniqueNamesGenerator,
+    Config,
+    adjectives,
+    animals,
+} = require("unique-names-generator");
 
 const customConfig = {
     dictionaries: [adjectives, animals],
-    separator: ' ',
+    separator: " ",
     length: 2,
-    style: 'capital',
+    style: "capital",
 };
 
 module.exports = {
     isObject: (x) => {
-        return x != null && (typeof x === 'object' || typeof x === 'function') && !Array.isArray(x);
+        return (
+            x != null &&
+            (typeof x === "object" || typeof x === "function") &&
+            !Array.isArray(x)
+        );
     },
     uniqueName: () => {
+        let displayname = uniqueNamesGenerator(customConfig);
 
-        let name = uniqueNamesGenerator(customConfig);
+        // console.log(displayname); // Purring Swordfish <-------------------------------
 
-        // console.log(name); // Purring Swordfish <-------------------------------
+        const split = displayname.split(" ");
 
-        const split = name.split(' ');
-
-        if (split[0] === 'sexual') {
-            name = `Diabolic ${split[1]}`;
+        if (split[0] === "sexual") {
+            displayname = `Diabolic ${split[1]}`;
         }
 
-        return name;
-    }
-}
+        return displayname;
+    },
+};

@@ -339,9 +339,12 @@ class RoomService {
             let members = [];
             for (var id in players) {
                 let player = players[id];
-                members.push({ value: player.name, score: player.rating });
+                members.push({
+                    value: player.displayname,
+                    score: player.rating,
+                });
                 redis.zadd(game_slug + "/rankings/" + player.countrycode, [
-                    { value: player.name, score: player.rating },
+                    { value: player.displayname, score: player.rating },
                 ]);
             }
 
@@ -692,7 +695,7 @@ class RoomService {
             let key = shortid + "/" + game_slug;
             console.log("Saving player rating: ", key, personRank.rating);
 
-            player.name = player.displayname;
+            player.displayname = player.displayname;
             player.rating = personRank.rating;
             // delete rating.shortid;
             delete personRank.game_slug;

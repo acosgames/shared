@@ -1,14 +1,18 @@
-const MySQL = require('./mysql');
+const MySQL = require("./mysql");
 const mysql = new MySQL();
-const { genUnique64string, generateAPIKEY, genFullShortId } = require('../util/idgen');
-const { utcDATETIME } = require('../util/datefns');
-const { GeneralError } = require('../util/errorhandler');
-const gh = require('./github');
-const jwt = require('jsonwebtoken');
+const {
+    genUnique64string,
+    generateAPIKEY,
+    genFullShortId,
+} = require("../util/idgen");
+const { utcDATETIME } = require("../util/datefns");
+const { GeneralError } = require("../util/errorhandler");
+const gh = require("./github");
+const jwt = require("jsonwebtoken");
 // const gh = GitHub;
-const credutil = require('../util/credentials');
-const fs = require('fs');
-const redis = require('./redis');
+const credutil = require("../util/credentials");
+const fs = require("fs");
+const redis = require("./redis");
 
 module.exports = class UserService {
     constructor(credentials) {
@@ -18,37 +22,46 @@ module.exports = class UserService {
 
     encodeUserToken(user, privateKey) {
         return new Promise((rs, rj) => {
-            jwt.sign(user, this.credentials.jwt.secret, { algorithm: 'HS256', expiresIn: '30d', noTimestamp: true }, function (err, token) {
-                if (err) {
-                    rj(err);
-                    return;
+            jwt.sign(
+                user,
+                this.credentials.jwt.secret,
+                { algorithm: "HS256", expiresIn: "30d", noTimestamp: true },
+                function (err, token) {
+                    if (err) {
+                        rj(err);
+                        return;
+                    }
+                    rs(token);
                 }
-                rs(token);
-            });
-        })
+            );
+        });
     }
     decodeUserToken(token, publicKey) {
         return new Promise((rs, rj) => {
-
             if (!publicKey) {
                 try {
                     if (!this.publicKey)
-                        this.publicKey = fs.readFileSync('../shared/credential/jwtRS256.key.pub');
+                        this.publicKey = fs.readFileSync(
+                            "../shared/credential/jwtRS256.key.pub"
+                        );
                     publicKey = this.publicKey;
-                }
-                catch (e) {
+                } catch (e) {
                     rj("Invalid JWT Public Key");
                 }
             }
 
-            jwt.verify(token, this.credentials.jwt.secret, function (err, user) {
-                if (err) {
-                    rj(err);
-                    return;
+            jwt.verify(
+                token,
+                this.credentials.jwt.secret,
+                function (err, user) {
+                    if (err) {
+                        rj(err);
+                        return;
+                    }
+                    rs(user);
                 }
-                rs(user);
-            });
-        })
+            );
+        });
     }
 
     async findPlayer(displayname) {
@@ -56,7 +69,7 @@ module.exports = class UserService {
             let user = await this.findUser({ displayname });
 
             if (!user) {
-                throw new GeneralError('E_PLAYER_NOTFOUND', { displayname });
+                throw new GeneralError("E_PLAYER_NOTFOUND", { displayname });
             }
 
             // let ranks = await this.findPlayerRanks(user.shortid);
@@ -71,12 +84,11 @@ module.exports = class UserService {
                 points: user.points,
                 isdev: user.isdev,
                 ranks: user.ranks,
-                devgames: user.devgames
-            }
+                devgames: user.devgames,
+            };
 
             return filteredUser;
-        }
-        catch (e) {
+        } catch (e) {
             //console.error(e);
             throw e;
         }
@@ -88,7 +100,8 @@ module.exports = class UserService {
 
             let season = 0;
 
-            let response = await db.sql(`
+            let response = await db.sql(
+                `
                 SELECT 
                     a.shortid,
                     a.game_slug,
@@ -107,22 +120,22 @@ module.exports = class UserService {
                 AND a.season = ?
                 AND b.game_slug = a.game_slug
                 AND a.played > 0
-            `, [shortid, season])
+            `,
+                [shortid, season]
+            );
 
             if (response && response?.results.length > 0) {
-
                 let ranks = response.results;
 
                 ranks.sort((a, b) => {
-                    return b.played - a.played
-                })
+                    return b.played - a.played;
+                });
 
                 return ranks;
             }
 
             return [];
-        }
-        catch (e) {
+        } catch (e) {
             //console.error(e);
             throw e;
         }
@@ -133,7 +146,8 @@ module.exports = class UserService {
 
             let season = 0;
 
-            let response = await db.sql(`
+            let response = await db.sql(
+                `
                 SELECT 
                     c.game_slug,
                     c.name,
@@ -145,7 +159,9 @@ module.exports = class UserService {
                 AND a.id = b.ownerid
                 AND b.gameid = c.gameid
                 AND (c.status = 2 OR c.status = 3)
-            `, [shortid, season])
+            `,
+                [shortid, season]
+            );
 
             if (response && response?.results.length > 0) {
                 let devgames = response.results;
@@ -153,8 +169,7 @@ module.exports = class UserService {
             }
 
             return [];
-        }
-        catch (e) {
+        } catch (e) {
             //console.error(e);
             throw e;
         }
@@ -162,28 +177,27 @@ module.exports = class UserService {
 
     async friendRequest(personid, friendid) {
         try {
-            db = db || await mysql.db();
+            db = db || (await mysql.db());
             let person_friend = {
                 personid,
                 friendid,
                 initiated: 1,
-                statusid: 0
-            }
+                statusid: 0,
+            };
             let person_friend2 = {
                 friendid,
                 personid,
                 initiated: 0,
-                statusid: 0
-            }
-            let { results } = await db.insert('person_friend', person_friend);
+                statusid: 0,
+            };
+            let { results } = await db.insert("person_friend", person_friend);
             console.log(results);
 
-            let { results2 } = await db.insert('person_friend', person_friend2);
+            let { results2 } = await db.insert("person_friend", person_friend2);
             console.log(results2);
 
             return { results, results2 };
-        }
-        catch (e) {
+        } catch (e) {
             console.error(e);
         }
         return null;
@@ -191,17 +205,24 @@ module.exports = class UserService {
 
     async deleteFriend(personid, friendid) {
         try {
-            db = db || await mysql.db();
+            db = db || (await mysql.db());
 
-            let { results } = await db.delete('person_friend', 'WHERE personid = ? and friendid = ?', [personid, friendid]);
+            let { results } = await db.delete(
+                "person_friend",
+                "WHERE personid = ? and friendid = ?",
+                [personid, friendid]
+            );
             console.log(results);
 
-            let { results2 } = await db.delete('person_friend', 'WHERE personid = ? and friendid = ?', [friendid, personid]);
+            let { results2 } = await db.delete(
+                "person_friend",
+                "WHERE personid = ? and friendid = ?",
+                [friendid, personid]
+            );
             console.log(results2);
 
             return { results, results2 };
-        }
-        catch (e) {
+        } catch (e) {
             console.error(e);
         }
         return null;
@@ -209,20 +230,28 @@ module.exports = class UserService {
 
     async friendResponse(personid, friendid, statusid) {
         try {
-            db = db || await mysql.db();
+            db = db || (await mysql.db());
 
-
-            let { results } = await db.update('person_friend', { statusid }, 'WHERE personid = ? and friendid = ?', [personid, friendid]);
+            let { results } = await db.update(
+                "person_friend",
+                { statusid },
+                "WHERE personid = ? and friendid = ?",
+                [personid, friendid]
+            );
 
             console.log(results);
 
-            let { results2 } = await db.update('person_friend', { statusid }, 'WHERE personid = ? and friendid = ?', [friendid, personid]);
+            let { results2 } = await db.update(
+                "person_friend",
+                { statusid },
+                "WHERE personid = ? and friendid = ?",
+                [friendid, personid]
+            );
 
             console.log(results2);
 
             return { results, results2 };
-        }
-        catch (e) {
+        } catch (e) {
             console.error(e);
         }
         return null;
@@ -232,13 +261,15 @@ module.exports = class UserService {
         try {
             let db = await mysql.db();
             let user = null;
-            if (!shortid)
-                return null;
+            if (!shortid) return null;
 
-            let response = await db.sql(`select b.shortid, b.displayname, b.portraitid, b.countrycode
+            let response = await db.sql(
+                `select b.shortid, b.displayname, b.portraitid, b.countrycode
                 from person_friend a, person b
                 where a.personid = ?
-                AND b.shortid = a.friendid`, [shortid]);
+                AND b.shortid = a.friendid`,
+                [shortid]
+            );
 
             if (response && response.results.length == 0) {
                 return null;
@@ -247,8 +278,7 @@ module.exports = class UserService {
             }
 
             return user;
-        }
-        catch (e) {
+        } catch (e) {
             //console.error(e);
             throw e;
         }
@@ -259,28 +289,42 @@ module.exports = class UserService {
             let db = await mysql.db();
             let response;
             if (user.id) {
-                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where id = ?', [user.id]);
-            }
-            else if (user.shortid) {
-                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where shortid = ?', [user.shortid]);
-            }
-            else if (user.displayname) {
-                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where LOWER(displayname) = ?', [user?.displayname?.toLowerCase()]);
-            }
-            else if (user.email) {
-                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where email = ?', [user.email]);
-            }
-            else if (user.apikey) {
-                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where apikey = ?', [user.apikey]);
-            }
-            else if (user.github) {
-                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where github = ?', [user.github]);
-            }
-            else if (user.github_id) {
-                response = await db.sql('select *, YEAR(tsinsert) as membersince from person where github_id = ?', [user.github_id]);
-            }
-            else {
-                throw new GeneralError('E_PERSON_MISSINGINFO', user);
+                response = await db.sql(
+                    "select *, YEAR(tsinsert) as membersince from person where id = ?",
+                    [user.id]
+                );
+            } else if (user.shortid) {
+                response = await db.sql(
+                    "select *, YEAR(tsinsert) as membersince from person where shortid = ?",
+                    [user.shortid]
+                );
+            } else if (user.displayname) {
+                response = await db.sql(
+                    "select *, YEAR(tsinsert) as membersince from person where LOWER(displayname) = ?",
+                    [user?.displayname?.toLowerCase()]
+                );
+            } else if (user.email) {
+                response = await db.sql(
+                    "select *, YEAR(tsinsert) as membersince from person where email = ?",
+                    [user.email]
+                );
+            } else if (user.apikey) {
+                response = await db.sql(
+                    "select *, YEAR(tsinsert) as membersince from person where apikey = ?",
+                    [user.apikey]
+                );
+            } else if (user.github) {
+                response = await db.sql(
+                    "select *, YEAR(tsinsert) as membersince from person where github = ?",
+                    [user.github]
+                );
+            } else if (user.github_id) {
+                response = await db.sql(
+                    "select *, YEAR(tsinsert) as membersince from person where github_id = ?",
+                    [user.github_id]
+                );
+            } else {
+                throw new GeneralError("E_PERSON_MISSINGINFO", user);
             }
 
             if (response && response.results.length == 0) {
@@ -299,61 +343,62 @@ module.exports = class UserService {
             // else user.devgames = [];
 
             return user;
-        }
-        catch (e) {
+        } catch (e) {
             //console.error(e);
             throw e;
         }
     }
 
     async findOrCreateUser(user, session) {
-
         try {
-            let db = await mysql.begin('findOrCreateUser');
+            let db = await mysql.begin("findOrCreateUser");
 
             try {
                 let existingUser = await this.findUser(user, true);
-                if (('github' in user) &&
-                    (existingUser.github != user.github || existingUser.github_id != user.github_id)) {
+                if (
+                    "github" in user &&
+                    (existingUser.github != user.github ||
+                        existingUser.github_id != user.github_id)
+                ) {
                     user.shortid = existingUser.shortid;
                     user.isdev = false;
-                    user = await this.updateUser({ shortid: user.shortid, isdev: user.isdev }, db);
-                    user = Object.assign({}, existingUser, user)
+                    user = await this.updateUser(
+                        { shortid: user.shortid, isdev: user.isdev },
+                        db
+                    );
+                    user = Object.assign({}, existingUser, user);
 
                     console.log(user);
-                }
-                else {
-                    if (!existingUser)
-                        throw "Creating user"
+                } else {
+                    if (!existingUser) throw "Creating user";
                     user = existingUser;
                 }
-
-            }
-            catch (e2) {
+            } catch (e2) {
                 user = await this.createUser(user, db);
             }
 
-            await mysql.end('findOrCreateUser');
+            await mysql.end("findOrCreateUser");
             //console.log(user);
             return user;
-        }
-        catch (e) {
+        } catch (e) {
             //console.error(e);
-            await mysql.end('findOrCreateUser');
+            await mysql.end("findOrCreateUser");
             throw e;
         }
     }
 
     async createDisplayName(user, db) {
         try {
-            db = db || await mysql.db();
+            db = db || (await mysql.db());
 
             // user.displayname = user.displayname.replace(/[^A-Za-z0-9\_]/ig, "");
             // let updatedUser = { displayname: user.displayname }
-            let existingUser = await this.findUser({ displayname: user.displayname });
+            let existingUser = await this.findUser({
+                displayname: user.displayname,
+            });
 
             if (existingUser?.displayname) {
-                throw new GeneralError('E_PERSON_EXISTSNAME', user.displayname);
+                throw new GeneralError("E_PERSON_EXISTSNAME", user.displayname);
             }
 
             existingUser = await this.findUser({ shortid: user.shortid });
@@ -361,17 +406,21 @@ module.exports = class UserService {
                 throw new GeneralError("E_PERSON_ALREADYCREATED", existingUser);
             }
 
-            let { results } = await db.update('person', user, 'WHERE shortid = ?', [user.shortid]);
+            let { results } = await db.update(
+                "person",
+                user,
+                "WHERE shortid = ?",
+                [user.shortid]
+            );
             console.log(results);
             if (results.affectedRows == 0)
-                throw new GeneralError('E_PERSON_UPDATEFAILED', user);
+                throw new GeneralError("E_PERSON_UPDATEFAILED", user);
 
             // if (!existingUser.isdev) {
             //     await this.inviteToGithub(existingUser);
             // }
             return user;
-        }
-        catch (e) {
+        } catch (e) {
             if (e.payload && e.payload.errno == 1062) {
                 throw new GeneralError("E_PERSON_DUPENAME", user);
             }
@@ -382,41 +431,62 @@ module.exports = class UserService {
 
     async deleteUser(user, db) {
         try {
-            db = db || await mysql.db();
+            db = db || (await mysql.db());
             let shortid = user.shortid;
-            let { results } = await db.delete('person', 'WHERE shortid = ?', [shortid]);
+            let { results } = await db.delete("person", "WHERE shortid = ?", [
+                shortid,
+            ]);
 
-            let rankResults = await db.sql(`
+            let rankResults = await db.sql(
+                `
                 SELECT a.displayname, b.game_slug
                 FROM person a, person_rank b
                 WHERE a.shortid = b.shortid
                 and a.shortid = ?
-            `, [user.shortid]);
+            `,
+                [user.shortid]
+            );
 
             for (var i = 0; i < rankResults.length; i++) {
                 let rank = rankResults[i];
-                redis.zrem(rank.game_slug + '/rankings', [rank.displayname]);
+                redis.zrem(rank.game_slug + "/rankings", [rank.displayname]);
             }
 
             for (var i = 0; i < rankResults.length; i++) {
                 let rank = rankResults[i];
-                redis.zrem(rank.game_slug + '/lbhs', [rank.displayname]);
+                redis.zrem(rank.game_slug + "/lbhs", [rank.displayname]);
             }
 
-            let { results2 } = await db.delete('person_rank', 'WHERE shortid = ?', [user.shortid]);
+            let { results2 } = await db.delete(
+                "person_rank",
+                "WHERE shortid = ?",
+                [user.shortid]
+            );
 
-            let { results3 } = await db.delete('person_room', 'WHERE shortid = ?', [user.shortid]);
+            let { results3 } = await db.delete(
+                "person_room",
+                "WHERE shortid = ?",
+                [user.shortid]
+            );
 
-            let { results4 } = await db.delete('game_review', 'WHERE shortid = ?', [user.shortid]);
+            let { results4 } = await db.delete(
+                "game_review",
+                "WHERE shortid = ?",
+                [user.shortid]
+            );
 
             let key = `rooms/${user.shortid}`;
             redis.del(key);
 
-            console.log("Deleted user: ", user.id, user.shortid, user.displayname);
+            console.log(
+                "Deleted user: ",
+                user.id,
+                user.shortid,
+                user.displayname
+            );
 
             return true;
-        }
-        catch (e) {
+        } catch (e) {
             if (e.errno == 1062) {
                 throw new GeneralError("E_PERSON_DUPENAME", user);
             }
@@ -427,26 +497,27 @@ module.exports = class UserService {
 
     async updateUser(user, db) {
         try {
-            db = db || await mysql.db();
+            db = db || (await mysql.db());
             let shortid = user.shortid;
-            delete user['shortid'];
+            delete user["shortid"];
 
-            if (user.membersince)
-                delete user.membersince;
-            if (user.iat)
-                delete user.iat;
-            if (user.exp)
-                delete user.exp;
-            let { results } = await db.update('person', user, 'WHERE shortid = ?', [shortid]);
+            if (user.membersince) delete user.membersince;
+            if (user.iat) delete user.iat;
+            if (user.exp) delete user.exp;
+            let { results } = await db.update(
+                "person",
+                user,
+                "WHERE shortid = ?",
+                [shortid]
+            );
 
             user.shortid = shortid;
             console.log(results);
             if (results.affectedRows == 0)
-                throw new GeneralError('E_PERSON_UPDATEFAILED', user);
+                throw new GeneralError("E_PERSON_UPDATEFAILED", user);
 
             return user;
-        }
-        catch (e) {
+        } catch (e) {
             if (e.errno == 1062) {
                 throw new GeneralError("E_PERSON_DUPENAME", user);
             }
@@ -457,12 +528,12 @@ module.exports = class UserService {
 
     async createUser(user, db) {
         try {
-            db = db || await mysql.db();
+            db = db || (await mysql.db());
             let newid = genUnique64string({
                 datacenter: this.credentials.datacenter.index || 0,
-                worker: this.credentials.datacenter.worker || 0
+                worker: this.credentials.datacenter.worker || 0,
             });
-            user.id = { toSqlString: () => newid }
+            user.id = { toSqlString: () => newid };
             //user.email = email;
 
             user.shortid = genFullShortId();
@@ -475,23 +546,22 @@ module.exports = class UserService {
             user.points = 0;
             user.level = 1.0;
             try {
-                let { results } = await db.insert('person', user);
+                let { results } = await db.insert("person", user);
                 console.log(results);
-            }
-            catch (e) {
+            } catch (e) {
                 console.error(e);
                 if (e?.payload?.errno == 1062) {
                     if (e.payload?.sqlMessage.indexOf("person.PRIMARY") > -1) {
                         //user id already exists, try creating again
                         return this.createUser(user);
-                    }
-                    else if (e.payload?.sqlMessage.indexOf('shortid_UNIQUE') > -1) {
+                    } else if (
+                        e.payload?.sqlMessage.indexOf("shortid_UNIQUE") > -1
+                    ) {
                         //shortid already exists, try creating again
                         return this.createUser(user);
                     }
                 }
             }
-
 
             // await this.inviteToGithub(user);
 
@@ -499,65 +569,73 @@ module.exports = class UserService {
             //     throw new GeneralError('E_PERSON_CREATEFAILED', user);
 
             user.id = newid;
-            user.membersince = (new Date()).getFullYear();
+            user.membersince = new Date().getFullYear();
             return user;
-        }
-        catch (e) {
+        } catch (e) {
             throw e;
         }
     }
 
-
     async inviteToGithub(user) {
-        if (!('github' in user) || !user.github) {
+        if (!("github" in user) || !user.github) {
             return;
         }
 
-        if (user.isdev)
-            return;
+        if (user.isdev) return;
 
         try {
-            let orgInviteResult = await gh.orgs.createInvitation({ org: 'acosgames', email: user.email, role: 'direct_member' })
+            let orgInviteResult = await gh.orgs.createInvitation({
+                org: "acosgames",
+                email: user.email,
+                role: "direct_member",
+            });
             console.log(orgInviteResult);
-        }
-        catch (e3) {
+        } catch (e3) {
             console.error(e3);
         }
     }
 
     async createGithubUserTeam(user) {
-        if (!('github' in user) || !user.github) {
+        if (!("github" in user) || !user.github) {
             return;
         }
 
         let id_5SG = 79618222;
-        let org = 'acosgames';
-        let name = user.displayname;
+        let org = "acosgames";
+        let displayname = user.displayname;
         let username = user.github;
         let maintainers = [];
-        let privacy = 'closed';
+        let privacy = "closed";
 
         try {
             //attempt to create the team using acosg username as the team name
-            let teamResult = await gh.teams.create({ org, name, maintainers, privacy })
+            let teamResult = await gh.teams.create({
+                org,
+                name: displayname,
+                maintainers,
+                privacy,
+            });
             console.log(teamResult);
             return teamResult;
-        }
-        catch (e) {
+        } catch (e) {
             //team existed, try to add them back, incase they were removed
             console.error(e);
-            let team_slug = name.toLowerCase();
-            team_slug = team_slug.replace(/[^a-z0-9\_\- \t]/ig, '');
-            team_slug = team_slug.replace(/[ \t]/ig, '-');
+            let team_slug = displayname.toLowerCase();
+            team_slug = team_slug.replace(/[^a-z0-9\_\- \t]/gi, "");
+            team_slug = team_slug.replace(/[ \t]/gi, "-");
 
             try {
-                let membershipResult = await gh.teams.addOrUpdateMembershipForUserInOrg({ org, team_slug, username });
+                let membershipResult =
+                    await gh.teams.addOrUpdateMembershipForUserInOrg({
+                        org,
+                        team_slug,
+                        username,
+                    });
                 console.log(membershipResult);
-            }
-            catch (e2) {
+            } catch (e2) {
                 console.error(e2);
             }
         }
         return null;
     }
-}
+};
