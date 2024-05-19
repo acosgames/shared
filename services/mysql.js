@@ -1,12 +1,11 @@
-const mysql = require('mysql2');
-const credutil = require('../util/credentials')
-const { utcDATETIME } = require('../util/datefns');
-const { SQLError } = require('../util/errorhandler');
+const mysql = require("mysql2");
+const credutil = require("../util/credentials");
+const { utcDATETIME } = require("../util/datefns");
+const { SQLError } = require("../util/errorhandler");
 
 pools = {};
 
 module.exports = class MySQL {
-
     constructor(credentials) {
         this.credentials = credentials || credutil();
         this.connections = {};
@@ -28,38 +27,38 @@ module.exports = class MySQL {
                 supportBigNumbers: true,
                 bigNumberStrings: true,
                 typeCast: function (field, next) {
-                    if (field.type == 'VAR_STRING') {
+                    if (field.type == "VAR_STRING") {
                         return field.string();
                     }
                     return next();
-                }
+                },
             };
-            let id = loginCreds.host + loginCreds.port + loginCreds.user + loginCreds.password + loginCreds.database;
+            let id =
+                loginCreds.host +
+                loginCreds.port +
+                loginCreds.user +
+                loginCreds.password +
+                loginCreds.database;
             if (!(id in pools)) {
                 this.pool = mysql.createPool(loginCreds);
                 pools[id] = this.pool;
-            }
-            else {
+            } else {
                 this.pool = pools[id];
             }
-
-        }
-        catch (e) {
+        } catch (e) {
             // console.error(e);
-            throw new SQLError('E_SQL_ERROR', e);
+            throw new SQLError("E_SQL_ERROR", e);
         }
-
     }
 
     disconnect() {
         try {
             this.pool.end((err) => {
                 if (err) {
-                    throw new SQLError('E_SQL_ERROR', err);
+                    throw new SQLError("E_SQL_ERROR", err);
                 }
-            })
-        }
-        catch (e) {
+            });
+        } catch (e) {
             //console.error(e);
             throw e;
         }
@@ -71,13 +70,12 @@ module.exports = class MySQL {
             try {
                 self.pool.getConnection((err, conn) => {
                     if (err) {
-                        reject(new SQLError('E_SQL_ERROR', err));
+                        reject(new SQLError("E_SQL_ERROR", err));
                         return;
                     }
                     resolve(conn);
                 });
-            }
-            catch (e) {
+            } catch (e) {
                 //console.error(e);
                 reject(e);
             }
@@ -89,27 +87,31 @@ module.exports = class MySQL {
         return new Promise(async (resolve, reject) => {
             try {
                 if (self.connections[jobname]) {
-                    reject(new SQLError('E_SQL_ERROR', `Connection ${jobname} already exists.  Check your code!`));
+                    reject(
+                        new SQLError(
+                            "E_SQL_ERROR",
+                            `Connection ${jobname} already exists.  Check your code!`
+                        )
+                    );
                     return;
                 }
 
                 self.pool.getConnection((err, conn) => {
                     if (err) {
-                        reject(new SQLError('E_SQL_ERROR', err));
+                        reject(new SQLError("E_SQL_ERROR", err));
                         return;
                     }
                     self.connections[jobname] = conn;
 
                     conn.beginTransaction(async (err) => {
                         if (err) {
-                            reject(new SQLError('E_SQL_ERROR', err));
+                            reject(new SQLError("E_SQL_ERROR", err));
                             return;
                         }
                         resolve(self.db(conn));
                     });
                 });
-            }
-            catch (e) {
+            } catch (e) {
                 //console.error(e);
                 if (jobname in self.connections) {
                     delete self.connections[jobname];
@@ -120,21 +122,18 @@ module.exports = class MySQL {
     }
 
     end(jobname) {
-        if (!(jobname in this.connections))
-            return;
+        if (!(jobname in this.connections)) return;
 
         try {
             this.connections[jobname].commit((err) => {
                 if (err) {
-                    reject(new SQLError('E_SQL_ERROR', err));
+                    reject(new SQLError("E_SQL_ERROR", err));
                     return;
                 }
                 this.connections[jobname].release();
                 delete this.connections[jobname];
             });
-
-        }
-        catch (e) {
+        } catch (e) {
             //console.error(e);
             this.connections[jobname].release();
             delete this.connections[jobname];
@@ -158,7 +157,6 @@ module.exports = class MySQL {
                 //     })
                 // },
                 insert: (table, row) => {
-
                     return new Promise((resolve, reject) => {
                         try {
                             // if (!conn) {
@@ -168,36 +166,55 @@ module.exports = class MySQL {
 
                             // var post = { id: 1, title: 'Hello MySQL' };
                             if (!row) {
-                                reject(new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!"));
+                                reject(
+                                    new SQLError(
+                                        "E_SQL_ERROR",
+                                        "Row does not exist.  Check your code!"
+                                    )
+                                );
                                 return;
                             }
 
                             if (!table) {
-                                reject(new SQLError('E_SQL_ERROR', "Missing 'table' column. Check your code!"));
+                                reject(
+                                    new SQLError(
+                                        "E_SQL_ERROR",
+                                        "Missing 'table' column. Check your code!"
+                                    )
+                                );
                                 return;
                             }
 
                             row.tsupdate = utcDATETIME();
                             row.tsinsert = row.tsupdate;
-                            var query = this.pool.query('INSERT INTO ' + table + ' SET ?', row, function (error, results, fields) {
-                                if (error) {
-                                    // conn.rollback();
-                                    // console.error(error);
-                                    reject(new SQLError('E_SQL_ERROR', error, query));
+                            var query = this.pool.query(
+                                "INSERT INTO " + table + " SET ?",
+                                row,
+                                function (error, results, fields) {
+                                    if (error) {
+                                        // conn.rollback();
+                                        // console.error(error);
+                                        reject(
+                                            new SQLError(
+                                                "E_SQL_ERROR",
+                                                error,
+                                                query
+                                            )
+                                        );
+
+                                        // conn.release();
+                                        return;
+                                    }
+                                    // Neat!
+
+                                    resolve({ results, fields });
 
                                     // conn.release();
-                                    return;
-                                };
-                                // Neat!
-
-                                resolve({ results, fields });
-
-                                // conn.release();
-                            });
+                                }
+                            );
                             // console.log(query.sql);
-                        }
-                        catch (e) {
-                            reject(new SQLError('E_SQL_ERROR', e));
+                        } catch (e) {
+                            reject(new SQLError("E_SQL_ERROR", e));
                             conn.release();
                         }
                     });
@@ -208,46 +225,55 @@ module.exports = class MySQL {
                     return new Promise((resolve, reject) => {
                         try {
                             if (!row) {
-                                throw new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!");
+                                throw new SQLError(
+                                    "E_SQL_ERROR",
+                                    "Row does not exist.  Check your code!"
+                                );
                             }
 
                             let keys = [];
                             let values = [];
                             for (var key in row) {
-                                keys.push(key + '= `' + key + '` + 1 ');
+                                keys.push(key + "= `" + key + "` + 1 ");
                             }
 
-                            keys.push('tsupdate = ?');
+                            keys.push("tsupdate = ?");
                             values.push(utcDATETIME());
 
                             if (whereValues && Array.isArray(whereValues)) {
                                 values = values.concat(whereValues);
                             }
                             if (where && where.indexOf("WHERE") == -1) {
-                                where = 'WHERE ' + where;
+                                where = "WHERE " + where;
                             }
-                            var query = this.pool.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
+                            var query = this.pool.query(
+                                "UPDATE " +
+                                    table +
+                                    " SET " +
+                                    keys.join(",") +
+                                    " " +
+                                    where,
+                                values,
+                                function (error, results, fields) {
+                                    if (error) {
+                                        reject(
+                                            new SQLError("E_SQL_ERROR", error)
+                                        );
+                                        // conn.release();
+                                        return;
+                                    }
 
-                                if (error) {
-                                    reject(new SQLError('E_SQL_ERROR', error));
+                                    resolve({ results, fields });
+
                                     // conn.release();
-                                    return;
                                 }
-
-                                resolve({ results, fields });
-
-
-                                // conn.release();
-                            });
+                            );
                             console.log(query.sql);
-                        }
-                        catch (e) {
+                        } catch (e) {
                             // conn.rollback();
                             // conn.release();
                             //console.error(e);
-                            reject(new SQLError('E_SQL_ERROR', e));
-
-
+                            reject(new SQLError("E_SQL_ERROR", e));
                         }
                     });
                 },
@@ -257,52 +283,59 @@ module.exports = class MySQL {
                     return new Promise((resolve, reject) => {
                         try {
                             if (!row) {
-                                throw new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!");
+                                throw new SQLError(
+                                    "E_SQL_ERROR",
+                                    "Row does not exist.  Check your code!"
+                                );
                             }
 
                             let keys = [];
                             let values = [];
                             for (var key in row) {
-                                keys.push(key + ' = `' + key + '` - 1');
+                                keys.push(key + " = `" + key + "` - 1");
                             }
 
-                            keys.push('tsupdate = ?');
+                            keys.push("tsupdate = ?");
                             values.push(utcDATETIME());
 
                             if (whereValues && Array.isArray(whereValues)) {
                                 values = values.concat(whereValues);
                             }
                             if (where && where.indexOf("WHERE") == -1) {
-                                where = 'WHERE ' + where;
+                                where = "WHERE " + where;
                             }
-                            var query = this.pool.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values,
+                            var query = this.pool.query(
+                                "UPDATE " +
+                                    table +
+                                    " SET " +
+                                    keys.join(",") +
+                                    " " +
+                                    where,
+                                values,
                                 function (error, results, fields) {
-
                                     if (error) {
-                                        reject(new SQLError('E_SQL_ERROR', error));
+                                        reject(
+                                            new SQLError("E_SQL_ERROR", error)
+                                        );
                                         return;
                                     }
 
                                     resolve({ results, fields });
 
-
                                     // conn.release();
-                                });
+                                }
+                            );
                             console.log(query.sql);
-                        }
-                        catch (e) {
+                        } catch (e) {
                             // conn.rollback();
                             // conn.release();
                             //console.error(e);
-                            reject(new SQLError('E_SQL_ERROR', e));
-
-
+                            reject(new SQLError("E_SQL_ERROR", e));
                         }
                     });
                 },
 
                 insertBatch: (table, rows, primarykeys, incrementKeys) => {
-
                     // if( rows.length > 1000 ) {
                     //     let subset = rows.slice(0,1000);
                     //     let remaining = rows.slice(1000, rows.length);
@@ -321,20 +354,34 @@ module.exports = class MySQL {
 
                             // var post = { id: 1, title: 'Hello MySQL' };
                             if (!rows || rows.length == 0) {
-                                reject(new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!"));
+                                reject(
+                                    new SQLError(
+                                        "E_SQL_ERROR",
+                                        "Row does not exist.  Check your code!"
+                                    )
+                                );
                                 return;
                             }
 
                             if (!primarykeys) {
-                                reject(new SQLError('E_SQL_ERROR', "Missing 'primarykeys'.  Check your code!"));
+                                reject(
+                                    new SQLError(
+                                        "E_SQL_ERROR",
+                                        "Missing 'primarykeys'.  Check your code!"
+                                    )
+                                );
                                 return;
                             }
 
                             if (!table) {
-                                reject(new SQLError('E_SQL_ERROR', "Missing 'table' name. Check your code!"));
+                                reject(
+                                    new SQLError(
+                                        "E_SQL_ERROR",
+                                        "Missing 'table' name. Check your code!"
+                                    )
+                                );
                                 return;
                             }
-
 
                             // row.tsinsert = row.tsupdate;
                             let keyList = [];
@@ -353,13 +400,12 @@ module.exports = class MySQL {
                                     valuesList.push(value);
                                     if (i == 0) {
                                         keyList.push(key);
-                                        qmarks.push('?');
+                                        qmarks.push("?");
                                     }
-
                                 }
 
                                 if (i == 0)
-                                    qmarksStr = '(' + qmarks.join(',') + ')';
+                                    qmarksStr = "(" + qmarks.join(",") + ")";
 
                                 valuesProtect.push(qmarksStr);
                             }
@@ -368,37 +414,55 @@ module.exports = class MySQL {
 
                             if (incrementKeys)
                                 for (var key of incrementKeys) {
-                                    updateColumns.push(key + '= ' + key + ' + 1');
+                                    updateColumns.push(
+                                        key + "= " + key + " + 1"
+                                    );
                                 }
                             for (var key in rows[0]) {
-                                if (primarykeys.includes(key) || key == 'tsinsert')
+                                if (
+                                    primarykeys.includes(key) ||
+                                    key == "tsinsert"
+                                )
                                     continue;
-                                updateColumns.push(key + '=VALUES(' + key + ')');
+                                updateColumns.push(
+                                    key + "=VALUES(" + key + ")"
+                                );
                             }
 
-                            let sql = 'INSERT INTO ' + table + ' (' + keyList.join(',') + ') VALUES ' + valuesProtect.join(',') + ' ON DUPLICATE KEY UPDATE ' + updateColumns.join(',');
+                            let sql =
+                                "INSERT INTO " +
+                                table +
+                                " (" +
+                                keyList.join(",") +
+                                ") VALUES " +
+                                valuesProtect.join(",") +
+                                " ON DUPLICATE KEY UPDATE " +
+                                updateColumns.join(",");
                             console.log(sql, valuesList);
-                            var query = this.pool.query(sql, valuesList,
+                            var query = this.pool.query(
+                                sql,
+                                valuesList,
                                 function (error, results, fields) {
                                     if (error) {
                                         // conn.rollback();
                                         // conn.release();
                                         console.error(error);
-                                        reject(new SQLError('E_SQL_ERROR', error));
+                                        reject(
+                                            new SQLError("E_SQL_ERROR", error)
+                                        );
 
                                         return;
-                                    };
+                                    }
                                     // Neat!
 
                                     resolve({ results, fields });
                                     // conn.release();
-                                });
+                                }
+                            );
                             // console.log(query.sql);
-                        }
-                        catch (e) {
+                        } catch (e) {
                             // conn.release();
-                            reject(new SQLError('E_SQL_ERROR', e));
-
+                            reject(new SQLError("E_SQL_ERROR", e));
                         }
                     });
                 },
@@ -408,11 +472,14 @@ module.exports = class MySQL {
                     return new Promise((resolve, reject) => {
                         try {
                             if (!row) {
-                                throw new SQLError('E_SQL_ERROR', "Row does not exist.  Check your code!");
+                                throw new SQLError(
+                                    "E_SQL_ERROR",
+                                    "Row does not exist.  Check your code!"
+                                );
                             }
 
                             if (row.tsinsert) {
-                                delete row['tsinsert'];
+                                delete row["tsinsert"];
                             }
                             row.tsupdate = utcDATETIME();
 
@@ -422,26 +489,34 @@ module.exports = class MySQL {
                                 values = values.concat(whereValues);
                             }
                             if (where && where.indexOf("WHERE") == -1) {
-                                where = 'WHERE ' + where;
+                                where = "WHERE " + where;
                             }
-                            var query = this.pool.query('UPDATE ' + table + ' SET ' + keys.join(',') + ' ' + where, values, function (error, results, fields) {
-                                // conn.release();
-                                if (error) {
-                                    reject(new SQLError('E_SQL_ERROR', error));
-                                    return;
+                            var query = this.pool.query(
+                                "UPDATE " +
+                                    table +
+                                    " SET " +
+                                    keys.join(",") +
+                                    " " +
+                                    where,
+                                values,
+                                function (error, results, fields) {
+                                    // conn.release();
+                                    if (error) {
+                                        reject(
+                                            new SQLError("E_SQL_ERROR", error)
+                                        );
+                                        return;
+                                    }
+                                    // Neat!
+
+                                    resolve({ results, fields });
                                 }
-                                // Neat!
-
-                                resolve({ results, fields });
-
-
-                            });
+                            );
                             console.log(query.sql);
-                        }
-                        catch (e) {
+                        } catch (e) {
                             // conn.rollback();
-                            //console.error(e);
-                            reject(new SQLError('E_SQL_ERROR', e));
+                            console.error(e);
+                            reject(new SQLError("E_SQL_ERROR", e));
 
                             // conn.release();
                         }
@@ -449,76 +524,85 @@ module.exports = class MySQL {
                 },
 
                 sql: (sql, values) => {
-
                     return new Promise((resolve, reject) => {
                         try {
                             values = values || [];
-                            let query = this.pool.query(sql, values, function (error, results, fields) {
-                                // conn.release();
-                                if (error) {
-                                    console.error(error);
-                                    reject(new SQLError('E_SQL_ERROR', error));
-                                    return;
+                            let query = this.pool.query(
+                                sql,
+                                values,
+                                function (error, results, fields) {
+                                    // conn.release();
+                                    if (error) {
+                                        console.error(error);
+                                        reject(
+                                            new SQLError("E_SQL_ERROR", error)
+                                        );
+                                        return;
+                                    }
+                                    resolve({ results, fields });
                                 }
-                                resolve({ results, fields });
-                            });
+                            );
                             // console.log(query.sql);
-                        }
-                        catch (e) {
+                        } catch (e) {
                             // conn.rollback();
                             // conn.release();
                             console.error(e);
 
-                            reject(new SQLError('E_SQL_ERROR', e));
+                            reject(new SQLError("E_SQL_ERROR", e));
                         }
                     });
                 },
 
                 delete: (table, where, values) => {
-
                     return new Promise((resolve, reject) => {
                         try {
                             if (!table) {
-                                reject(new SQLError('E_SQL_ERROR', "table not defined.  Check your code!"));
+                                reject(
+                                    new SQLError(
+                                        "E_SQL_ERROR",
+                                        "table not defined.  Check your code!"
+                                    )
+                                );
                                 return;
                             }
                             if (where.indexOf("WHERE") == -1) {
-                                where = 'WHERE ' + where;
+                                where = "WHERE " + where;
                             }
-                            var query = this.pool.query('DELETE FROM ' + table + ' ' + where, values, function (error, results, fields) {
-                                // conn.release();
-                                if (error) {
-                                    reject(new SQLError('E_SQL_ERROR', error));
-                                    return;
+                            var query = this.pool.query(
+                                "DELETE FROM " + table + " " + where,
+                                values,
+                                function (error, results, fields) {
+                                    // conn.release();
+                                    if (error) {
+                                        reject(
+                                            new SQLError("E_SQL_ERROR", error)
+                                        );
+                                        return;
+                                    }
+                                    // Neat!
+                                    resolve({ results, fields });
                                 }
-                                // Neat!
-                                resolve({ results, fields });
-                            });
-                        }
-                        catch (e) {
+                            );
+                        } catch (e) {
                             console.error(e);
                             // conn.release();
-                            reject(new SQLError('E_SQL_ERROR', e));
-
+                            reject(new SQLError("E_SQL_ERROR", e));
                         }
                     });
-                }
-            }
-        }
-        catch (e) {
+                },
+            };
+        } catch (e) {
             throw e;
         }
     }
-
-
 
     objToString(obj) {
         let keys = [];
         let values = [];
         for (var key in obj) {
-            keys.push(key + '=?')
+            keys.push(key + "=?");
             values.push(obj[key]);
         }
         return { keys, values };
     }
-}
+};

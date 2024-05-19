@@ -202,12 +202,11 @@ class RoomService {
     async updateRoomPlayerCount(room_slug, player_count) {
         try {
             // let db = await mysql.db();
-
             // let update = {
             //     player_count
             // }
             //let response = await db.update('game_room', update, 'WHERE room_slug = ?', [room_slug]);
-            cache.set(room_slug + "/p", player_count);
+            // cache.set(room_slug + "/p", player_count);
             // return response;
         } catch (e) {
             if (e instanceof GeneralError) throw e;
