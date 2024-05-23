@@ -117,7 +117,7 @@ module.exports = class UserService {
                     b.preview_images
                 FROM person_rank a, game_info b
                 WHERE a.shortid = ?
-                AND a.season = ?
+                AND a.season = b.season
                 AND b.game_slug = a.game_slug
                 AND a.played > 0
             `,

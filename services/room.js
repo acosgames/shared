@@ -6,7 +6,7 @@ const { genUnique64string, genShortId } = require("../util/idgen");
 const { utcDATETIME } = require("../util/datefns");
 const { GeneralError, CodeError, SQLError } = require("../util/errorhandler");
 
-const { uniqueName } = require("../util/utils");
+const { uniqueName, isObject } = require("../util/utils");
 
 const redis = require("./redis");
 
@@ -88,14 +88,14 @@ class RoomService {
         }
     }
 
-    async assignPlayersToRoom(shortids, room_slug, room_id, game_slug) {
+    async assignPlayersToRoom(shortids, room_slug, game_slug) {
         try {
             let db = await mysql.db();
 
-            let meta = await this.findRoomById(room_id);
+            let meta = await this.findRoom(room_slug);
             if (!meta) {
                 console.error(
-                    "[assignPlayersToRoom] Room ID does not exist: " + room_id
+                    "[assignPlayersToRoom] Room ID does not exist: " + room_slug
                 );
                 return null;
             }
@@ -111,11 +111,11 @@ class RoomService {
             for (const shortid of shortids) {
                 let roomPlayer = {
                     shortid,
-                    room_id,
-                    room_slug: meta.room_slug,
-                    game_slug,
-                    mode,
-                    version,
+                    room_slug,
+                    // room_slug: meta.room_slug,
+                    // game_slug,
+                    // mode,
+                    // version,
                 };
                 roomPlayers.push(roomPlayer);
             }
@@ -123,7 +123,7 @@ class RoomService {
             // console.log("Updating highscores to person_rank: ", incrementList, ratings);
             var response = await db.insertBatch("person_room", roomPlayers, [
                 "shortid",
-                "room_id",
+                "room_slug",
             ]);
             if (response && response.results.affectedRows > 0) {
                 return true;
@@ -136,19 +136,19 @@ class RoomService {
         }
     }
 
-    async assignPlayerRoom(shortid, room_id, game_slug) {
+    async assignPlayerRoom(shortid, room_slug, game_slug) {
         try {
             let db = await mysql.db();
 
-            console.log("Assigning player [" + shortid + "] to: ", room_id);
+            console.log("Assigning player [" + shortid + "] to: ", room_slug);
 
             // let key = shortid + '/' + room_slug;
             // cache.set(key, true);
 
-            let meta = await this.findRoomById(room_id);
+            let meta = await this.findRoom(room_slug);
             if (!meta) {
                 console.error(
-                    "[assignPlayerRoom] Room ID does not exist: " + room_id
+                    "[assignPlayerRoom] Room ID does not exist: " + room_slug
                 );
                 return null;
             }
@@ -161,7 +161,7 @@ class RoomService {
                     : meta.version;
             let personRoom = {
                 shortid,
-                room_id,
+                room_slug,
                 room_slug: meta.room_slug,
                 game_slug,
                 mode,
@@ -250,8 +250,13 @@ class RoomService {
                 b.* 
                 FROM person_room a 
                 LEFT JOIN game_room b 
-                ON a.room_id = b.room_id 
-                WHERE a.shortid = ? AND b.game_slug = ?`,
+                    ON a.room_slug = b.room_slug 
+                LEFT JOIN game_version gv
+                    ON gv.game_slug = b.game_slug AND gv.version = b.version
+                WHERE a.shortid = ? 
+                AND b.game_slug = ?
+                AND b.status = 0
+                `,
                 [shortid, game_slug]
             );
 
@@ -313,10 +318,11 @@ class RoomService {
                 `SELECT a.shortid, b.*, c.name
                 FROM person_room a 
                 LEFT JOIN game_room b 
-                    ON a.room_id = b.room_id 
+                    ON a.room_slug = b.room_slug 
                 LEFT JOIN game_info c
                     ON b.game_slug = c.game_slug
-                WHERE a.shortid = ?`,
+                WHERE a.shortid = ?
+                AND b.status = 0`,
                 [shortid]
             );
 
@@ -419,7 +425,8 @@ class RoomService {
                 "person_rank",
                 ratings,
                 ["shortid", "game_slug"],
-                ["played"]
+                ["played"],
+                ["winloss"]
             );
             if (response && response.results.affectedRows > 0) {
                 return true;
@@ -441,7 +448,7 @@ class RoomService {
                 "person_rank",
                 update,
                 "shortid = ? AND game_slug = ? AND season = ?",
-                [shortid, game_slug]
+                [shortid, game_slug, season]
             );
             if (response && response.results.affectedRows > 0) {
                 return true;
@@ -718,11 +725,15 @@ class RoomService {
 
             response = await db.sql(
                 `SELECT b.shortid, b.displayname, b.countrycode, a.game_slug, a.rating, a.mu, a.sigma, a.win, a.loss, a.tie, a.division, a.played, a.season, a.highscore 
-                from person b
+                from game_info gi
                 LEFT JOIN person_rank a
-                    ON b.shortid = a.shortid AND a.game_slug in (?) AND a.season = ?
-                WHERE b.shortid in (?)`,
-                [game_slugs, 0, shortids]
+                    ON a.game_slug = gi.game_slug 
+                    AND a.season = gi.season
+                LEFT JOIN person b
+                    ON a.shortid = b.shortid
+                WHERE gi.game_slug in (?)
+                AND a.shortid in (?)`,
+                [game_slugs, shortids]
             );
 
             //build players list first
@@ -824,9 +835,9 @@ class RoomService {
         }
     }
 
-    async findRoomById(room_id) {
+    async findRoomById(room_slug) {
         try {
-            // let key = room_id + '/meta';
+            // let key = room_slug + '/meta';
             // let room = await cache.get(key);
             // if (room) return room;
 
@@ -835,11 +846,11 @@ class RoomService {
 
             let db = await mysql.db();
             var response;
-            console.log("Getting room info by id: ", room_id);
+            console.log("Getting room info by id: ", room_slug);
             //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
             response = await db.sql(
-                "SELECT r.*, i.name from game_room r, game_info i WHERE r.room_id = ? AND r.game_slug = i.game_slug",
-                [room_id]
+                "SELECT r.*, i.name from game_room r, game_info i WHERE r.room_slug = ? AND r.game_slug = i.game_slug",
+                [room_slug]
             );
 
             if (response.results && response.results.length > 0) {
@@ -887,7 +898,34 @@ class RoomService {
             console.log("Getting room info for: ", room_slug);
             //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, i.maxplayers, r.* from game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.room_slug = ?', [room_slug]);
             response = await db.sql(
-                "SELECT r.*, i.name from game_room r, game_info i WHERE r.room_slug = ? AND r.game_slug = i.game_slug",
+                `SELECT 
+                    r.room_slug,
+                    r.game_slug,
+                    r.season,
+                    v.version,
+                    r.owner,
+                    r.rating,
+                    r.mode,
+                    v.db,
+                    v.css,
+                    v.scaled,
+                    v.screentype,
+                    v.resow,
+                    v.resoh,
+                    v.screenwidth,
+                    i.name,
+                    i.minplayers,
+                    i.maxplayers,
+                    i.maxteams,
+                    i.minteams,
+                    i.lbscore
+                from game_room r, 
+                game_version v, 
+                game_info i 
+                WHERE r.room_slug = ? 
+                AND r.game_slug = i.game_slug
+                AND i.gameid = v.gameid AND r.version = v.version
+                `,
                 [room_slug]
             );
 
@@ -926,9 +964,9 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting list of rooms");
-            //response = await db.sql('SELECT r.db, i.gameid, i.version as published_version, b.latest_version, i.maxplayers, r.* FROM game_room r, game_info i LEFT JOIN (SELECT gameid, MAX(version) as latest_version FROM game_version GROUP BY gameid) b ON b.gameid = i.gameid WHERE r.game_slug = i.game_slug AND r.game_slug = ? AND isprivate = 0 AND isfull = 0 AND r.player_count < i.maxplayers ORDER BY version desc, rating desc', [game_slug]);
+
             response = await db.sql(
-                "SELECT * from game_room r WHERE r.game_slug = ? AND isprivate = 0 AND status = 0 ORDER BY version desc, rating desc",
+                "SELECT * from game_room r WHERE r.game_slug = ? AND status = 0 ORDER BY version desc, rating desc",
                 [game_slug]
             );
             return response.results;
@@ -1080,7 +1118,7 @@ class RoomService {
 
     async getGameInfo(game_slug) {
         try {
-            let gameinfo = await cache.get(game_slug);
+            let gameinfo = await cache.get("game/" + game_slug);
             if (gameinfo) {
                 let now = new Date().getTime();
                 if (
@@ -1117,7 +1155,7 @@ class RoomService {
             let now = new Date().getTime();
             gameinfo.expires = now + 120 * 1000;
 
-            cache.set(game_slug, gameinfo, 120);
+            cache.set("game/" + game_slug, gameinfo, 120);
             return gameinfo;
         } catch (e) {
             if (e instanceof GeneralError) throw e;
@@ -1152,29 +1190,29 @@ class RoomService {
         }
     }
 
-    async createRoomReplay(game_slug, version, mode, filename) {
-        try {
-            let replay = {
-                game_slug,
-                version,
-                mode,
-                filename,
-            };
+    // async createRoomReplay(game_slug, version, mode, filename) {
+    //     try {
+    //         let replay = {
+    //             game_slug,
+    //             version,
+    //             mode,
+    //             filename,
+    //         };
 
-            try {
-                let db = await mysql.db();
+    //         try {
+    //             let db = await mysql.db();
 
-                console.log("Creating Replay: ", replay);
-                let response = await db.insert("game_match", replay);
-            } catch (e) {
-                console.error(e);
-            }
+    //             console.log("Creating Replay: ", replay);
+    //             let response = await db.insert("game_match", replay);
+    //         } catch (e) {
+    //             console.error(e);
+    //         }
 
-            return replay;
-        } catch (e) {
-            console.error(e);
-        }
-    }
+    //         return replay;
+    //     } catch (e) {
+    //         console.error(e);
+    //     }
+    // }
 
     async createRoom(shortid, rating, game_slug, mode, private_key) {
         try {
@@ -1230,15 +1268,46 @@ class RoomService {
             //use ID instead of name for database
             mode = this.getGameModeID(mode);
 
-            let room_slug = genShortId(5);
+            let room_slug = genShortId(8);
             let checkRoom = await this.findRoom(room_slug);
             while (checkRoom) {
-                room_slug = genShortId(5);
+                room_slug = genShortId(8);
                 checkRoom = await this.findRoom(room_slug);
             }
             let room = {
                 room_slug,
                 game_slug,
+                season: published.season,
+                // gameid,
+                version,
+                // css,
+                // db: database,
+                // latest_tsupdate,
+                // minplayers,
+                // maxplayers,
+                // maxteams,
+                // minteams,
+                mode,
+                rating,
+                // lbscore,
+                owner: shortid,
+                status: 0,
+                // preview_images,
+                // scaled,
+                // screentype,
+                // resow,
+                // resoh,
+                // screenwidth,
+            };
+
+            if (private_key) {
+                room.private_key = private_key;
+            }
+
+            let meta = {
+                room_slug,
+                game_slug,
+                season: published.season,
                 gameid,
                 version,
                 css,
@@ -1252,25 +1321,20 @@ class RoomService {
                 rating,
                 lbscore,
                 owner: shortid,
+                status: 0,
                 preview_images,
-                isprivate: 0,
-                // scaled,
+                private_key,
                 screentype,
                 resow,
                 resoh,
                 screenwidth,
             };
 
-            if (private_key) {
-                room.isprivate = 1;
-                room.private_key = private_key;
-            }
-
             try {
                 console.log("Creating room: ", room);
                 response = await db.insert("game_room", room);
 
-                if (room.maxteams > 0) {
+                if (maxteams > 0) {
                     let teamResponse = await db.sql(
                         "SELECT * from game_team WHERE game_slug = ?",
                         [room.game_slug]
@@ -1279,19 +1343,11 @@ class RoomService {
                         teamResponse.results &&
                         teamResponse.results.length > 0
                     ) {
-                        room.teams = teamResponse.results;
+                        meta.teams = teamResponse.results;
                     }
                 }
 
-                room.name = published.name;
-
-                let roomResponse = await db.sql(
-                    `SELECT room_id FROM game_room WHERE room_slug = ?`,
-                    [room.room_slug]
-                );
-                if (roomResponse.results && roomResponse.results.length > 0) {
-                    room.room_id = roomResponse.results[0].room_id;
-                }
+                meta.name = published.name;
             } catch (e) {
                 console.error(e);
             }
@@ -1302,10 +1358,10 @@ class RoomService {
             // room.resoh = resoh;
             // room.screenwidth = screenwidth;
 
-            room.mode = this.getGameModeName(room.mode);
-            cache.set(room.room_slug + "/meta", room);
+            meta.mode = this.getGameModeName(meta.mode);
+            cache.set(room.room_slug + "/meta", meta);
 
-            return room;
+            return meta;
         } catch (e) {
             if (e instanceof GeneralError) throw e;
             throw new CodeError(e);
@@ -1352,31 +1408,343 @@ class RoomService {
     //     return [];
     // }
 
-    async deleteRoom(room_id) {
+    async updatePlayerRoom(room_slug, gamestate, ratings) {
         try {
-            // cache.del(room_slug);
-            // cache.del(room_slug + '/meta');
-            // cache.del(room_slug + '/timer');
-            // cache.del(room_slug + '/p');
-
             let db = await mysql.db();
-            var response;
-            console.log("Deleting room: " + room_id);
+            if (ratings) {
+                for (let rating of ratings) {
+                    let { shortid, winloss } = rating;
+                    let player = gamestate?.players[shortid];
+                    let { rank, score } = player;
 
-            response = await db.delete("game_room", "WHERE room_id = ?", [
-                room_id,
-            ]);
-            response = await db.delete("person_room", "WHERE room_id = ?", [
-                room_id,
-            ]);
-            // response = await db.delete('game_room_meta', 'WHERE room_slug = ?', [room_meta]);
+                    console.log("Player Room completed: ", shortid, room_slug);
 
-            return response.results;
+                    let response2 = await db.update(
+                        "person_room",
+                        { place: rank, score, winloss },
+                        "shortid=? AND room_slug=?",
+                        [shortid, room_slug]
+                    );
+
+                    let stats = player?.stats;
+                    if (!stats) continue;
+                }
+            }
         } catch (e) {
             if (e instanceof GeneralError) throw e;
             throw new CodeError(e);
         }
-        return [];
+        return true;
+    }
+
+    async updatePlayerStats(meta, gamestate) {
+        try {
+            let db = await mysql.db();
+
+            let room_slug = meta?.room_slug;
+            let game_slug = meta?.game_slug;
+            let players = gamestate?.players;
+
+            let statDefResponse = await db.sql(
+                `SELECT 
+                *
+            FROM stat_definition a
+            WHERE a.game_slug = ?`,
+                [game_slug]
+            );
+
+            if (!statDefResponse.results || statDefResponse.results.length == 0)
+                return true;
+
+            let statDefinitions = statDefResponse.results;
+
+            let defs = {};
+            statDefinitions.map((def) => {
+                defs[def.stat_abbreviation] = def;
+                defs[def.definition_id] = def;
+            });
+
+            //rows to batch insert
+            let globalStatRows = [];
+            let playerStatRows = [];
+
+            //process each player individually
+            for (let shortid in players) {
+                let player = players[shortid];
+
+                let globalStatMap = {};
+                try {
+                    let globalStatResponse = await db.sql(
+                        `SELECT 
+                        definition_id,
+                        game_slug,
+                        shortid,
+                        season,
+                        valueINT,
+                        valueFLOAT,
+                        valueSTRING
+                    FROM person_stat_global
+                    WHERE game_slug = ?
+                    AND season = ?
+                    and shortid = ?`,
+                        [game_slug, meta.season, shortid]
+                    );
+
+                    globalStatResponse?.results?.map((gs) => {
+                        if (defs[gs.definition_id]?.valueTYPE == 4) {
+                            globalStatMap[
+                                gs.definition_id + "/" + gs.valueSTRING
+                            ] = gs;
+                        } else {
+                            globalStatMap[gs.definition_id] = gs;
+                        }
+                    });
+                } catch (e2) {
+                    console.error(e2);
+                }
+
+                //process each stat individually
+                for (let stat_abbreviation in player.stats) {
+                    if (!(stat_abbreviation in defs)) continue;
+
+                    let def = defs[stat_abbreviation];
+                    let stat = player.stats[stat_abbreviation];
+                    let globalStat = null;
+
+                    switch (def.valueTYPE) {
+                        case 0: //integer
+                        case 3: //time
+                            if (
+                                typeof stat !== "number" ||
+                                !Number.isInteger(stat)
+                            ) {
+                                console.error(
+                                    "IntStat is not a number",
+                                    game_slug,
+                                    stat_abbreviation,
+                                    stat
+                                );
+                            }
+                            playerStatRows.push({
+                                definition_id: def.definition_id,
+                                room_slug,
+                                shortid,
+                                valueINT: stat,
+                            });
+
+                            globalStat = globalStatMap[def.definition_id];
+                            if (!globalStat) {
+                                globalStat = {
+                                    definition_id: def.definition_id,
+                                    game_slug,
+                                    shortid,
+                                    season: meta.season,
+                                    valueINT: stat,
+                                    valueFLOAT: null,
+                                    valueSTRING: null,
+                                    // isUpdate: false,
+                                };
+                            } else {
+                                globalStat.valueINT += stat;
+                                // globalStat.isUpdate = true;
+                            }
+                            globalStatMap[def.definition_id] = globalStat;
+                            break;
+                        case 1: //float
+                            if (typeof stat !== "number") {
+                                console.error(
+                                    "IntStat is not a number",
+                                    game_slug,
+                                    stat_abbreviation,
+                                    stat
+                                );
+                            }
+                            playerStatRows.push({
+                                definition_id: def.definition_id,
+                                room_slug,
+                                shortid,
+                                valueFLOAT: stat,
+                            });
+
+                            globalStat = globalStatMap[def.definition_id];
+                            if (!globalStat) {
+                                globalStat = {
+                                    definition_id: def.definition_id,
+                                    game_slug,
+                                    shortid,
+                                    season: meta.season,
+                                    valueINT: null,
+                                    valueFLOAT: stat,
+                                    valueSTRING: null,
+                                    // isUpdate: false,
+                                };
+                            } else {
+                                globalStat.valueFLOAT += stat;
+                                // globalStat.isUpdate = true;
+                            }
+                            globalStatMap[def.definition_id] = globalStat;
+
+                            break;
+                        case 2: //average
+                            if (typeof stat !== "number") {
+                                console.error(
+                                    "IntStat is not a number",
+                                    game_slug,
+                                    stat_abbreviation,
+                                    stat
+                                );
+                            }
+                            playerStatRows.push({
+                                definition_id: def.definition_id,
+                                room_slug,
+                                shortid,
+                                valueINT: 1,
+                                valueFLOAT: stat,
+                            });
+
+                            globalStat = globalStatMap[def.definition_id];
+                            if (!globalStat) {
+                                globalStat = {
+                                    definition_id: def.definition_id,
+                                    game_slug,
+                                    shortid,
+                                    season: meta.season,
+                                    valueINT: 1,
+                                    valueFLOAT: stat,
+                                    valueSTRING: null,
+                                    // isUpdate: false,
+                                };
+                            } else {
+                                let avg =
+                                    (globalStat.valueFLOAT *
+                                        globalStat.valueINT +
+                                        stat) /
+                                    (globalStat.valueINT + 1);
+                                globalStat.valueINT += 1;
+                                globalStat.valueFLOAT = avg;
+                                // globalStat.isUpdate = true;
+                            }
+                            globalStatMap[def.definition_id] = globalStat;
+
+                            break;
+
+                            break;
+                        case 4: //string count
+                            if (!isObject(stat)) {
+                                console.error(
+                                    "StringStat is not an object",
+                                    game_slug,
+                                    stat_abbreviation,
+                                    stat
+                                );
+                                continue;
+                            }
+                            for (let stringKey in stat) {
+                                playerStatRows.push({
+                                    definition_id: def.definition_id,
+                                    room_slug,
+                                    shortid,
+                                    valueINT: stat[stringKey],
+                                    valueSTRING: stringKey,
+                                });
+
+                                globalStat =
+                                    globalStatMap[
+                                        def.definition_id + "/" + stringKey
+                                    ];
+                                if (!globalStat) {
+                                    globalStat = {
+                                        definition_id: def.definition_id,
+                                        game_slug,
+                                        shortid,
+                                        season: meta.season,
+                                        valueINT: stat[stringKey],
+                                        valueSTRING: stringKey,
+                                        // isUpdate: false,
+                                    };
+                                } else {
+                                    globalStat.valueINT += stat[stringKey];
+                                    globalStat.valueSTRING = stringKey;
+                                    // globalStat.isUpdate = true;
+                                }
+                                globalStatMap[
+                                    def.definition_id + "/" + stringKey
+                                ] = globalStat;
+                            }
+                            break;
+                    }
+                }
+
+                //aggregate all stats into a single array to batch
+                for (let key in globalStatMap) {
+                    let globalStat = globalStatMap[key];
+
+                    globalStatRows.push(globalStat);
+                }
+            }
+
+            let matchInsertResults = await db.insertBatch(
+                "person_stat_match",
+                playerStatRows,
+                ["definition_id", "shortid", "room_slug"],
+                [],
+                ["tsupdate", "tsinsert"]
+            );
+            let globalInsertResults = await db.insertBatch(
+                "person_stat_global",
+                globalStatRows,
+                ["definition_id", "shortid", "game_slug", "season"],
+                [],
+                ["tsupdate", "tsinsert"]
+            );
+
+            console.log(
+                "Match Insert for",
+                room_slug,
+                game_slug,
+                matchInsertResults
+            );
+            console.log(
+                "Global Insert for",
+                game_slug,
+                meta.season,
+                matchInsertResults
+            );
+        } catch (e) {
+            if (e instanceof GeneralError) throw e;
+            throw new CodeError(e);
+        }
+        return true;
+    }
+
+    async deleteRoom(meta, roomState) {
+        try {
+            let room_slug = meta.room_slug;
+            // cache.del(room_slug);
+            // cache.del(room_slug + '/meta');
+            // cache.del(room_slug + '/timer');
+            // cache.del(room_slug + '/p');
+            let db = await mysql.db();
+            var response;
+            console.log("Room completed: " + room_slug);
+
+            response = await db.update(
+                "game_room",
+                { status: 1 },
+                "room_slug=?",
+                [room_slug]
+            );
+
+            // response = await db.delete("person_room", "WHERE room_slug = ?", [
+            //     room_slug,
+            // ]);
+            // response = await db.delete('game_room_meta', 'WHERE room_slug = ?', [room_meta]);
+            // return response.results;
+        } catch (e) {
+            if (e instanceof GeneralError) throw e;
+            throw new CodeError(e);
+        }
+        return true;
     }
 }
 

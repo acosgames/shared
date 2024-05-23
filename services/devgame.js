@@ -558,6 +558,49 @@ module.exports = class DevGameService {
         return null;
     }
 
+    async updateStats(gameFull, apiKey, gameSettings) {
+        try {
+            let db = await mysql.db();
+
+            let comment = apiKey.indexOf(".");
+            if (comment > -1) {
+                apiKey = apiKey.substr(comment + 1);
+            }
+
+            let dev = await this.findDevByAPIKey(apiKey);
+            if (!dev) {
+                throw new GeneralError("E_NOTAUTHORIZED");
+            }
+
+            let stats = gameSettings?.stats;
+            if (!stats) throw new GeneralError("E_MISSING_STATS");
+
+            for (let stat of stats) {
+                let row = {
+                    game_slug: gameFull.game_slug,
+                    ...stat,
+                    active: 1,
+                    scoreboard:
+                        typeof stat.scoreboard == " undefined"
+                            ? 0
+                            : stat.scoreboard,
+                    icon: "",
+                };
+
+                try {
+                    let result = await db.insert("stat_definition", row);
+                } catch (e2) {
+                    console.error(e2);
+                    return false;
+                }
+            }
+            return true;
+        } catch (e) {
+            console.error(e);
+        }
+        return false;
+    }
+
     async updateGame(game, user, db) {
         console.log(game);
         try {

@@ -188,12 +188,11 @@ module.exports = class GameService {
             console.log("Getting game replay: ", game_slug);
             response = await db.sql(
                 `
-                SELECT a.version, a.mode, a.filename, c.screentype, c.resow, c.resoh, c.screenwidth, c.css
-                FROM game_match a, game_info b, game_version c
+                SELECT a.version, a.mode, a.room_slug, c.screentype, c.resow, c.resoh, c.screenwidth, c.css
+                FROM game_room a, game_info b, game_version c
                 WHERE a.game_slug = ?
-                AND a.game_slug = b.game_slug 
-                AND b.gameid = c.gameid
-                AND b.version = c.version
+                AND b.game_slug = a.game_slug
+                AND b.gameid = c.gameid 
                 ORDER BY a.tsupdate DESC
                 LIMIT 100
             `,

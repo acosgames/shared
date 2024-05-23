@@ -335,7 +335,13 @@ module.exports = class MySQL {
                     });
                 },
 
-                insertBatch: (table, rows, primarykeys, incrementKeys) => {
+                insertBatch: (
+                    table,
+                    rows,
+                    primarykeys,
+                    incrementKeys,
+                    ignoreKeys
+                ) => {
                     // if( rows.length > 1000 ) {
                     //     let subset = rows.slice(0,1000);
                     //     let remaining = rows.slice(1000, rows.length);
@@ -390,11 +396,18 @@ module.exports = class MySQL {
                             let qmarks = [];
                             let qmarksStr = "";
                             let updateDateTime = utcDATETIME();
+
+                            let keys = Object.keys(rows[0]);
+                            keys.sort((a, b) => a.localeCompare(b));
+
                             for (var i = 0; i < rows.length; i++) {
                                 let row = rows[i];
                                 row.tsupdate = updateDateTime;
                                 row.tsinsert = updateDateTime;
-                                for (var key in row) {
+
+                                for (let key of keys) {
+                                    // for (var key in row) {
+                                    if (ignoreKeys?.includes(key)) continue;
                                     let value = row[key];
 
                                     valuesList.push(value);
@@ -418,9 +431,12 @@ module.exports = class MySQL {
                                         key + "= " + key + " + 1"
                                     );
                                 }
-                            for (var key in rows[0]) {
+
+                            for (let key of keys) {
+                                // for (var key in rows[0]) {
                                 if (
                                     primarykeys.includes(key) ||
+                                    ignoreKeys?.includes(key) ||
                                     key == "tsinsert"
                                 )
                                     continue;
