@@ -98,8 +98,6 @@ module.exports = class UserService {
         try {
             let db = await mysql.db();
 
-            let season = 0;
-
             let response = await db.sql(
                 `
                 SELECT 
@@ -121,7 +119,7 @@ module.exports = class UserService {
                 AND b.game_slug = a.game_slug
                 AND a.played > 0
             `,
-                [shortid, season]
+                [shortid]
             );
 
             if (response && response?.results.length > 0) {
@@ -144,8 +142,6 @@ module.exports = class UserService {
         try {
             let db = await mysql.db();
 
-            let season = 0;
-
             let response = await db.sql(
                 `
                 SELECT 
@@ -160,7 +156,7 @@ module.exports = class UserService {
                 AND b.gameid = c.gameid
                 AND (c.status = 2 OR c.status = 3)
             `,
-                [shortid, season]
+                [shortid]
             );
 
             if (response && response?.results.length > 0) {

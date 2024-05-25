@@ -141,6 +141,26 @@ module.exports = class MySQL {
         }
     }
 
+    rollback(jobname) {
+        if (!(jobname in this.connections)) return;
+
+        try {
+            this.connections[jobname].rollback((err) => {
+                if (err) {
+                    reject(new SQLError("E_SQL_ERROR", err));
+                    return;
+                }
+                this.connections[jobname].release();
+                delete this.connections[jobname];
+            });
+        } catch (e) {
+            //console.error(e);
+            this.connections[jobname].release();
+            delete this.connections[jobname];
+            throw e;
+        }
+    }
+
     async db() {
         try {
             // var conn = this.pool;//await this.getConnection();
@@ -185,8 +205,8 @@ module.exports = class MySQL {
                                 return;
                             }
 
-                            row.tsupdate = utcDATETIME();
-                            row.tsinsert = row.tsupdate;
+                            // row.tsupdate = utcDATETIME();
+                            // row.tsinsert = row.tsupdate;
                             var query = this.pool.query(
                                 "INSERT INTO " + table + " SET ?",
                                 row,
@@ -402,8 +422,8 @@ module.exports = class MySQL {
 
                             for (var i = 0; i < rows.length; i++) {
                                 let row = rows[i];
-                                row.tsupdate = updateDateTime;
-                                row.tsinsert = updateDateTime;
+                                // row.tsupdate = updateDateTime;
+                                // row.tsinsert = updateDateTime;
 
                                 for (let key of keys) {
                                     // for (var key in row) {
@@ -483,7 +503,7 @@ module.exports = class MySQL {
                     });
                 },
 
-                update: (table, row, where, whereValues) => {
+                update: (table, row, where, whereValues, ignoreKeys) => {
                     var self = this;
                     return new Promise((resolve, reject) => {
                         try {
@@ -497,8 +517,13 @@ module.exports = class MySQL {
                             if (row.tsinsert) {
                                 delete row["tsinsert"];
                             }
-                            row.tsupdate = utcDATETIME();
 
+                            // row.tsupdate = utcDATETIME();
+
+                            if (Array.isArray(ignoreKeys))
+                                ignoreKeys.map((key) => {
+                                    if (key in row) delete row[key];
+                                });
                             let { keys, values } = self.objToString(row);
 
                             if (whereValues && Array.isArray(whereValues)) {

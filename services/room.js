@@ -1460,8 +1460,8 @@ class RoomService {
 
             let defs = {};
             statDefinitions.map((def) => {
+                defs[def.stat_slug] = def;
                 defs[def.stat_abbreviation] = def;
-                defs[def.definition_id] = def;
             });
 
             //rows to batch insert
@@ -1476,7 +1476,7 @@ class RoomService {
                 try {
                     let globalStatResponse = await db.sql(
                         `SELECT 
-                        definition_id,
+                        stat_slug,
                         game_slug,
                         shortid,
                         season,
@@ -1491,12 +1491,11 @@ class RoomService {
                     );
 
                     globalStatResponse?.results?.map((gs) => {
-                        if (defs[gs.definition_id]?.valueTYPE == 4) {
-                            globalStatMap[
-                                gs.definition_id + "/" + gs.valueSTRING
-                            ] = gs;
+                        if (defs[gs.stat_slug]?.valueTYPE == 4) {
+                            globalStatMap[gs.stat_slug + "/" + gs.valueSTRING] =
+                                gs;
                         } else {
-                            globalStatMap[gs.definition_id] = gs;
+                            globalStatMap[gs.stat_slug] = gs;
                         }
                     });
                 } catch (e2) {
@@ -1513,29 +1512,30 @@ class RoomService {
 
                     switch (def.valueTYPE) {
                         case 0: //integer
-                        case 3: //time
                             if (
                                 typeof stat !== "number" ||
                                 !Number.isInteger(stat)
                             ) {
                                 console.error(
-                                    "IntStat is not a number",
+                                    "Stat is not an integer number",
                                     game_slug,
                                     stat_abbreviation,
                                     stat
                                 );
                             }
                             playerStatRows.push({
-                                definition_id: def.definition_id,
+                                stat_slug: def.stat_slug,
                                 room_slug,
                                 shortid,
                                 valueINT: stat,
+                                valueFLOAT: null,
+                                valueSTRING: null,
                             });
 
-                            globalStat = globalStatMap[def.definition_id];
+                            globalStat = globalStatMap[def.stat_slug];
                             if (!globalStat) {
                                 globalStat = {
-                                    definition_id: def.definition_id,
+                                    stat_slug: def.stat_slug,
                                     game_slug,
                                     shortid,
                                     season: meta.season,
@@ -1548,28 +1548,34 @@ class RoomService {
                                 globalStat.valueINT += stat;
                                 // globalStat.isUpdate = true;
                             }
-                            globalStatMap[def.definition_id] = globalStat;
+                            globalStatMap[def.stat_slug] = globalStat;
                             break;
                         case 1: //float
-                            if (typeof stat !== "number") {
+                        case 3: //time
+                            if (
+                                typeof stat !== "number" ||
+                                Number.isInteger(stat)
+                            ) {
                                 console.error(
-                                    "IntStat is not a number",
+                                    "Stat is not a float number",
                                     game_slug,
                                     stat_abbreviation,
                                     stat
                                 );
                             }
                             playerStatRows.push({
-                                definition_id: def.definition_id,
+                                stat_slug: def.stat_slug,
                                 room_slug,
                                 shortid,
                                 valueFLOAT: stat,
+                                valueINT: null,
+                                valueSTRING: null,
                             });
 
-                            globalStat = globalStatMap[def.definition_id];
+                            globalStat = globalStatMap[def.stat_slug];
                             if (!globalStat) {
                                 globalStat = {
-                                    definition_id: def.definition_id,
+                                    stat_slug: def.stat_slug,
                                     game_slug,
                                     shortid,
                                     season: meta.season,
@@ -1582,7 +1588,7 @@ class RoomService {
                                 globalStat.valueFLOAT += stat;
                                 // globalStat.isUpdate = true;
                             }
-                            globalStatMap[def.definition_id] = globalStat;
+                            globalStatMap[def.stat_slug] = globalStat;
 
                             break;
                         case 2: //average
@@ -1595,17 +1601,18 @@ class RoomService {
                                 );
                             }
                             playerStatRows.push({
-                                definition_id: def.definition_id,
+                                stat_slug: def.stat_slug,
                                 room_slug,
                                 shortid,
                                 valueINT: 1,
                                 valueFLOAT: stat,
+                                valueSTRING: null,
                             });
 
-                            globalStat = globalStatMap[def.definition_id];
+                            globalStat = globalStatMap[def.stat_slug];
                             if (!globalStat) {
                                 globalStat = {
-                                    definition_id: def.definition_id,
+                                    stat_slug: def.stat_slug,
                                     game_slug,
                                     shortid,
                                     season: meta.season,
@@ -1624,9 +1631,7 @@ class RoomService {
                                 globalStat.valueFLOAT = avg;
                                 // globalStat.isUpdate = true;
                             }
-                            globalStatMap[def.definition_id] = globalStat;
-
-                            break;
+                            globalStatMap[def.stat_slug] = globalStat;
 
                             break;
                         case 4: //string count
@@ -1641,25 +1646,27 @@ class RoomService {
                             }
                             for (let stringKey in stat) {
                                 playerStatRows.push({
-                                    definition_id: def.definition_id,
+                                    stat_slug: def.stat_slug,
                                     room_slug,
                                     shortid,
                                     valueINT: stat[stringKey],
                                     valueSTRING: stringKey,
+                                    valueFLOAT: null,
                                 });
 
                                 globalStat =
                                     globalStatMap[
-                                        def.definition_id + "/" + stringKey
+                                        def.stat_slug + "/" + stringKey
                                     ];
                                 if (!globalStat) {
                                     globalStat = {
-                                        definition_id: def.definition_id,
+                                        stat_slug: def.stat_slug,
                                         game_slug,
                                         shortid,
                                         season: meta.season,
                                         valueINT: stat[stringKey],
                                         valueSTRING: stringKey,
+                                        valueFLOAT: null,
                                         // isUpdate: false,
                                     };
                                 } else {
@@ -1667,9 +1674,8 @@ class RoomService {
                                     globalStat.valueSTRING = stringKey;
                                     // globalStat.isUpdate = true;
                                 }
-                                globalStatMap[
-                                    def.definition_id + "/" + stringKey
-                                ] = globalStat;
+                                globalStatMap[def.stat_slug + "/" + stringKey] =
+                                    globalStat;
                             }
                             break;
                     }
@@ -1686,14 +1692,14 @@ class RoomService {
             let matchInsertResults = await db.insertBatch(
                 "person_stat_match",
                 playerStatRows,
-                ["definition_id", "shortid", "room_slug"],
+                ["stat_slug", "shortid", "room_slug"],
                 [],
                 ["tsupdate", "tsinsert"]
             );
             let globalInsertResults = await db.insertBatch(
                 "person_stat_global",
                 globalStatRows,
-                ["definition_id", "shortid", "game_slug", "season"],
+                ["stat_slug", "shortid", "game_slug", "season"],
                 [],
                 ["tsupdate", "tsinsert"]
             );

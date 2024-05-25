@@ -458,6 +458,7 @@ module.exports = class DevGameService {
     }
 
     async createGameVersion(
+        db,
         game,
         hasDB,
         hasCSS,
@@ -467,7 +468,7 @@ module.exports = class DevGameService {
         screenwidth
     ) {
         try {
-            let db = await mysql.db();
+            db = db || (await mysql.db());
 
             let gameVersion = {
                 gameid: {
@@ -558,9 +559,9 @@ module.exports = class DevGameService {
         return null;
     }
 
-    async updateStats(gameFull, apiKey, gameSettings) {
+    async updateStats(db, gameFull, apiKey, gameSettings) {
         try {
-            let db = await mysql.db();
+            db = db || (await mysql.db());
 
             let comment = apiKey.indexOf(".");
             if (comment > -1) {
@@ -575,25 +576,61 @@ module.exports = class DevGameService {
             let stats = gameSettings?.stats;
             if (!stats) throw new GeneralError("E_MISSING_STATS");
 
+            let existingStatDefs = await db.sql(
+                `SELECT * FROM stat_definition WHERE game_slug = ?`,
+                [gameFull.game_slug]
+            );
+            let existingMap = {};
+            existingStatDefs.results.map(
+                (def) => (existingMap[def.stat_slug] = def)
+            );
+
             for (let stat of stats) {
                 let row = {
                     game_slug: gameFull.game_slug,
                     ...stat,
-                    active: 1,
-                    scoreboard:
-                        typeof stat.scoreboard == " undefined"
-                            ? 0
-                            : stat.scoreboard,
+                    isactive: 1,
+                    scoreboard: stat.scoreboard === 1 ? 1 : 0,
                     icon: "",
                 };
 
                 try {
-                    let result = await db.insert("stat_definition", row);
+                    if (stat.stat_slug in existingMap) {
+                        delete row.game_slug;
+                        delete row.stat_slug;
+                        existingMap[stat.stat_slug].updated = true;
+                        let result = await db.update(
+                            "stat_definition",
+                            row,
+                            "game_slug=? AND stat_slug=?",
+                            [gameFull.game_slug, stat.stat_slug],
+                            ["tsupdate"]
+                        );
+                    } else {
+                        let result = await db.insert("stat_definition", row);
+                    }
                 } catch (e2) {
                     console.error(e2);
                     return false;
                 }
             }
+
+            for (let stat_slug in existingMap) {
+                let stat = existingMap[stat_slug];
+                if (stat.updated) continue;
+                try {
+                    let result = await db.update(
+                        "stat_definition",
+                        { isactive: 0 },
+                        "game_slug=? AND stat_slug=?",
+                        [gameFull.game_slug, stat.stat_slug]
+                    );
+                } catch (e2) {
+                    console.error(e2);
+                    return false;
+                }
+            }
+
             return true;
         } catch (e) {
             console.error(e);
@@ -621,16 +658,9 @@ module.exports = class DevGameService {
             let ownerid = gameFull.ownerid;
             if (game.ownerid) delete game["ownerid"];
 
-            // let clients = game.clients;
-            // let servers = game.servers;
-            // delete game['clients'];
-            // delete game['servers'];
-
             if (game.game_slug) delete game["game_slug"];
             let apikey = game.apikey;
             if (game.apikey) delete game["apikey"];
-            //game.ownerid = user.id;
-            // game.apikey = generateAPIKEY();
 
             let version = game.version;
             if (
@@ -657,6 +687,7 @@ module.exports = class DevGameService {
             if ("opensource" in game)
                 newGame.opensource = game.opensource ? 1 : 0;
 
+            let dev;
             let dbresult;
             if (apikey) {
                 let comment = apikey.indexOf(".");
@@ -664,19 +695,26 @@ module.exports = class DevGameService {
                     apikey = apikey.substr(comment + 1);
                 }
 
-                let dev = await this.findDevByAPIKey(apikey);
+                dev = await this.findDevByAPIKey(apikey);
                 if (!dev) {
                     throw new GeneralError("E_NOTAUTHORIZED");
                 }
+            } else {
+                dev = await this.findDevByGame(gameid, user.shortid);
+                if (!dev) {
+                    throw new GeneralError("E_NOTAUTHORIZED");
+                }
+            }
 
-                let { results } = await db.update(
-                    "game_info",
-                    newGame,
-                    "gameid=?",
-                    [gameid]
-                );
-                dbresult = results;
-                console.log(dbresult);
+            let { results } = await db.update(
+                "game_info",
+                newGame,
+                "gameid=?",
+                [gameid]
+            );
+            dbresult = results;
+            console.log(dbresult);
+            if (dbresult.affectedRows > 0) {
                 game.gameid = gameid;
                 game.ownerid = ownerid;
 
@@ -697,42 +735,6 @@ module.exports = class DevGameService {
                 }
 
                 return game;
-            } else {
-                let dev = await this.findDevByGame(gameid, user.shortid);
-                if (!dev) {
-                    throw new GeneralError("E_NOTAUTHORIZED");
-                }
-
-                let { results } = await db.update(
-                    "game_info",
-                    newGame,
-                    "gameid=?",
-                    [gameid]
-                );
-                dbresult = results;
-                console.log(dbresult);
-                if (dbresult.affectedRows > 0) {
-                    game.gameid = gameid;
-                    game.ownerid = ownerid;
-
-                    let teams = [];
-                    if (game.teams) {
-                        teams = game.teams;
-                        delete game.teams;
-
-                        for (const team of teams)
-                            team.game_slug = gameFull.game_slug;
-
-                        let teamResult = await this.updateGameTeams(
-                            gameFull.game_slug,
-                            teams
-                        );
-
-                        game.teams = teams;
-                    }
-
-                    return game;
-                }
             }
         } catch (e) {
             console.error(e);
