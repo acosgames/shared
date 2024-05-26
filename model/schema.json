@@ -1,4 +1,106 @@
 {
+    "manage-achievement": {
+        "achievement_slug": {
+            "label": "Slug",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "achievement_name": {
+            "label": "Name",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "achievement_description": {
+            "label": "Description",
+            "type": "string",
+            "required": true,
+            "max": 120,
+            "min": 3
+        },
+        "all_required": {
+            "label": "Require all?",
+            "required": true,
+            "max": 1,
+            "min": 0
+        },
+        "stat_slug1": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+        "stat_slug2": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+        "stat_slug3": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+        "goal1_valueINT": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+        "goal2_valueINT": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+        "goal3_valueINT": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+
+        "goal1_valueFLOAT": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+        "goal2_valueFLOAT": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+        "goal3_valueFLOAT": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+
+        "goal1_valueSTRING": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+        "goal2_valueSTRING": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+        "goal3_valueSTRING": {
+            "label": "Value",
+            "type": "string",
+            "required": true
+        },
+        "times_in_a_row": {
+            "label": "Repeated per X matches",
+            "type": "string",
+            "required": true
+        },
+        "within_one_match": {
+            "label": "Within one match?",
+            "required": true,
+            "max": 1,
+            "min": 0
+        }
+    },
     "create-game_info": {
         "name": {
             "label": "Game Name",

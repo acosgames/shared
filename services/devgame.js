@@ -363,6 +363,12 @@ module.exports = class DevGameService {
                 if (teams) {
                     foundGame.teams = teams;
                 }
+
+                let stats = await this.findGameStats(foundGame.game_slug);
+
+                if (stats) {
+                    foundGame.stats = stats;
+                }
             }
 
             return foundGame;
@@ -372,6 +378,30 @@ module.exports = class DevGameService {
         }
     }
 
+    async findGameStats(game_slug) {
+        try {
+            let db = await mysql.db();
+            var response;
+
+            console.log(
+                "Searching for dev game stats by game_slug: ",
+                game_slug
+            );
+            response = await db.sql(
+                `
+                    SELECT * FROM stat_definition a
+                    WHERE a.game_slug = ?
+                    ORDER BY a.isactive DESC, a.stat_order ASC
+                `,
+                [game_slug]
+            );
+
+            return response.results;
+        } catch (e) {
+            if (e instanceof GeneralError) throw e;
+            throw new CodeError(e);
+        }
+    }
     async findGameTeams(game_slug) {
         try {
             let db = await mysql.db();
