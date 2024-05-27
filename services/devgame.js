@@ -4,6 +4,8 @@ const credutil = require("../util/credentials");
 const { genUnique64string, generateAPIKEY } = require("../util/idgen");
 const { utcDATETIME } = require("../util/datefns");
 const { GeneralError, CodeError, SQLError } = require("../util/errorhandler");
+
+const { validateSimple } = require("../util/validation");
 // const { validateSimple } = require('../util/validation');
 
 // const simpleGit = require('simple-git');
@@ -369,9 +371,56 @@ module.exports = class DevGameService {
                 if (stats) {
                     foundGame.stats = stats;
                 }
+
+                let achievements = await this.findGameAchievements(
+                    foundGame.game_slug,
+                    stats
+                );
+
+                if (achievements) {
+                    foundGame.achievements = achievements;
+                }
             }
 
             return foundGame;
+        } catch (e) {
+            if (e instanceof GeneralError) throw e;
+            throw new CodeError(e);
+        }
+    }
+
+    async findGameAchievements(game_slug, stats) {
+        try {
+            let db = await mysql.db();
+            var response;
+
+            console.log(
+                "Searching for dev game stats by game_slug: ",
+                game_slug
+            );
+            response = await db.sql(
+                `
+                    SELECT * FROM achievement_definition a
+                    WHERE a.game_slug = ?
+                `,
+                [game_slug]
+            );
+
+            if (stats) {
+                let statMap = {};
+                stats.map((stat) => (statMap[stat.stat_slug] = stat));
+                response.results = response.results.map((ach) => {
+                    if (ach.stat_slug1)
+                        ach.stat_name1 = statMap[ach.stat_slug1].stat_name;
+                    if (ach.stat_slug2)
+                        ach.stat_name2 = statMap[ach.stat_slug2].stat_name;
+                    if (ach.stat_slug3)
+                        ach.stat_name3 = statMap[ach.stat_slug3].stat_name;
+                    return ach;
+                });
+            }
+
+            return response.results;
         } catch (e) {
             if (e instanceof GeneralError) throw e;
             throw new CodeError(e);
@@ -395,6 +444,28 @@ module.exports = class DevGameService {
                 `,
                 [game_slug]
             );
+
+            response.results.push({
+                stat_slug: "ACOS_WINS",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Matches Won",
+                stat_abbreviation: "W",
+                stat_desc: "Matches Won",
+                valueTYPE: 0,
+                isactive: 1,
+            });
+
+            response.results.push({
+                stat_slug: "ACOS_PLAYED",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Matches Played",
+                stat_abbreviation: "PLY",
+                stat_desc: "Matches played",
+                valueTYPE: 0,
+                isactive: 1,
+            });
 
             return response.results;
         } catch (e) {
@@ -666,6 +737,96 @@ module.exports = class DevGameService {
             console.error(e);
         }
         return false;
+    }
+
+    async updateAchievement(game, achievement, user, db) {
+        console.log(game, achievement);
+
+        try {
+            db = db || (await mysql.db());
+
+            let gameFull = await this.findGame(game, user);
+            if (!gameFull) {
+                throw new GeneralError("E_NOTAUTHORIZED");
+            }
+
+            let dev = await this.findDevByGame(gameFull.gameid, user.shortid);
+            if (!dev) {
+                throw new GeneralError("E_NOTAUTHORIZED");
+            }
+
+            // let { validateSimple } = await import("../util/validation.mjs");
+            let errors = validateSimple("manage-achievement", achievement);
+            if (errors.length > 0) {
+                throw new GeneralError("E_GAME_INVALID");
+            }
+
+            achievement.game_slug = gameFull.game_slug;
+
+            if (
+                achievement?.stat_slug1 == "-1" ||
+                achievement?.stat_slug1 == -1
+            ) {
+                achievement.stat_slug1 = null;
+                achievement.goal1_valueTYPE = null;
+            }
+            if (
+                achievement?.stat_slug2 == "-1" ||
+                achievement?.stat_slug2 == -1
+            ) {
+                achievement.stat_slug2 = null;
+                achievement.goal2_valueTYPE = null;
+            }
+            if (
+                achievement?.stat_slug3 == "-1" ||
+                achievement?.stat_slug3 == -1
+            ) {
+                achievement.stat_slug3 = null;
+                achievement.goal3_valueTYPE = null;
+            }
+
+            let existResponse = await db.sql(
+                `SELECT * FROM achievement_definition WHERE game_slug = ? AND achievement_slug = ?`,
+                [achievement.game_slug, achievement.achievement_slug]
+            );
+
+            let dbresult;
+            if (existResponse?.results?.length > 0) {
+                let { results } = await db.update(
+                    "achievement_definition",
+                    achievement,
+                    "game_slug=? AND achievement_slug=?",
+                    [achievement.game_slug, achievement.achievement_slug]
+                );
+                dbresult = results;
+            } else {
+                let { results } = await db.insert(
+                    "achievement_definition",
+                    achievement
+                );
+                dbresult = results;
+            }
+
+            if (!gameFull.achievements) gameFull.achievements = [];
+
+            gameFull.achievements.push(achievement);
+            console.log(dbresult);
+            return gameFull;
+        } catch (e) {
+            console.error(e);
+            //revert back to normal
+            if (e instanceof SQLError && e.payload.errno == 1062) {
+                if (
+                    e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1
+                ) {
+                    throw new GeneralError("E_GAME_DUPENAME", game.name);
+                }
+            }
+            //console.error(e);
+            if (e.ecode) throw e;
+            throw new GeneralError("E_GAME_INVALID");
+        }
+        return null;
     }
 
     async updateGame(game, user, db) {
@@ -972,7 +1133,7 @@ module.exports = class DevGameService {
             game.version = 0;
             game.latest_version = 0;
 
-            let { validateSimple } = await import("shared/util/validation.mjs");
+            // let { validateSimple } = await import("../util/validation.mjs");
             let errors = validateSimple("game_info", game);
             if (errors.length > 0) {
                 throw new GeneralError("E_GAME_INVALID");
