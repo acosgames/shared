@@ -5,7 +5,7 @@ const { genUnique64string, generateAPIKEY } = require("../util/idgen");
 const { utcDATETIME } = require("../util/datefns");
 const { GeneralError, CodeError, SQLError } = require("../util/errorhandler");
 
-const { validateSimple } = require("../util/validation");
+// const { validateSimple } = require("../util/validation");
 // const { validateSimple } = require('../util/validation');
 
 // const simpleGit = require('simple-git');
@@ -755,13 +755,29 @@ module.exports = class DevGameService {
                 throw new GeneralError("E_NOTAUTHORIZED");
             }
 
-            // let { validateSimple } = await import("../util/validation.mjs");
+            let { validateSimple } = await import("../util/validation.mjs");
             let errors = validateSimple("manage-achievement", achievement);
             if (errors.length > 0) {
-                throw new GeneralError("E_GAME_INVALID");
+                throw new GeneralError("E_VALIDATION_FAILED", errors);
             }
 
             achievement.game_slug = gameFull.game_slug;
+
+            if (achievement.achievement_award) {
+                delete achievement.achievement_award;
+            }
+
+            if (achievement.stat_name1) {
+                delete achievement.stat_name1;
+            }
+
+            if (achievement.stat_name2) {
+                delete achievement.stat_name2;
+            }
+
+            if (achievement.stat_name3) {
+                delete achievement.stat_name3;
+            }
 
             if (
                 achievement?.stat_slug1 == "-1" ||
@@ -809,7 +825,17 @@ module.exports = class DevGameService {
 
             if (!gameFull.achievements) gameFull.achievements = [];
 
-            gameFull.achievements.push(achievement);
+            let exists = false;
+            for (let i = 0; i < gameFull.achievements.length; i++) {
+                if (
+                    gameFull.achievements[i].achievement_slug ==
+                    achievement.achievement_slug
+                ) {
+                    gameFull.achievements[i] = achievement;
+                    exists = true;
+                }
+            }
+            if (!exists) gameFull.achievements.push(achievement);
             console.log(dbresult);
             return gameFull;
         } catch (e) {
@@ -1133,7 +1159,7 @@ module.exports = class DevGameService {
             game.version = 0;
             game.latest_version = 0;
 
-            // let { validateSimple } = await import("../util/validation.mjs");
+            let { validateSimple } = await import("../util/validation.mjs");
             let errors = validateSimple("game_info", game);
             if (errors.length > 0) {
                 throw new GeneralError("E_GAME_INVALID");

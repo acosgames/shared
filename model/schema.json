@@ -28,70 +28,70 @@
             "min": 0
         },
         "stat_slug1": {
-            "label": "Value",
+            "label": "Stat 1",
             "type": "string",
-            "required": false
+            "required": true
         },
         "stat_slug2": {
-            "label": "Value",
+            "label": "Stat 2",
             "type": "string",
             "required": false
         },
         "stat_slug3": {
-            "label": "Value",
+            "label": "Stat 3",
             "type": "string",
             "required": false
         },
         "goal1_valueINT": {
-            "label": "Value",
-            "type": "string",
+            "label": "Goal 1 Int",
+            "type": "number",
             "required": false
         },
         "goal2_valueINT": {
-            "label": "Value",
-            "type": "string",
+            "label": "Goal 2 Int",
+            "type": "number",
             "required": false
         },
         "goal3_valueINT": {
-            "label": "Value",
-            "type": "string",
+            "label": "Goal 3 Int",
+            "type": "number",
             "required": false
         },
 
         "goal1_valueFLOAT": {
-            "label": "Value",
-            "type": "string",
+            "label": "Goal 1 Float",
+            "type": "number",
             "required": false
         },
         "goal2_valueFLOAT": {
-            "label": "Value",
-            "type": "string",
+            "label": "Goal 2 Float",
+            "type": "number",
             "required": false
         },
         "goal3_valueFLOAT": {
-            "label": "Value",
-            "type": "string",
+            "label": "Goal 3 Float",
+            "type": "number",
             "required": false
         },
 
         "goal1_valueSTRING": {
-            "label": "Value",
+            "label": "Goal 1 String",
             "type": "string",
             "required": false
         },
         "goal2_valueSTRING": {
-            "label": "Value",
+            "label": "Goal 2 String",
             "type": "string",
-            "required": true
+            "required": false
         },
         "goal3_valueSTRING": {
-            "label": "Value",
+            "label": "Goal 3 String",
             "type": "string",
             "required": false
         },
         "times_in_a_row": {
             "label": "Repeated per X matches",
-            "type": "string",
+            "type": "number",
             "required": false
         },
         "within_one_match": {
@@ -101,22 +101,23 @@
             "min": 0
         },
         "award_item": {
-            "label": "Repeated per X matches",
+            "label": "Award Item",
             "type": "string",
             "required": false
         },
         "award_xp": {
-            "label": "Repeated per X matches",
-            "type": "string",
-            "required": false
+            "label": "Award XP",
+            "type": "number",
+            "required": true,
+            "integer": true
         },
         "award_gamepoints": {
-            "label": "Repeated per X matches",
-            "type": "string",
+            "label": "Award Game Points",
+            "type": "number",
             "required": false
         },
         "award_badge": {
-            "label": "Repeated per X matches",
+            "label": "Award Badge",
             "type": "string",
             "required": false
         }
