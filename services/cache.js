@@ -1,11 +1,9 @@
-
-
-const NodeCache = require('node-cache');
-const RedisService = require('./redis');
+const NodeCache = require("node-cache");
+const RedisService = require("./redis");
 
 class Cacher {
     constructor() {
-        this.cache = new NodeCache({ stdTTL: 120, checkperiod: 10 });
+        this.cache = new NodeCache({ stdTTL: 60, checkperiod: 10 });
         this.dict = {};
         this.redis = RedisService;
     }
@@ -13,15 +11,13 @@ class Cacher {
     async get(key) {
         //let key = shortid + '/' + room_slug;
         //let value = this.dict[key];
-        if (!key)
-            return null;
+        if (!key) return null;
         let value = this.cache.get(key);
-        if (typeof value === 'undefined') {
+        if (typeof value === "undefined") {
             value = await this.redis.get(key);
             // if (typeof value !== 'undefined')
             //     this.dict[key] = value;
         }
-
 
         return value;
     }
@@ -60,20 +56,17 @@ class Cacher {
             //this.dict[key] = value;
             this.cache.set(key, value);
             this.redis.set(key, value, 60);
-        }
-        else {
+        } else {
             //this.dict[key] = value;
             this.cache.set(key, value);
             this.redis.set(key, value, ttl);
         }
-
     }
 
     setremote(key, value, ttl) {
         if (!ttl) {
             this.redis.set(key, value);
-        }
-        else {
+        } else {
             this.redis.set(key, value, ttl);
         }
     }
@@ -83,8 +76,7 @@ class Cacher {
             //this.dict[key] = value;
             this.cache.set(key, value);
             // this.redis.set(key, value);
-        }
-        else {
+        } else {
             //this.dict[key] = value;
             this.cache.set(key, value, Math.round(ttl));
             // this.redis.set(key, value, ttl);
@@ -117,8 +109,5 @@ class Cacher {
         let result = await this.redis.zrem(name, key);
         return result;
     }
-
-
-
 }
-module.exports = new Cacher()
+module.exports = new Cacher();

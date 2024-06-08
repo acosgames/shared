@@ -455,6 +455,16 @@ module.exports = class DevGameService {
                 valueTYPE: 0,
                 isactive: 1,
             });
+            response.results.push({
+                stat_slug: "ACOS_PLAYTIME",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Time Played",
+                stat_abbreviation: "W",
+                stat_desc: "Total time played",
+                valueTYPE: 3,
+                isactive: 1,
+            });
 
             response.results.push({
                 stat_slug: "ACOS_PLAYED",

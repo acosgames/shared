@@ -161,6 +161,12 @@ module.exports = class MySQL {
         }
     }
 
+    utcTimestamp = () => {
+        let ts = new Date();
+        ts.setMinutes(ts.getMinutes() - ts.getTimezoneOffset());
+        return ts.toISOString().slice(0, 19).replace("T", " ");
+    };
+
     async db() {
         try {
             // var conn = this.pool;//await this.getConnection();
@@ -471,9 +477,14 @@ module.exports = class MySQL {
                                 " (" +
                                 keyList.join(",") +
                                 ") VALUES " +
-                                valuesProtect.join(",") +
-                                " ON DUPLICATE KEY UPDATE " +
-                                updateColumns.join(",");
+                                valuesProtect.join(",");
+
+                            if (updateColumns.length > 0) {
+                                sql +=
+                                    " ON DUPLICATE KEY UPDATE " +
+                                    updateColumns.join(",");
+                            }
+
                             console.log(sql, valuesList);
                             var query = this.pool.query(
                                 sql,
@@ -560,6 +571,42 @@ module.exports = class MySQL {
                             reject(new SQLError("E_SQL_ERROR", e));
 
                             // conn.release();
+                        }
+                    });
+                },
+
+                utcTimestamp: () => {
+                    let ts = new Date();
+                    ts.setMinutes(ts.getMinutes() - ts.getTimezoneOffset());
+                    return ts.toISOString().slice(0, 19).replace("T", " ");
+                },
+
+                query: (sql, values) => {
+                    return new Promise((resolve, reject) => {
+                        try {
+                            values = values || [];
+                            let query = this.pool.query(
+                                sql,
+                                values,
+                                function (error, results, fields) {
+                                    // conn.release();
+                                    if (error) {
+                                        console.error(error);
+                                        reject(
+                                            new SQLError("E_SQL_ERROR", error)
+                                        );
+                                        return;
+                                    }
+                                    resolve(results || []);
+                                }
+                            );
+                            // console.log(query.sql);
+                        } catch (e) {
+                            // conn.rollback();
+                            // conn.release();
+                            console.error(e);
+
+                            reject(new SQLError("E_SQL_ERROR", e));
                         }
                     });
                 },

@@ -253,7 +253,7 @@ module.exports = class GameService {
             let game = response.results[0];
             console.log("Game Found: ", game.game_slug); //JSON.stringify(game, null, 2));
 
-            if (ignoreExtra) return { game };
+            if (ignoreExtra) return game;
 
             game.votes = await this.findGameVotes(game_slug);
 
@@ -390,6 +390,17 @@ module.exports = class GameService {
                 stat_abbreviation: "W",
                 stat_desc: "Matches Won",
                 valueTYPE: 0,
+                isactive: 1,
+            });
+
+            response.results.push({
+                stat_slug: "ACOS_PLAYTIME",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Time Played",
+                stat_abbreviation: "W",
+                stat_desc: "Total time played",
+                valueTYPE: 3,
                 isactive: 1,
             });
 
