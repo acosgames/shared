@@ -6,12 +6,100 @@ const { genUnique64string } = require("../util/idgen");
 const { utcDATETIME } = require("../util/datefns");
 const { GeneralError, CodeError, SQLError } = require("../util/errorhandler");
 
+const PersonService = require("./person");
+const person = new PersonService();
+
 const cache = require("./cache");
 const redis = require("./redis");
 
 module.exports = class GameService {
     constructor(credentials) {
         this.credentials = credentials || credutil();
+    }
+
+    async claimAchievement(game_slug, shortid, achievement_slug) {
+        try {
+            let db = await mysql.db();
+
+            let { results } = await db.update(
+                "person_achievement",
+                {
+                    claimed: 1,
+                },
+                "achievement_slug = ? AND game_slug = ? AND shortid = ? AND completed IS NOT NULL",
+                [achievement_slug, game_slug, shortid]
+            );
+
+            if (results.affectedRows != 1 || results.changedRows != 1)
+                throw new Error("Achievement already claimed.");
+
+            let achievements = await db.query(
+                `SELECT * FROM achievement_definition WHERE achievement_slug = ? AND game_slug = ?`,
+                [achievement_slug, game_slug]
+            );
+
+            let achievement = null;
+            if (achievements.length == 0) {
+                throw new Error("Invalid achievement: " + achievement_slug);
+            }
+
+            achievement = achievements[0];
+
+            let players = await db.query(
+                `SELECT * FROM person WHERE shortid = ?`,
+                [shortid]
+            );
+            let player = null;
+            if (players.length == 0)
+                throw new Error("Invalid player: " + shortid);
+            player = players[0];
+
+            if (achievement?.award_xp) {
+                let totalXP = achievement?.award_xp;
+                let previousPoints = Math.trunc(
+                    (player.level - Math.trunc(player.level)) * 1000
+                );
+                let previousLevel = Math.trunc(player.level);
+                let newPoints = previousPoints + totalXP;
+                let newLevel = previousLevel;
+
+                let earnedLevels = Math.floor(newPoints / 1000);
+                if (earnedLevels > 0) {
+                    newLevel += earnedLevels;
+                    newPoints = newPoints % 1000;
+                }
+
+                let experience = [];
+                experience.push({
+                    type: achievement.achievement_name,
+                    value: totalXP,
+                });
+
+                let user = {
+                    shortid,
+                    level: newLevel + newPoints / 1000,
+                };
+                person.updateUser(user);
+
+                return {
+                    type: "award_xp",
+                    experience,
+                    previousPoints,
+                    previousLevel,
+                    points: totalXP,
+                    level: newLevel,
+                    newLevel: newLevel + newPoints / 1000,
+                };
+            }
+
+            if (achievement?.award_gamepoints) {
+            }
+
+            return results.affectedRows == 1 && results.changedRows == 1;
+        } catch (e) {
+            if (e instanceof GeneralError) throw e;
+            throw new CodeError(e);
+        }
     }
 
     async reportGame(game_slug, shortid, report) {
@@ -474,7 +562,10 @@ module.exports = class GameService {
                     pa.stat2_valueSTRING,
                     pa.stat3_valueINT,
                     pa.stat3_valueFLOAT,
-                    pa.stat3_valueSTRING
+                    pa.stat3_valueSTRING,
+                    pa.played,
+                    pa.completed,
+                    pa.claimed
                 FROM achievement_definition ad
                 LEFT JOIN person_achievement pa
                     ON pa.achievement_slug = ad.achievement_slug 

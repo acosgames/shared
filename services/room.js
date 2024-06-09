@@ -1670,9 +1670,23 @@ class RoomService {
                 [],
                 ["tsupdate", "tsinsert"]
             );
+
+            let playerList = {};
+            for (let shortid of shortids) {
+                playerList[shortid] = {};
+
+                for (let a of updateAchievements) {
+                    if (a.shortid == shortid) {
+                        playerList[shortid][a.achievement_slug] = a;
+                    }
+                }
+            }
+
+            return playerList;
         } catch (e) {
             console.error(e);
         }
+        return [];
     }
 
     resetAchievementStat(index, playerAchievement) {
