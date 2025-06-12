@@ -14,7 +14,7 @@ const credutil = require("../util/credentials");
 const fs = require("fs");
 const redis = require("./redis");
 
-module.exports = class UserService {
+class PersonService {
     constructor(credentials) {
         this.credentials = credentials || credutil();
         this.publicKey = null;
@@ -634,4 +634,6 @@ module.exports = class UserService {
         }
         return null;
     }
-};
+}
+
+module.exports = new PersonService();

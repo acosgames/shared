@@ -9,7 +9,7 @@ const { GeneralError, CodeError, SQLError } = require("../util/errorhandler");
 const cache = require("./cache");
 const redis = require("./redis");
 
-module.exports = class LeaderboardService {
+class LeaderboardService {
     constructor(credentials) {
         this.credentials = credentials || credutil();
     }
@@ -44,8 +44,7 @@ module.exports = class LeaderboardService {
         for (let ranker of rankings) {
             let total = ranker.win + ranker.tie + ranker.loss;
             ranker.winrating =
-                ((ranker.win + 0.5 * ranker.tie) / total) *
-                (ranker.win - ranker.loss * 2);
+                ((ranker.win + 0.5 * ranker.tie) / total) * (ranker.win - ranker.loss * 2);
         }
 
         rankings.sort((a, b) => b.winrating - a.winrating);
@@ -54,7 +53,7 @@ module.exports = class LeaderboardService {
         // }
 
         let prevRating = Number.MAX_VALUE;
-        let currentRank = 0;
+        let currentRank = 1;
         for (var i = 0; i < rankings.length; i++) {
             let rating = rankings[i].winrating;
             if (prevRating > rating) {
@@ -162,7 +161,7 @@ module.exports = class LeaderboardService {
         }
 
         let prevRating = Number.MAX_VALUE;
-        let currentRank = 0;
+        let currentRank = 1;
         for (var i = 0; i < rankings.length; i++) {
             let rating = rankings[i].rating;
             if (prevRating > rating) {
@@ -195,11 +194,7 @@ module.exports = class LeaderboardService {
         `,
             [game_slug]
         );
-        if (
-            responseCnt &&
-            responseCnt.results &&
-            responseCnt.results.length > 0
-        ) {
+        if (responseCnt && responseCnt.results && responseCnt.results.length > 0) {
             total = Number(responseCnt.results[0]?.cnt) || 0;
         }
 
@@ -227,8 +222,7 @@ module.exports = class LeaderboardService {
                 [game_slug, offset, count]
             );
 
-            if (!response || !response.results || response.results.length == 0)
-                break;
+            if (!response || !response.results || response.results.length == 0) break;
 
             let members = response.results;
             let redisKey = game_slug + "/rankings";
@@ -300,26 +294,23 @@ module.exports = class LeaderboardService {
     async getPlayerGameLeaderboard(game_slug, player, rank, countrycode) {
         if (!rank) return [];
 
-        let startingRank = rank - 3;
+        let startingRank = Math.max(0, rank - 3);
         let endingRank = rank + 1;
         let redisKey = game_slug + "/rankings";
         if (countrycode) redisKey += "/" + countrycode;
-        let rankings = await redis.zrevrange(
-            redisKey,
-            Math.max(0, startingRank),
-            endingRank
-        );
+        let rankings = await redis.zrevrange(redisKey, startingRank, endingRank);
         console.log("rankings raw: ", rankings);
-        let playerPos = 0;
+        let playerPos = 1;
 
         let playerNames = [];
         for (var i = 0; i < rankings.length; i++) {
             playerNames.push(rankings[i].value);
             if (rankings[i].value == player) {
-                playerPos = -i;
+                // playerPos = -i;
                 // break;
             }
         }
+        playerPos = rank - startingRank;
 
         try {
             let db = await mysql.db();
@@ -339,11 +330,7 @@ module.exports = class LeaderboardService {
             WHERE b.game_slug = ?
             AND b.season = gi.season
             AND b.played > 0
-            ${
-                playerNames && playerNames.length > 0
-                    ? "AND a.displayname in (?)"
-                    : ""
-            }
+            ${playerNames && playerNames.length > 0 ? "AND a.displayname in (?)" : ""}
             ${countrycode ? " AND a.countrycode = ?" : ""}
             ORDER BY b.rating DESC
             LIMIT 30
@@ -402,23 +389,12 @@ module.exports = class LeaderboardService {
         try {
             // let db = await mysql.db();
 
-            console.log(
-                "findGameRankGlobal: ",
-                game_slug,
-                shortid,
-                displayname,
-                countrycode
-            );
+            console.log("findGameRankGlobal: ", game_slug, shortid, displayname, countrycode);
 
             let game = {};
-            game.leaderboard =
-                (await this.getRatingLeaderboard(game_slug, countrycode)) || [];
+            game.leaderboard = (await this.getRatingLeaderboard(game_slug, countrycode)) || [];
             if (displayname) {
-                let playerRank = await this.getPlayerGameRank(
-                    game_slug,
-                    displayname,
-                    countrycode
-                );
+                let playerRank = await this.getPlayerGameRank(game_slug, displayname, countrycode);
                 game.localboard =
                     (await this.getPlayerGameLeaderboard(
                         game_slug,
@@ -429,9 +405,7 @@ module.exports = class LeaderboardService {
             } else {
                 game.localboard = [];
             }
-            game.total =
-                (await this.getGameLeaderboardCount(game_slug, countrycode)) ||
-                0;
+            game.total = (await this.getGameLeaderboardCount(game_slug, countrycode)) || 0;
             return game;
         } catch (e) {
             console.error(e);
@@ -444,27 +418,14 @@ module.exports = class LeaderboardService {
         try {
             // let db = await mysql.db();
 
-            console.log(
-                "findGameRankGlobal: ",
-                game_slug,
-                shortid,
-                displayname
-            );
+            console.log("findGameRankGlobal: ", game_slug, shortid, displayname);
 
             let game = {};
-            game.leaderboard =
-                (await this.getRatingLeaderboard(game_slug)) || [];
+            game.leaderboard = (await this.getRatingLeaderboard(game_slug)) || [];
             if (displayname) {
-                let playerRank = await this.getPlayerGameRank(
-                    game_slug,
-                    displayname
-                );
+                let playerRank = await this.getPlayerGameRank(game_slug, displayname);
                 game.localboard =
-                    (await this.getPlayerGameLeaderboard(
-                        game_slug,
-                        displayname,
-                        playerRank
-                    )) || [];
+                    (await this.getPlayerGameLeaderboard(game_slug, displayname, playerRank)) || [];
             } else {
                 game.localboard = [];
             }
@@ -483,9 +444,7 @@ module.exports = class LeaderboardService {
             console.log("findGameRankDivision: ", game_slug, division_id);
 
             let game = {};
-            game.leaderboard =
-                (await this.getDivisionLeaderboard(game_slug, division_id)) ||
-                [];
+            game.leaderboard = (await this.getDivisionLeaderboard(game_slug, division_id)) || [];
             game.total = game.leaderboard.length;
             return game;
         } catch (e) {
@@ -546,11 +505,7 @@ module.exports = class LeaderboardService {
             `SELECT count(*) as cnt FROM person_rank WHERE game_slug = ? and season = ? and played > 0 and highscore > 0`,
             [game_slug, 0]
         );
-        if (
-            responseCnt &&
-            responseCnt.results &&
-            responseCnt.results.length > 0
-        ) {
+        if (responseCnt && responseCnt.results && responseCnt.results.length > 0) {
             total = Number(responseCnt.results[0]?.cnt) || 0;
         }
 
@@ -578,8 +533,7 @@ module.exports = class LeaderboardService {
                 [game_slug, 0, offset, count]
             );
 
-            if (!response || !response.results || response.results.length == 0)
-                break;
+            if (!response || !response.results || response.results.length == 0) break;
 
             let members = response.results;
             let result = await redis.zadd(game_slug + "/lbhs", members);
@@ -604,11 +558,7 @@ module.exports = class LeaderboardService {
 
     async getPlayerGameLeaderboardHighscore(game_slug, player, rank) {
         if (!rank) return [];
-        let rankings = await redis.zrevrange(
-            game_slug + "/lbhs",
-            Math.max(0, rank - 1),
-            rank + 1
-        );
+        let rankings = await redis.zrevrange(game_slug + "/lbhs", Math.max(0, rank - 1), rank + 1);
         console.log("highscore rankings raw: ", rankings);
         let playerPos = 0;
         for (var i = 0; i < rankings.length; i++) {
@@ -632,21 +582,12 @@ module.exports = class LeaderboardService {
         try {
             // let db = await mysql.db();
 
-            console.log(
-                "findGameLeaderboardHighscore: ",
-                game_slug,
-                shortid,
-                displayname
-            );
+            console.log("findGameLeaderboardHighscore: ", game_slug, shortid, displayname);
 
             let game = {};
-            game.top10hs =
-                (await this.getGameTop10PlayersHighscore(game_slug)) || [];
+            game.top10hs = (await this.getGameTop10PlayersHighscore(game_slug)) || [];
             if (displayname) {
-                let playerRank = await this.getPlayerGameHighscore(
-                    game_slug,
-                    displayname
-                );
+                let playerRank = await this.getPlayerGameHighscore(game_slug, displayname);
                 if (playerRank) {
                     game.lbhs =
                         (await this.getPlayerGameLeaderboardHighscore(
@@ -660,12 +601,13 @@ module.exports = class LeaderboardService {
             } else {
                 game.lbhs = [];
             }
-            game.lbhsCount =
-                (await this.getGameLeaderboardCountHighscore(game_slug)) || 0;
+            game.lbhsCount = (await this.getGameLeaderboardCountHighscore(game_slug)) || 0;
             return game;
         } catch (e) {
             if (e instanceof GeneralError) throw e;
             throw new CodeError(e);
         }
     }
-};
+}
+
+module.exports = new LeaderboardService();

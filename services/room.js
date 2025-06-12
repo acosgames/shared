@@ -10,8 +10,8 @@ const { uniqueName, isObject } = require("../util/utils");
 
 const redis = require("./redis");
 
-const GameService = require("./game");
-const game = new GameService();
+const game = require("./game");
+// const game = new GameService();
 
 const webpush = require("web-push");
 
@@ -69,11 +69,9 @@ class RoomService {
                     let sub = subscriptions[i];
                     let subscription = JSON.parse(sub.webpush);
                     try {
-                        console.log(
-                            "Sending Notification: ",
-                            sub.shortid,
-                            payload
-                        );
+                        if (isObject(subscription) && Object.keys(subscription).length == 0)
+                            continue;
+                        console.log("Sending Notification: ", sub.shortid, payload);
                         webpush
                             .sendNotification(subscription, payload)
                             .then((result) => console.log(result))
@@ -94,19 +92,14 @@ class RoomService {
 
             let meta = await this.findRoom(room_slug);
             if (!meta) {
-                console.error(
-                    "[assignPlayersToRoom] Room ID does not exist: " + room_slug
-                );
+                console.error("[assignPlayersToRoom] Room ID does not exist: " + room_slug);
                 return null;
             }
 
             let roomPlayers = [];
 
             let mode = meta.mode;
-            let version =
-                meta.mode == "experimental"
-                    ? meta.latest_version
-                    : meta.version;
+            let version = meta.mode == "experimental" ? meta.latest_version : meta.version;
 
             for (const shortid of shortids) {
                 let roomPlayer = {
@@ -147,18 +140,13 @@ class RoomService {
 
             let meta = await this.findRoom(room_slug);
             if (!meta) {
-                console.error(
-                    "[assignPlayerRoom] Room ID does not exist: " + room_slug
-                );
+                console.error("[assignPlayerRoom] Room ID does not exist: " + room_slug);
                 return null;
             }
             game_slug = meta.game_slug;
 
             let mode = meta.mode; // this.getGameModeName(meta.mode);
-            let version =
-                meta.mode == "experimental"
-                    ? meta.latest_version
-                    : meta.version;
+            let version = meta.mode == "experimental" ? meta.latest_version : meta.version;
             let personRoom = {
                 shortid,
                 room_slug,
@@ -186,11 +174,10 @@ class RoomService {
             // let key = shortid + '/' + room_slug;
             // cache.del(key);
 
-            let response = await db.delete(
-                "person_room",
-                "WHERE shortid = ? AND room_slug = ?",
-                [shortid, room_slug]
-            );
+            let response = await db.delete("person_room", "WHERE shortid = ? AND room_slug = ?", [
+                shortid,
+                room_slug,
+            ]);
 
             return response;
         } catch (e) {
@@ -299,12 +286,7 @@ class RoomService {
                 //console.log(response);
             } catch (e) {
                 console.error(e);
-                console.log(
-                    "Failed to find record.",
-                    row.game_slug,
-                    row.version,
-                    row.body
-                );
+                console.log("Failed to find record.", row.game_slug, row.version, row.body);
             }
         }
     }
@@ -315,21 +297,34 @@ class RoomService {
             var response;
             console.log("Getting list of player rooms", shortid);
             response = await db.sql(
-                `SELECT a.shortid, b.*, c.name
+                `SELECT a.shortid, b.*, 
+                v.db,
+                    v.css,
+                    v.scaled,
+                    v.screentype,
+                    v.resow,
+                    v.resoh,
+                    v.screenwidth,
+                    c.name,
+                    c.minplayers,
+                    c.maxplayers,
+                    c.maxteams,
+                    c.minteams,
+                    c.lbscore
                 FROM person_room a 
                 LEFT JOIN game_room b 
                     ON a.room_slug = b.room_slug 
                 LEFT JOIN game_info c
                     ON b.game_slug = c.game_slug
+                LEFT JOIN game_version v
+                    ON c.gameid = v.gameid AND b.version = v.version
                 WHERE a.shortid = ?
                 AND b.status = 0`,
                 [shortid]
             );
 
             if (response.results && response.results.length > 0) {
-                let filtered = response.results.filter(
-                    (room) => room.room_slug
-                );
+                let filtered = response.results.filter((room) => room.room_slug);
                 return filtered;
             }
             return [];
@@ -389,11 +384,7 @@ class RoomService {
             let incrementList = null;
             if (isSinglePlayer) incrementList = ["played"];
 
-            console.log(
-                "Updating highscores to person_rank: ",
-                incrementList,
-                ratings
-            );
+            console.log("Updating highscores to person_rank: ", incrementList, ratings);
             var response = await db.insertBatch(
                 "person_rank",
                 ratings,
@@ -416,11 +407,7 @@ class RoomService {
 
             let incrementList = ["played"];
 
-            console.log(
-                "Updating ratings to person_rank: ",
-                incrementList,
-                ratings
-            );
+            console.log("Updating ratings to person_rank: ", incrementList, ratings);
             var response = await db.insertBatch(
                 "person_rank",
                 ratings,
@@ -469,12 +456,10 @@ class RoomService {
             };
 
             let db = await mysql.db();
-            var response = await db.update(
-                "person_rank",
-                update,
-                "shortid = ? AND game_slug = ?",
-                [shortid, game_slug]
-            );
+            var response = await db.update("person_rank", update, "shortid = ? AND game_slug = ?", [
+                shortid,
+                game_slug,
+            ]);
             if (response && response.results.affectedRows > 0) {
                 return true;
             }
@@ -530,10 +515,7 @@ class RoomService {
 
                     //rating exists, cache it
                     if (personRank.rating == null) {
-                        let newRating = await this.createPersonRank(
-                            personRank.shortid,
-                            game_slug
-                        );
+                        let newRating = await this.createPersonRank(personRank.shortid, game_slug);
                         results[i] = newRating;
                         continue;
                     }
@@ -589,9 +571,7 @@ class RoomService {
                 [game_slug]
             );
             let season =
-                response2.results && response2.results.length > 0
-                    ? response2.results[0].season
-                    : 0;
+                response2.results && response2.results.length > 0 ? response2.results[0].season : 0;
 
             let response = await db.sql(
                 `SELECT MAX(d.division_id) as max_division_id
@@ -612,22 +592,14 @@ class RoomService {
                 game_slug,
                 season,
                 division_id: max_division_id + 1,
-                division_name: await this.findUniqueDivisionName(
-                    db,
-                    game_slug,
-                    season
-                ),
+                division_name: await this.findUniqueDivisionName(db, game_slug, season),
             };
 
             let division2 = {
                 game_slug,
                 season,
                 division_id: max_division_id + 2,
-                division_name: await this.findUniqueDivisionName(
-                    db,
-                    game_slug,
-                    season
-                ),
+                division_name: await this.findUniqueDivisionName(db, game_slug, season),
             };
 
             await db.insert("division", division);
@@ -670,7 +642,8 @@ class RoomService {
         try {
             let db = await mysql.db();
 
-            let shortid = player.shortid;
+            if (!player) throw new Error("Player does not exist: " + JSON.stringify(player));
+            let shortid = player?.shortid || "SPECTATOR";
             //create new rating and cache it
             let mu = muDefault();
             let sigma = sigmaDefault();
@@ -747,8 +720,7 @@ class RoomService {
 
                 playerNames[result.shortid] = result.displayname;
 
-                if (result.game_slug)
-                    players[result.shortid][result.game_slug] = result;
+                if (result.game_slug) players[result.shortid][result.game_slug] = result;
 
                 playerInfo[result.shortid] = result;
             }
@@ -762,10 +734,7 @@ class RoomService {
                         continue;
                     }
 
-                    let newRating = await this.createPersonRank(
-                        playerInfo[shortid],
-                        game_slug
-                    );
+                    let newRating = await this.createPersonRank(playerInfo[shortid], game_slug);
 
                     //make sure we add displayname into the rating object stored in cache/redis
                     newRating.displayname = playerNames[shortid].displayname;
@@ -786,11 +755,7 @@ class RoomService {
             let key = shortid + "/" + game_slug;
             let rating = await cache.get(key);
             if (rating) {
-                console.log(
-                    "[Cached] Getting player rating for: ",
-                    key,
-                    rating.rating
-                );
+                console.log("[Cached] Getting player rating for: ", key, rating.rating);
                 return rating;
             }
 
@@ -814,11 +779,7 @@ class RoomService {
             //player has a rating, we are good to go
             if (rating.rating != null && rating.played != null) {
                 cache.set(key, rating, 600);
-                console.log(
-                    "[MySQL] Getting player rating for: ",
-                    key,
-                    rating.rating
-                );
+                console.log("[MySQL] Getting player rating for: ", key, rating.rating);
                 return rating;
             }
 
@@ -860,14 +821,10 @@ class RoomService {
                 //convert from id to name
 
                 if (room.maxteams > 0) {
-                    let teamResponse = await db.sql(
-                        "SELECT * from game_team WHERE game_slug = ?",
-                        [room.game_slug]
-                    );
-                    if (
-                        teamResponse.results &&
-                        teamResponse.results.length > 0
-                    ) {
+                    let teamResponse = await db.sql("SELECT * from game_team WHERE game_slug = ?", [
+                        room.game_slug,
+                    ]);
+                    if (teamResponse.results && teamResponse.results.length > 0) {
                         room.teams = teamResponse.results;
                     }
                 }
@@ -936,14 +893,10 @@ class RoomService {
                 //convert from id to name
 
                 if (room.maxteams > 0) {
-                    let teamResponse = await db.sql(
-                        "SELECT * from game_team WHERE game_slug = ?",
-                        [room.game_slug]
-                    );
-                    if (
-                        teamResponse.results &&
-                        teamResponse.results.length > 0
-                    ) {
+                    let teamResponse = await db.sql("SELECT * from game_team WHERE game_slug = ?", [
+                        room.game_slug,
+                    ]);
+                    if (teamResponse.results && teamResponse.results.length > 0) {
                         room.teams = teamResponse.results;
                     }
                 }
@@ -1123,10 +1076,7 @@ class RoomService {
             let gameinfo = await cache.get("gameinfo/" + game_slug);
             if (gameinfo) {
                 let now = new Date().getTime();
-                if (
-                    typeof gameinfo.expires !== "undefined" &&
-                    gameinfo.expires > now
-                )
+                if (typeof gameinfo.expires !== "undefined" && gameinfo.expires > now)
                     return gameinfo;
             }
 
@@ -1134,10 +1084,7 @@ class RoomService {
             var response;
             console.log("Getting game info: ", game_slug);
 
-            response = await db.sql(
-                `SELECT * FROM game_info a WHERE a.game_slug = ?`,
-                [game_slug]
-            );
+            response = await db.sql(`SELECT * FROM game_info a WHERE a.game_slug = ?`, [game_slug]);
 
             if (!response.results || response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
@@ -1226,8 +1173,7 @@ class RoomService {
 
             // response = await db.sql(`SELECT * FROM game_info WHERE game_slug = ?`, [game_slug]);
 
-            if (!published || !published.gameid)
-                throw new GeneralError("E_GAMENOTEXIST");
+            if (!published || !published.gameid) throw new GeneralError("E_GAMENOTEXIST");
             // if (!response.results || response.results.length == 0)
             // throw new GeneralError("E_GAMENOTEXIST");
             //published = published.game;
@@ -1337,14 +1283,10 @@ class RoomService {
                 response = await db.insert("game_room", room);
 
                 if (maxteams > 0) {
-                    let teamResponse = await db.sql(
-                        "SELECT * from game_team WHERE game_slug = ?",
-                        [room.game_slug]
-                    );
-                    if (
-                        teamResponse.results &&
-                        teamResponse.results.length > 0
-                    ) {
+                    let teamResponse = await db.sql("SELECT * from game_team WHERE game_slug = ?", [
+                        room.game_slug,
+                    ]);
+                    if (teamResponse.results && teamResponse.results.length > 0) {
                         meta.teams = teamResponse.results;
                     }
                 }
@@ -1376,10 +1318,7 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting room meta for:", room_slug);
-            response = await db.sql(
-                "select * from game_room WHERE room_slug = ?",
-                [room_slug]
-            );
+            response = await db.sql("select * from game_room WHERE room_slug = ?", [room_slug]);
 
             return response.results[0];
         } catch (e) {
@@ -1439,869 +1378,6 @@ class RoomService {
         return true;
     }
 
-    async updatePlayerAchievements(meta, gamestate) {
-        try {
-            let db = await mysql.db();
-
-            let room_slug = meta?.room_slug;
-            let game_slug = meta?.game_slug;
-            let players = gamestate?.players;
-
-            //all stat definitions
-            let statDefs = await db.query(
-                `SELECT *
-                FROM stat_definition a
-                WHERE a.game_slug = ?`,
-                [game_slug]
-            );
-            statDefs.push({
-                stat_slug: "ACOS_WINS",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Matches Won",
-                stat_abbreviation: "W",
-                stat_desc: "Matches Won",
-                valueTYPE: 0,
-                isactive: 1,
-            });
-
-            statDefs.push({
-                stat_slug: "ACOS_PLAYTIME",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Time Played",
-                stat_abbreviation: "W",
-                stat_desc: "Total time played",
-                valueTYPE: 3,
-                isactive: 1,
-            });
-
-            statDefs.push({
-                stat_slug: "ACOS_PLAYED",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Matches Played",
-                stat_abbreviation: "PLY",
-                stat_desc: "Matches played",
-                valueTYPE: 0,
-                isactive: 1,
-            });
-
-            //mappings for faster indexing
-            let statMap = {};
-            statDefs.map((def) => {
-                statMap[def.stat_slug] = def;
-                statMap[def.stat_abbreviation] = def;
-            });
-
-            //all achievement definitions
-            let achievementDefs = await db.query(
-                `SELECT *
-                FROM achievement_definition a
-                WHERE a.game_slug = ?`,
-                [game_slug]
-            );
-
-            //mappings for faster indexing
-            let achMap = {};
-            achievementDefs.map((def) => {
-                achMap[def.achievement_slug] = def;
-            });
-
-            let playerAchievements = {};
-            let shortids = Object.keys(players);
-            try {
-                let achievements = await db.query(
-                    `SELECT *
-                    FROM person_achievement
-                    WHERE game_slug = ?
-                    and shortid in (?)`,
-                    [game_slug, shortids]
-                );
-
-                for (let i = 0; i < achievements.length; i++) {
-                    let achievement = achievements[i];
-                    let shortid = achievement.shortid;
-                    if (!(shortid in playerAchievements))
-                        playerAchievements[shortid] = {};
-                    playerAchievements[shortid][achievement.achievement_slug] =
-                        achievement;
-                }
-            } catch (e2) {
-                console.error(e2);
-            }
-
-            let updateAchievements = [];
-            //process each player individually
-            for (let shortid of shortids) {
-                let player = players[shortid];
-
-                player.stats["ACOS_WINS"] = player.winloss == 1 ? 1 : 0;
-                player.stats["ACOS_PLAYED"] = 1;
-                player.stats["ACOS_PLAYTIME"] = Math.floor(
-                    (gamestate.room.endtime - gamestate.room.starttime) / 1000
-                );
-
-                //process each person achievement
-                for (let achievement of achievementDefs) {
-                    let pAchievement =
-                        (playerAchievements[shortid] &&
-                            playerAchievements[shortid][
-                                achievement.achievement_slug
-                            ]) ||
-                        {};
-
-                    //already completed, skip
-                    if (pAchievement.completed) continue;
-
-                    //increment stat 1
-                    if (achievement.stat_slug1) {
-                        this.updateAchievementStat(
-                            1,
-                            achievement,
-                            statMap,
-                            pAchievement,
-                            player.stats
-                        );
-                    } else {
-                        this.resetAchievementStat(1, pAchievement);
-                    }
-
-                    //increment stat 2
-                    if (achievement.stat_slug2) {
-                        this.updateAchievementStat(
-                            2,
-                            achievement,
-                            statMap,
-                            pAchievement,
-                            player.stats
-                        );
-                    } else {
-                        this.resetAchievementStat(2, pAchievement);
-                    }
-
-                    //increment stat 3
-                    if (achievement.stat_slug3) {
-                        this.updateAchievementStat(
-                            3,
-                            achievement,
-                            statMap,
-                            pAchievement,
-                            player.stats
-                        );
-                    } else {
-                        this.resetAchievementStat(3, pAchievement);
-                    }
-
-                    //ensure played starts at 0
-                    if (!("played" in pAchievement)) {
-                        pAchievement.played = 0;
-                    }
-
-                    try {
-                        //calculate progress
-                        let { value, maxValue, percent } =
-                            this.calculateAchievementProgress(
-                                achievement,
-                                pAchievement
-                            );
-
-                        if (achievement.times_in_a_row == 0) {
-                            //infinite attempts, keep incrementing each stat until we reach goal
-                            if (value >= maxValue) {
-                                pAchievement.completed = mysql.utcTimestamp();
-                            }
-                            if (value > 0)
-                                pAchievement.played = pAchievement.played + 1;
-                        } else {
-                            //reached achievement requirements, increment played
-                            if (value >= maxValue) {
-                                pAchievement.played = pAchievement.played + 1;
-                            }
-
-                            //have we repeated required amount?
-                            if (
-                                pAchievement.played >=
-                                achievement.times_in_a_row
-                            ) {
-                                pAchievement.completed = mysql.utcTimestamp();
-                            } else {
-                                //reset progress for next attempt check
-                                this.resetAchievementStat(1, pAchievement);
-                                this.resetAchievementStat(2, pAchievement);
-                                this.resetAchievementStat(3, pAchievement);
-                            }
-                        }
-                    } catch (e2) {
-                        console.error(e2);
-
-                        //failed to caluclate, cancel this achievement
-                        continue;
-                    }
-
-                    pAchievement.achievement_slug =
-                        achievement.achievement_slug;
-                    pAchievement.game_slug = achievement.game_slug;
-                    pAchievement.shortid = shortid;
-                    pAchievement.completed = pAchievement.completed || null;
-                    pAchievement.claimed = pAchievement.claimed || null;
-
-                    //only update if we actually met any achievement requirements
-                    if (
-                        pAchievement.played > 0 ||
-                        pAchievement.stat1_valueINT ||
-                        pAchievement.stat1_valueFLOAT ||
-                        pAchievement.stat1_valueSTRING ||
-                        pAchievement.stat2_valueINT ||
-                        pAchievement.stat2_valueFLOAT ||
-                        pAchievement.stat2_valueSTRING ||
-                        pAchievement.stat3_valueINT ||
-                        pAchievement.stat3_valueFLOAT ||
-                        pAchievement.stat3_valueSTRING
-                    )
-                        updateAchievements.push(pAchievement);
-                }
-            }
-
-            let matchInsertResults = await db.insertBatch(
-                "person_achievement",
-                updateAchievements,
-                ["achievement_slug", "game_slug", "shortid"],
-                [],
-                ["tsupdate", "tsinsert"]
-            );
-
-            let playerList = {};
-            for (let shortid of shortids) {
-                playerList[shortid] = {};
-
-                for (let a of updateAchievements) {
-                    if (a.shortid == shortid) {
-                        playerList[shortid][a.achievement_slug] = a;
-                    }
-                }
-            }
-
-            return playerList;
-        } catch (e) {
-            console.error(e);
-        }
-        return [];
-    }
-
-    resetAchievementStat(index, playerAchievement) {
-        playerAchievement["stat" + index + "_valueINT"] = null;
-        playerAchievement["stat" + index + "_valueFLOAT"] = null;
-        playerAchievement["stat" + index + "_valueSTRING"] = null;
-    }
-
-    //increment or add into the player achievement
-    updateAchievementStat(
-        index,
-        achievement,
-        statMap,
-        playerAchievement,
-        playerStats
-    ) {
-        let stat_slug = achievement["stat_slug" + index];
-        let stat = statMap[stat_slug];
-        if (!stat?.stat_abbreviation) {
-            console.log(stat);
-        }
-        let matchStat = playerStats[stat.stat_abbreviation];
-        if (typeof matchStat === "undefined") {
-            matchStat = playerStats[stat.stat_slug];
-            if (typeof matchStat === "undefined")
-                // this.resetAchievementStat(1, playerAchievement);
-                // this.resetAchievementStat(2, playerAchievement);
-                // this.resetAchievementStat(3, playerAchievement);
-                return false;
-        }
-
-        switch (stat.valueTYPE) {
-            case 0: {
-                //integer
-                if (
-                    typeof playerAchievement["stat" + index + "_valueINT"] ===
-                    "undefined"
-                )
-                    playerAchievement["stat" + index + "_valueINT"] = 0;
-
-                playerAchievement["stat" + index + "_valueINT"] =
-                    matchStat + playerAchievement["stat" + index + "_valueINT"];
-                playerAchievement["stat" + index + "_valueFLOAT"] = null;
-                playerAchievement["stat" + index + "_valueSTRING"] = null;
-                break;
-            }
-            case 4: {
-                //string count
-                let valueSTRING = achievement["goal" + index + "_valueSTRING"];
-                if (valueSTRING in matchStat) {
-                    if (
-                        typeof playerAchievement[
-                            "stat" + index + "_valueINT"
-                        ] === "undefined"
-                    )
-                        playerAchievement["stat" + index + "_valueINT"] = 0;
-
-                    playerAchievement["stat" + index + "_valueINT"] =
-                        matchStat[valueSTRING] +
-                        playerAchievement["stat" + index + "_valueINT"];
-                    playerAchievement["stat" + index + "_valueSTRING"] =
-                        valueSTRING;
-                    playerAchievement["stat" + index + "_valueFLOAT"] = null;
-                } else {
-                    playerAchievement["stat" + index + "_valueINT"] =
-                        playerAchievement["stat" + index + "_valueINT"] || null;
-                    playerAchievement["stat" + index + "_valueFLOAT"] = null;
-                    playerAchievement["stat" + index + "_valueSTRING"] =
-                        playerAchievement["stat" + index + "_valueSTRING"] ||
-                        null;
-                }
-                break;
-            }
-            case 1: {
-                //float
-                if (
-                    typeof playerAchievement["stat" + index + "_valueFLOAT"] ===
-                    "undefined"
-                )
-                    playerAchievement["stat" + index + "_valueFLOAT"] = 0;
-
-                playerAchievement["stat" + index + "_valueFLOAT"] =
-                    matchStat +
-                    playerAchievement["stat" + index + "_valueFLOAT"];
-                playerAchievement["stat" + index + "_valueINT"] = null;
-                playerAchievement["stat" + index + "_valueSTRING"] = null;
-                break;
-            }
-            case 2: {
-                //average
-                playerAchievement["stat" + index + "_valueFLOAT"] = matchStat;
-                playerAchievement["stat" + index + "_valueINT"] = null;
-                playerAchievement["stat" + index + "_valueSTRING"] = null;
-                break;
-            }
-            case 3: {
-                //time
-                if (
-                    typeof playerAchievement["stat" + index + "_valueINT"] ===
-                    "undefined"
-                )
-                    playerAchievement["stat" + index + "_valueINT"] = 0;
-                playerAchievement["stat" + index + "_valueINT"] =
-                    matchStat + playerAchievement["stat" + index + "_valueINT"];
-                playerAchievement["stat" + index + "_valueFLOAT"] = null;
-                playerAchievement["stat" + index + "_valueSTRING"] = null;
-                break;
-            }
-            default: {
-                this.resetAchievementStat(1, playerAchievement);
-                this.resetAchievementStat(2, playerAchievement);
-                this.resetAchievementStat(3, playerAchievement);
-            }
-        }
-        return true;
-    }
-
-    calculateAchievementProgress(achievement, progress) {
-        let {
-            stat_slug1,
-            goal1_valueTYPE,
-            goal1_valueINT,
-            goal1_valueFLOAT,
-            goal1_valueSTRING,
-            stat_slug2,
-            goal2_valueTYPE,
-            goal2_valueINT,
-            goal2_valueFLOAT,
-            goal2_valueSTRING,
-            stat_slug3,
-            goal3_valueTYPE,
-            goal3_valueINT,
-            goal3_valueFLOAT,
-            goal3_valueSTRING,
-            all_required,
-            times_in_a_row,
-        } = achievement;
-
-        let {
-            stat1_valueINT,
-            stat1_valueFLOAT,
-            stat1_valueSTRING,
-            stat2_valueINT,
-            stat2_valueFLOAT,
-            stat2_valueSTRING,
-            stat3_valueINT,
-            stat3_valueFLOAT,
-            stat3_valueSTRING,
-            played,
-        } = progress;
-
-        // use cases:
-        // 1) All stats required, in one match
-        // 2) All stats required, repeated multiple matches
-        // 3) Any stats required, in one match
-        // 4) Any stats required, repeated multiple matches
-
-        let status = [];
-
-        // if (Number.isInteger(times_in_a_row) && times_in_a_row > 0) {
-        //     let value = played || 0;
-        //     let maxValue = times_in_a_row;
-        //     let percent = (value / maxValue) * 100;
-        //     return { value, maxValue, percent };
-        // }
-
-        if (stat_slug1) {
-            let stat1progress = this.calculateStatProgress(
-                stat_slug1,
-                goal1_valueTYPE,
-                goal1_valueINT,
-                goal1_valueFLOAT,
-                goal1_valueSTRING,
-                stat1_valueINT,
-                stat1_valueFLOAT,
-                stat1_valueSTRING,
-                times_in_a_row,
-                played
-            );
-            if (stat1progress) status.push(stat1progress);
-        }
-        if (stat_slug2) {
-            let stat2progress = this.calculateStatProgress(
-                stat_slug2,
-                goal2_valueTYPE,
-                goal2_valueINT,
-                goal2_valueFLOAT,
-                goal2_valueSTRING,
-                stat2_valueINT,
-                stat2_valueFLOAT,
-                stat2_valueSTRING,
-                times_in_a_row,
-                played
-            );
-            if (stat2progress) status.push(stat2progress);
-        }
-        if (stat_slug3) {
-            let stat3progress = this.calculateStatProgress(
-                stat_slug3,
-                goal3_valueTYPE,
-                goal3_valueINT,
-                goal3_valueFLOAT,
-                goal3_valueSTRING,
-                stat3_valueINT,
-                stat3_valueFLOAT,
-                stat3_valueSTRING,
-                times_in_a_row,
-                played
-            );
-            if (stat3progress) status.push(stat3progress);
-        }
-
-        let value = 0;
-        let maxValue = 0;
-        let percent = 0;
-
-        if (!all_required) {
-            //sum all the stat values, they should be of same type
-            value = status.reduce(
-                (total, curr) =>
-                    curr === false
-                        ? total
-                        : total + Math.min(curr.value, curr.maxValue),
-                0
-            );
-            //use the largest max goal of the stats
-            maxValue = status.reduce(
-                (total, curr) =>
-                    curr.maxValue >= total ? curr.maxValue : total,
-                0
-            );
-            if (Number.isNaN(value)) value = 0;
-            if (Number.isNaN(maxValue)) maxValue = 1;
-            percent = (value / maxValue) * 100;
-        } else {
-            //only percentage matters here
-            //value and maxValue will be displayed for each stat individually in achievement panel
-            //     status = status.filter((s) => s !== false);
-            //     percent = status.reduce((total, curr) => total + curr.percent, 0);
-            //     // percent = percent / status.length;
-            //     value = 0;
-            //     maxValue = 1;
-
-            value = status.reduce(
-                (total, curr) =>
-                    curr === false
-                        ? total
-                        : total + Math.min(curr.value, curr.maxValue),
-                0
-            );
-            //use the largest max goal of the stats
-            maxValue = status.reduce(
-                (total, curr) =>
-                    curr === false ? total : total + curr.maxValue,
-                0
-            );
-            if (Number.isNaN(value)) value = 0;
-            if (Number.isNaN(maxValue)) maxValue = 1;
-            percent = (value / maxValue) * 100;
-        }
-
-        // let maxValue = status.length;
-        // let value = status.reduce((total, s) => (s == true ? total + 1 : total), 0);
-        // let percent = (value / maxValue) * 100;
-        return { value, maxValue, percent };
-    }
-
-    calculateStatProgress(
-        stat_slug,
-        goal_valueTYPE,
-        goal_valueINT,
-        goal_valueFLOAT,
-        goal_valueSTRING,
-        stat_valueINT,
-        stat_valueFLOAT,
-        stat_valueSTRING,
-        times_in_a_row,
-        played
-    ) {
-        //no negative numbers
-        //0 = infinite matches to reach goal
-        //1+ = must repeat goal for X matches
-        times_in_a_row = Math.max(0, times_in_a_row);
-
-        // //player must reach the target for X matches, so just count how many times they've reached it
-        // if (Number.isInteger(times_in_a_row) && times_in_a_row > 0) {
-        //     let value = played || 0;
-        //     let maxValue = times_in_a_row;
-        //     let percent = (value / maxValue) * 100;
-        //     return { value, maxValue, percent };
-        // }
-
-        //player has to accumilate over 1 or more matches, calculate percentage of goal reached
-        switch (goal_valueTYPE) {
-            case 0: //integer
-            case 3: //time
-            case 4: {
-                //string count
-
-                let value = stat_valueINT || 0;
-                let maxValue = goal_valueINT;
-                let percent = (value / maxValue) * 100;
-                return { value, maxValue, percent };
-            }
-            case 1: //float
-            case 2: {
-                //average
-                let value = stat_valueFLOAT || 0;
-                let maxValue = goal_valueFLOAT;
-                let percent = (value / maxValue) * 100;
-                return { value, maxValue, percent };
-            }
-        }
-        return false;
-    }
-
-    async updatePlayerStats(meta, gamestate) {
-        try {
-            let db = await mysql.db();
-
-            let room_slug = meta?.room_slug;
-            let game_slug = meta?.game_slug;
-            let players = gamestate?.players;
-
-            //all stat definitions
-            let statDefResponse = await db.sql(
-                `SELECT 
-                *
-            FROM stat_definition a
-            WHERE a.game_slug = ?`,
-                [game_slug]
-            );
-
-            if (!statDefResponse.results || statDefResponse.results.length == 0)
-                return true;
-
-            let statDefinitions = statDefResponse.results;
-
-            //mappings for faster indexing
-            let defs = {};
-            statDefinitions.map((def) => {
-                defs[def.stat_slug] = def;
-                defs[def.stat_abbreviation] = def;
-            });
-
-            //rows to batch insert
-            let globalStatRows = [];
-            let playerStatRows = [];
-
-            //pull every player and their stats
-            let shortids = Object.keys(players);
-            let playerStats = {};
-            try {
-                let statsResponse = await db.sql(
-                    `SELECT 
-                    stat_slug,
-                    game_slug,
-                    shortid,
-                    season,
-                    valueINT,
-                    valueFLOAT,
-                    valueSTRING
-                FROM person_stat_global
-                WHERE game_slug = ?
-                AND season = ?
-                and shortid in (?)`,
-                    [game_slug, meta.season, shortids]
-                );
-
-                for (let i = 0; i < statsResponse.results.length; i++) {
-                    let stat = statsResponse.results[i];
-                    let shortid = stat.shortid;
-                    if (!(shortid in playerStats)) playerStats[shortid] = [];
-                    playerStats[shortid].push(stat);
-                }
-            } catch (e2) {
-                console.error(e2);
-            }
-
-            //process each player individually
-            for (let shortid of shortids) {
-                let player = players[shortid];
-
-                let globalStatMap = {};
-
-                //map the player global stats into a stat map
-                playerStats[shortid]?.map((gs) => {
-                    if (defs[gs.stat_slug]?.valueTYPE == 4) {
-                        globalStatMap[gs.stat_slug + "/" + gs.valueSTRING] = gs;
-                    } else {
-                        globalStatMap[gs.stat_slug] = gs;
-                    }
-                });
-
-                //process each stat individually
-                for (let stat_abbreviation in player.stats) {
-                    if (!(stat_abbreviation in defs)) continue;
-
-                    let def = defs[stat_abbreviation];
-                    let stat = player.stats[stat_abbreviation];
-                    let globalStat = null;
-
-                    switch (def.valueTYPE) {
-                        case 0: //integer
-                        case 3: //time
-                            if (
-                                typeof stat !== "number" ||
-                                !Number.isInteger(stat)
-                            ) {
-                                console.error(
-                                    "Stat is not an integer number",
-                                    game_slug,
-                                    stat_abbreviation,
-                                    stat
-                                );
-                            }
-                            playerStatRows.push({
-                                stat_slug: def.stat_slug,
-                                room_slug,
-                                shortid,
-                                valueINT: stat,
-                                valueFLOAT: null,
-                                valueSTRING: null,
-                            });
-
-                            globalStat = globalStatMap[def.stat_slug];
-                            if (!globalStat) {
-                                globalStat = {
-                                    stat_slug: def.stat_slug,
-                                    game_slug,
-                                    shortid,
-                                    season: meta.season,
-                                    valueINT: stat,
-                                    valueFLOAT: null,
-                                    valueSTRING: null,
-                                    // isUpdate: false,
-                                };
-                            } else {
-                                globalStat.valueINT += stat;
-                                // globalStat.isUpdate = true;
-                            }
-                            globalStatMap[def.stat_slug] = globalStat;
-                            break;
-                        case 1: //float
-                            if (
-                                typeof stat !== "number" ||
-                                Number.isInteger(stat)
-                            ) {
-                                console.error(
-                                    "Stat is not a float number",
-                                    game_slug,
-                                    stat_abbreviation,
-                                    stat
-                                );
-                            }
-                            playerStatRows.push({
-                                stat_slug: def.stat_slug,
-                                room_slug,
-                                shortid,
-                                valueFLOAT: stat,
-                                valueINT: null,
-                                valueSTRING: null,
-                            });
-
-                            globalStat = globalStatMap[def.stat_slug];
-                            if (!globalStat) {
-                                globalStat = {
-                                    stat_slug: def.stat_slug,
-                                    game_slug,
-                                    shortid,
-                                    season: meta.season,
-                                    valueINT: null,
-                                    valueFLOAT: stat,
-                                    valueSTRING: null,
-                                    // isUpdate: false,
-                                };
-                            } else {
-                                globalStat.valueFLOAT += stat;
-                                // globalStat.isUpdate = true;
-                            }
-                            globalStatMap[def.stat_slug] = globalStat;
-
-                            break;
-                        case 2: //average
-                            if (typeof stat !== "number") {
-                                console.error(
-                                    "IntStat is not a number",
-                                    game_slug,
-                                    stat_abbreviation,
-                                    stat
-                                );
-                            }
-                            playerStatRows.push({
-                                stat_slug: def.stat_slug,
-                                room_slug,
-                                shortid,
-                                valueINT: 1,
-                                valueFLOAT: stat,
-                                valueSTRING: null,
-                            });
-
-                            globalStat = globalStatMap[def.stat_slug];
-                            if (!globalStat) {
-                                globalStat = {
-                                    stat_slug: def.stat_slug,
-                                    game_slug,
-                                    shortid,
-                                    season: meta.season,
-                                    valueINT: 1,
-                                    valueFLOAT: stat,
-                                    valueSTRING: null,
-                                    // isUpdate: false,
-                                };
-                            } else {
-                                let avg =
-                                    (globalStat.valueFLOAT *
-                                        globalStat.valueINT +
-                                        stat) /
-                                    (globalStat.valueINT + 1);
-                                globalStat.valueINT += 1;
-                                globalStat.valueFLOAT = avg;
-                                // globalStat.isUpdate = true;
-                            }
-                            globalStatMap[def.stat_slug] = globalStat;
-
-                            break;
-                        case 4: //string count
-                            if (!isObject(stat)) {
-                                console.error(
-                                    "StringStat is not an object",
-                                    game_slug,
-                                    stat_abbreviation,
-                                    stat
-                                );
-                                continue;
-                            }
-                            for (let stringKey in stat) {
-                                playerStatRows.push({
-                                    stat_slug: def.stat_slug,
-                                    room_slug,
-                                    shortid,
-                                    valueINT: stat[stringKey],
-                                    valueSTRING: stringKey,
-                                    valueFLOAT: null,
-                                });
-
-                                globalStat =
-                                    globalStatMap[
-                                        def.stat_slug + "/" + stringKey
-                                    ];
-                                if (!globalStat) {
-                                    globalStat = {
-                                        stat_slug: def.stat_slug,
-                                        game_slug,
-                                        shortid,
-                                        season: meta.season,
-                                        valueINT: stat[stringKey],
-                                        valueSTRING: stringKey,
-                                        valueFLOAT: null,
-                                        // isUpdate: false,
-                                    };
-                                } else {
-                                    globalStat.valueINT += stat[stringKey];
-                                    globalStat.valueSTRING = stringKey;
-                                    // globalStat.isUpdate = true;
-                                }
-                                globalStatMap[def.stat_slug + "/" + stringKey] =
-                                    globalStat;
-                            }
-                            break;
-                    }
-                }
-
-                //aggregate all stats into a single array to batch
-                for (let key in globalStatMap) {
-                    let globalStat = globalStatMap[key];
-
-                    globalStatRows.push(globalStat);
-                }
-            }
-
-            let matchInsertResults = await db.insertBatch(
-                "person_stat_match",
-                playerStatRows,
-                ["stat_slug", "shortid", "room_slug"],
-                [],
-                ["tsupdate", "tsinsert"]
-            );
-            let globalInsertResults = await db.insertBatch(
-                "person_stat_global",
-                globalStatRows,
-                ["stat_slug", "shortid", "game_slug", "season"],
-                [],
-                ["tsupdate", "tsinsert"]
-            );
-
-            console.log(
-                "Match Insert for",
-                room_slug,
-                game_slug,
-                matchInsertResults
-            );
-            console.log(
-                "Global Insert for",
-                game_slug,
-                meta.season,
-                matchInsertResults
-            );
-        } catch (e) {
-            if (e instanceof GeneralError) throw e;
-            throw new CodeError(e);
-        }
-        return true;
-    }
-
     async deleteRoom(meta, roomState) {
         try {
             let room_slug = meta.room_slug;
@@ -2313,12 +1389,7 @@ class RoomService {
             var response;
             console.log("Room completed: " + room_slug);
 
-            response = await db.update(
-                "game_room",
-                { status: 1 },
-                "room_slug=?",
-                [room_slug]
-            );
+            response = await db.update("game_room", { status: 1 }, "room_slug=?", [room_slug]);
 
             // response = await db.delete("person_room", "WHERE room_slug = ?", [
             //     room_slug,

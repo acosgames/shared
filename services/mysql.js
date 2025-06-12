@@ -3,7 +3,7 @@ const credutil = require("../util/credentials");
 const { utcDATETIME } = require("../util/datefns");
 const { SQLError } = require("../util/errorhandler");
 
-pools = {};
+var pools = {};
 
 module.exports = class MySQL {
     constructor(credentials) {

@@ -6,100 +6,17 @@ const { genUnique64string } = require("../util/idgen");
 const { utcDATETIME } = require("../util/datefns");
 const { GeneralError, CodeError, SQLError } = require("../util/errorhandler");
 
-const PersonService = require("./person");
-const person = new PersonService();
+const person = require("./person");
+// const person = new PersonService();
 
 const cache = require("./cache");
 const redis = require("./redis");
+const achievements = require("./achievements");
+const stats = require("./stats");
 
-module.exports = class GameService {
+class GameService {
     constructor(credentials) {
         this.credentials = credentials || credutil();
-    }
-
-    async claimAchievement(game_slug, shortid, achievement_slug) {
-        try {
-            let db = await mysql.db();
-
-            let { results } = await db.update(
-                "person_achievement",
-                {
-                    claimed: 1,
-                },
-                "achievement_slug = ? AND game_slug = ? AND shortid = ? AND completed IS NOT NULL",
-                [achievement_slug, game_slug, shortid]
-            );
-
-            if (results.affectedRows != 1 || results.changedRows != 1)
-                throw new Error("Achievement already claimed.");
-
-            let achievements = await db.query(
-                `SELECT * FROM achievement_definition WHERE achievement_slug = ? AND game_slug = ?`,
-                [achievement_slug, game_slug]
-            );
-
-            let achievement = null;
-            if (achievements.length == 0) {
-                throw new Error("Invalid achievement: " + achievement_slug);
-            }
-
-            achievement = achievements[0];
-
-            let players = await db.query(
-                `SELECT * FROM person WHERE shortid = ?`,
-                [shortid]
-            );
-            let player = null;
-            if (players.length == 0)
-                throw new Error("Invalid player: " + shortid);
-            player = players[0];
-
-            if (achievement?.award_xp) {
-                let totalXP = achievement?.award_xp;
-                let previousPoints = Math.trunc(
-                    (player.level - Math.trunc(player.level)) * 1000
-                );
-                let previousLevel = Math.trunc(player.level);
-                let newPoints = previousPoints + totalXP;
-                let newLevel = previousLevel;
-
-                let earnedLevels = Math.floor(newPoints / 1000);
-                if (earnedLevels > 0) {
-                    newLevel += earnedLevels;
-                    newPoints = newPoints % 1000;
-                }
-
-                let experience = [];
-                experience.push({
-                    type: achievement.achievement_name,
-                    value: totalXP,
-                });
-
-                let user = {
-                    shortid,
-                    level: newLevel + newPoints / 1000,
-                };
-                person.updateUser(user);
-
-                return {
-                    type: "award_xp",
-                    experience,
-                    previousPoints,
-                    previousLevel,
-                    points: totalXP,
-                    level: newLevel,
-                    newLevel: newLevel + newPoints / 1000,
-                };
-            }
-
-            if (achievement?.award_gamepoints) {
-            }
-
-            return results.affectedRows == 1 && results.changedRows == 1;
-        } catch (e) {
-            if (e instanceof GeneralError) throw e;
-            throw new CodeError(e);
-        }
     }
 
     async reportGame(game_slug, shortid, report) {
@@ -281,6 +198,7 @@ module.exports = class GameService {
                 WHERE a.game_slug = ?
                 AND b.game_slug = a.game_slug
                 AND b.gameid = c.gameid 
+                AND c.version = a.version
                 ORDER BY a.tsupdate DESC
                 LIMIT 100
             `,
@@ -345,8 +263,8 @@ module.exports = class GameService {
 
             game.votes = await this.findGameVotes(game_slug);
 
-            game.stats = await this.getGameStats(game_slug);
-            game.achievements = await this.getAchievementDefinitions(
+            game.stats = await stats.getGameStats(game_slug);
+            game.achievements = await achievements.getAchievementDefinitions(
                 game_slug,
                 game.stats
             );
@@ -453,154 +371,6 @@ module.exports = class GameService {
         }
     }
 
-    async getGameStats(game_slug) {
-        try {
-            let db = await mysql.db();
-            var response;
-            console.log("Getting stat definitions: ", game_slug);
-            response = await db.sql(
-                `SELECT s.*
-                FROM stat_definition s
-                WHERE s.game_slug = ? 
-                `,
-                [game_slug]
-            );
-
-            if (response.results && response.results.length == 0) {
-                return [];
-            }
-
-            response.results.push({
-                stat_slug: "ACOS_WINS",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Matches Won",
-                stat_abbreviation: "W",
-                stat_desc: "Matches Won",
-                valueTYPE: 0,
-                isactive: 1,
-            });
-
-            response.results.push({
-                stat_slug: "ACOS_PLAYTIME",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Time Played",
-                stat_abbreviation: "W",
-                stat_desc: "Total time played",
-                valueTYPE: 3,
-                isactive: 1,
-            });
-
-            response.results.push({
-                stat_slug: "ACOS_PLAYED",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Matches Played",
-                stat_abbreviation: "PLY",
-                stat_desc: "Matches played",
-                valueTYPE: 0,
-                isactive: 1,
-            });
-            return response.results;
-        } catch (e) {
-            if (e instanceof GeneralError) throw e;
-            throw new CodeError(e);
-        }
-    }
-
-    async getAchievementDefinitions(game_slug, stats) {
-        try {
-            let db = await mysql.db();
-            var response;
-            console.log("Getting achievement definitions: ", game_slug);
-            response = await db.sql(
-                `SELECT ad.*
-                FROM achievement_definition ad
-                WHERE ad.game_slug = ? 
-                `,
-                [game_slug]
-            );
-
-            if (response.results && response.results.length == 0) {
-                return [];
-            }
-
-            if (stats) {
-                let statMap = {};
-                stats.map((stat) => (statMap[stat.stat_slug] = stat));
-                response.results = response.results.map((ach) => {
-                    if (ach.stat_slug1)
-                        ach.stat_name1 = statMap[ach.stat_slug1].stat_name;
-                    if (ach.stat_slug2)
-                        ach.stat_name2 = statMap[ach.stat_slug2].stat_name;
-                    if (ach.stat_slug3)
-                        ach.stat_name3 = statMap[ach.stat_slug3].stat_name;
-                    return ach;
-                });
-            }
-
-            return response.results;
-        } catch (e) {
-            if (e instanceof GeneralError) throw e;
-            throw new CodeError(e);
-        }
-    }
-
-    async getAchievementProgress(game_slug, shortid, stats) {
-        try {
-            let db = await mysql.db();
-            var response;
-            console.log("Getting achievement progress: ", game_slug);
-            response = await db.sql(
-                `SELECT ad.*, 
-                    pa.stat1_valueINT,
-                    pa.stat1_valueFLOAT,
-                    pa.stat1_valueSTRING,
-                    pa.stat2_valueINT,
-                    pa.stat2_valueFLOAT,
-                    pa.stat2_valueSTRING,
-                    pa.stat3_valueINT,
-                    pa.stat3_valueFLOAT,
-                    pa.stat3_valueSTRING,
-                    pa.played,
-                    pa.completed,
-                    pa.claimed
-                FROM achievement_definition ad
-                LEFT JOIN person_achievement pa
-                    ON pa.achievement_slug = ad.achievement_slug 
-                    AND pa.game_slug = ad.game_slug 
-                    AND pa.shortid = ? 
-                WHERE ad.game_slug = ? 
-                `,
-                [shortid, game_slug]
-            );
-
-            if (response.results && response.results.length == 0) {
-                return [];
-            }
-
-            if (stats) {
-                let statMap = {};
-                stats.map((stat) => (statMap[stat.stat_slug] = stat));
-                response.results = response.results.map((ach) => {
-                    if (ach.stat_slug1)
-                        ach.stat_name1 = statMap[ach.stat_slug1].stat_name;
-                    if (ach.stat_slug2)
-                        ach.stat_name2 = statMap[ach.stat_slug2].stat_name;
-                    if (ach.stat_slug3)
-                        ach.stat_name3 = statMap[ach.stat_slug3].stat_name;
-                    return ach;
-                });
-            }
-
-            return response.results;
-        } catch (e) {
-            if (e instanceof GeneralError) throw e;
-            throw new CodeError(e);
-        }
-    }
-
     async findGamePerson(game_slug, shortid, displayname) {
         try {
             let db = await mysql.db();
@@ -694,8 +464,8 @@ module.exports = class GameService {
             // game.votes = await this.findGameVotes(game_slug);
             game.queueCount = (await this.getGameQueueCount(game_slug)) || 0;
 
-            // game.stats = await this.getGameStats(game_slug);
-            game.achievements = await this.getAchievementProgress(
+            game.stats = await stats.getGameStats(game_slug);
+            game.achievements = await achievements.getAchievementProgress(
                 game_slug,
                 shortid,
                 game.stats
@@ -760,4 +530,6 @@ module.exports = class GameService {
             throw new CodeError(e);
         }
     }
-};
+}
+
+module.exports = new GameService();
