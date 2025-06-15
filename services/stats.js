@@ -35,10 +35,64 @@ class StatService {
                 [game_slug]
             );
 
-            if (!statDefResponse.results || statDefResponse.results.length == 0)
-                return true;
+            if (!statDefResponse.results || statDefResponse.results.length == 0) return true;
 
             let statDefinitions = statDefResponse.results;
+
+            statDefinitions.push({
+                stat_slug: "ACOS_WINS",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Matches Won",
+                stat_abbreviation: "W",
+                stat_desc: "Matches Won",
+                valueTYPE: 0,
+                isactive: 1,
+            });
+
+            statDefinitions.push({
+                stat_slug: "ACOS_PLAYTIME",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Time Played",
+                stat_abbreviation: "PT",
+                stat_desc: "Total time played",
+                valueTYPE: 3,
+                isactive: 1,
+            });
+
+            statDefinitions.push({
+                stat_slug: "ACOS_PLAYED",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Matches Played",
+                stat_abbreviation: "PLY",
+                stat_desc: "Matches played",
+                valueTYPE: 0,
+                isactive: 1,
+            });
+
+            statDefinitions.push({
+                stat_slug: "ACOS_SCORE",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Match Score",
+                stat_abbreviation: "S",
+                stat_desc: "Score player earned during match",
+                valueTYPE: 0,
+                isactive: 1,
+            });
+
+            for (let shortid in gamestate.players) {
+                let player = gamestate.players[shortid];
+                if (!player.stats) player.stats = {};
+                player.stats["ACOS_WINS"] = player.winloss == 1 ? 1 : 0;
+                player.stats["ACOS_PLAYED"] = 1;
+                player.stats["ACOS_PLAYTIME"] = Math.floor(
+                    (gamestate.room.endtime - gamestate.room.starttime) / 1000
+                );
+                player.stats["ACOS_SCORE"] = player.score || 0;
+            }
 
             //mappings for faster indexing
             let defs = {};
@@ -62,8 +116,7 @@ class StatService {
                     shortid,
                     season,
                     valueINT,
-                    valueFLOAT,
-                    valueSTRING
+                    valueFLOAT
                 FROM person_stat_global
                 WHERE game_slug = ?
                 AND season = ?
@@ -89,11 +142,11 @@ class StatService {
 
                 //map the player global stats into a stat map
                 playerStats[shortid]?.map((gs) => {
-                    if (defs[gs.stat_slug]?.valueTYPE == 4) {
-                        globalStatMap[gs.stat_slug + "/" + gs.valueSTRING] = gs;
-                    } else {
-                        globalStatMap[gs.stat_slug] = gs;
-                    }
+                    // if (defs[gs.stat_slug]?.valueTYPE == 4) {
+                    //     globalStatMap[gs.stat_slug + "/" + gs.valueSTRING] = gs;
+                    // } else {
+                    globalStatMap[gs.stat_slug] = gs;
+                    // }
                 });
 
                 //process each stat individually
@@ -107,10 +160,7 @@ class StatService {
                     switch (def.valueTYPE) {
                         case 0: //integer
                         case 3: //time
-                            if (
-                                typeof stat !== "number" ||
-                                !Number.isInteger(stat)
-                            ) {
+                            if (typeof stat !== "number" || !Number.isInteger(stat)) {
                                 console.error(
                                     "Stat is not an integer number",
                                     game_slug,
@@ -124,7 +174,7 @@ class StatService {
                                 shortid,
                                 valueINT: stat,
                                 valueFLOAT: null,
-                                valueSTRING: null,
+                                // valueSTRING: null,
                             });
 
                             globalStat = globalStatMap[def.stat_slug];
@@ -136,7 +186,7 @@ class StatService {
                                     season: meta.season,
                                     valueINT: stat,
                                     valueFLOAT: null,
-                                    valueSTRING: null,
+                                    // valueSTRING: null,
                                     // isUpdate: false,
                                 };
                             } else {
@@ -146,10 +196,7 @@ class StatService {
                             globalStatMap[def.stat_slug] = globalStat;
                             break;
                         case 1: //float
-                            if (
-                                typeof stat !== "number" ||
-                                Number.isInteger(stat)
-                            ) {
+                            if (typeof stat !== "number" || Number.isInteger(stat)) {
                                 console.error(
                                     "Stat is not a float number",
                                     game_slug,
@@ -163,7 +210,7 @@ class StatService {
                                 shortid,
                                 valueFLOAT: stat,
                                 valueINT: null,
-                                valueSTRING: null,
+                                // valueSTRING: null,
                             });
 
                             globalStat = globalStatMap[def.stat_slug];
@@ -175,7 +222,7 @@ class StatService {
                                     season: meta.season,
                                     valueINT: null,
                                     valueFLOAT: stat,
-                                    valueSTRING: null,
+                                    // valueSTRING: null,
                                     // isUpdate: false,
                                 };
                             } else {
@@ -200,7 +247,7 @@ class StatService {
                                 shortid,
                                 valueINT: 1,
                                 valueFLOAT: stat,
-                                valueSTRING: null,
+                                // valueSTRING: null,
                             });
 
                             globalStat = globalStatMap[def.stat_slug];
@@ -212,14 +259,12 @@ class StatService {
                                     season: meta.season,
                                     valueINT: 1,
                                     valueFLOAT: stat,
-                                    valueSTRING: null,
+                                    // valueSTRING: null,
                                     // isUpdate: false,
                                 };
                             } else {
                                 let avg =
-                                    (globalStat.valueFLOAT *
-                                        globalStat.valueINT +
-                                        stat) /
+                                    (globalStat.valueFLOAT * globalStat.valueINT + stat) /
                                     (globalStat.valueINT + 1);
                                 globalStat.valueINT += 1;
                                 globalStat.valueFLOAT = avg;
@@ -228,50 +273,46 @@ class StatService {
                             globalStatMap[def.stat_slug] = globalStat;
 
                             break;
-                        case 4: //string count
-                            if (!isObject(stat)) {
-                                console.error(
-                                    "StringStat is not an object",
-                                    game_slug,
-                                    stat_abbreviation,
-                                    stat
-                                );
-                                continue;
-                            }
-                            for (let stringKey in stat) {
-                                playerStatRows.push({
-                                    stat_slug: def.stat_slug,
-                                    room_slug,
-                                    shortid,
-                                    valueINT: stat[stringKey],
-                                    valueSTRING: stringKey,
-                                    valueFLOAT: null,
-                                });
+                        // case 4: //string count
+                        //     if (!isObject(stat)) {
+                        //         console.error(
+                        //             "StringStat is not an object",
+                        //             game_slug,
+                        //             stat_abbreviation,
+                        //             stat
+                        //         );
+                        //         continue;
+                        //     }
+                        //     for (let stringKey in stat) {
+                        //         playerStatRows.push({
+                        //             stat_slug: def.stat_slug,
+                        //             room_slug,
+                        //             shortid,
+                        //             valueINT: stat[stringKey],
+                        //             // valueSTRING: stringKey,
+                        //             valueFLOAT: null,
+                        //         });
 
-                                globalStat =
-                                    globalStatMap[
-                                        def.stat_slug + "/" + stringKey
-                                    ];
-                                if (!globalStat) {
-                                    globalStat = {
-                                        stat_slug: def.stat_slug,
-                                        game_slug,
-                                        shortid,
-                                        season: meta.season,
-                                        valueINT: stat[stringKey],
-                                        valueSTRING: stringKey,
-                                        valueFLOAT: null,
-                                        // isUpdate: false,
-                                    };
-                                } else {
-                                    globalStat.valueINT += stat[stringKey];
-                                    globalStat.valueSTRING = stringKey;
-                                    // globalStat.isUpdate = true;
-                                }
-                                globalStatMap[def.stat_slug + "/" + stringKey] =
-                                    globalStat;
-                            }
-                            break;
+                        //         globalStat = globalStatMap[def.stat_slug + "/" + stringKey];
+                        //         if (!globalStat) {
+                        //             globalStat = {
+                        //                 stat_slug: def.stat_slug,
+                        //                 game_slug,
+                        //                 shortid,
+                        //                 season: meta.season,
+                        //                 valueINT: stat[stringKey],
+                        //                 // valueSTRING: stringKey,
+                        //                 valueFLOAT: null,
+                        //                 // isUpdate: false,
+                        //             };
+                        //         } else {
+                        //             globalStat.valueINT += stat[stringKey];
+                        //             // globalStat.valueSTRING = stringKey;
+                        //             // globalStat.isUpdate = true;
+                        //         }
+                        //         globalStatMap[def.stat_slug + "/" + stringKey] = globalStat;
+                        //     }
+                        //     break;
                     }
                 }
 
@@ -291,12 +332,7 @@ class StatService {
                     [],
                     ["tsupdate", "tsinsert"]
                 );
-                console.log(
-                    "Match Insert for",
-                    room_slug,
-                    game_slug,
-                    matchInsertResults
-                );
+                console.log("Match Insert for", room_slug, game_slug, matchInsertResults);
             }
             if (globalStatRows.length > 0) {
                 let globalInsertResults = await db.insertBatch(
@@ -306,12 +342,7 @@ class StatService {
                     [],
                     ["tsupdate", "tsinsert"]
                 );
-                console.log(
-                    "Global Insert for",
-                    game_slug,
-                    meta.season,
-                    globalInsertResults
-                );
+                console.log("Global Insert for", game_slug, meta.season, globalInsertResults);
             }
         } catch (e) {
             if (e instanceof GeneralError) throw e;
@@ -353,7 +384,7 @@ class StatService {
                 algorithm_id: null,
                 game_slug: game_slug,
                 stat_name: "Time Played",
-                stat_abbreviation: "W",
+                stat_abbreviation: "PT",
                 stat_desc: "Total time played",
                 valueTYPE: 3,
                 isactive: 1,
@@ -369,6 +400,18 @@ class StatService {
                 valueTYPE: 0,
                 isactive: 1,
             });
+
+            response.results.push({
+                stat_slug: "ACOS_SCORE",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Match Score",
+                stat_abbreviation: "S",
+                stat_desc: "Score player earned during match",
+                valueTYPE: 0,
+                isactive: 1,
+            });
+
             return response.results;
         } catch (e) {
             if (e instanceof GeneralError) throw e;

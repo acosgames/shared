@@ -74,21 +74,6 @@
             "required": false
         },
 
-        "goal1_valueSTRING": {
-            "label": "Goal 1 String",
-            "type": "string",
-            "required": false
-        },
-        "goal2_valueSTRING": {
-            "label": "Goal 2 String",
-            "type": "string",
-            "required": false
-        },
-        "goal3_valueSTRING": {
-            "label": "Goal 3 String",
-            "type": "string",
-            "required": false
-        },
         "times_in_a_row": {
             "label": "Repeated per X matches",
             "type": "number",

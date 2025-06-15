@@ -51,14 +51,7 @@ const StatusByName = {
     Suspended: 5,
 };
 
-const StatusById = [
-    "None",
-    "Draft",
-    "Test",
-    "Production",
-    "Archive",
-    "Suspended",
-];
+const StatusById = ["None", "Draft", "Test", "Production", "Archive", "Suspended"];
 
 module.exports = class DevGameService {
     constructor(credentials) {
@@ -185,11 +178,7 @@ module.exports = class DevGameService {
             if (gameid == "undefined") return null;
             let db = await mysql.db();
 
-            console.log(
-                "Searching for specific game developer: ",
-                gameid,
-                shortid
-            );
+            console.log("Searching for specific game developer: ", gameid, shortid);
 
             var response = await db.sql(
                 `select a.* 
@@ -217,15 +206,9 @@ module.exports = class DevGameService {
             if (typeof apikey === "undefined") return [];
             let db = await mysql.db();
 
-            console.log(
-                "Searching for specific developer using apikey: ",
-                apikey
-            );
+            console.log("Searching for specific developer using apikey: ", apikey);
 
-            var response = await db.sql(
-                "select * from game_dev where apikey = ?",
-                [apikey]
-            );
+            var response = await db.sql("select * from game_dev where apikey = ?", [apikey]);
 
             var dev = null;
             if (response && response.results.length > 0) {
@@ -372,10 +355,7 @@ module.exports = class DevGameService {
                     foundGame.stats = stats;
                 }
 
-                let achievements = await this.findGameAchievements(
-                    foundGame.game_slug,
-                    stats
-                );
+                let achievements = await this.findGameAchievements(foundGame.game_slug, stats);
 
                 if (achievements) {
                     foundGame.achievements = achievements;
@@ -394,10 +374,7 @@ module.exports = class DevGameService {
             let db = await mysql.db();
             var response;
 
-            console.log(
-                "Searching for dev game stats by game_slug: ",
-                game_slug
-            );
+            console.log("Searching for dev game stats by game_slug: ", game_slug);
             response = await db.sql(
                 `
                     SELECT * FROM achievement_definition a
@@ -410,12 +387,9 @@ module.exports = class DevGameService {
                 let statMap = {};
                 stats.map((stat) => (statMap[stat.stat_slug] = stat));
                 response.results = response.results.map((ach) => {
-                    if (ach.stat_slug1)
-                        ach.stat_name1 = statMap[ach.stat_slug1].stat_name;
-                    if (ach.stat_slug2)
-                        ach.stat_name2 = statMap[ach.stat_slug2].stat_name;
-                    if (ach.stat_slug3)
-                        ach.stat_name3 = statMap[ach.stat_slug3].stat_name;
+                    if (ach.stat_slug1) ach.stat_name1 = statMap[ach.stat_slug1].stat_name;
+                    if (ach.stat_slug2) ach.stat_name2 = statMap[ach.stat_slug2].stat_name;
+                    if (ach.stat_slug3) ach.stat_name3 = statMap[ach.stat_slug3].stat_name;
                     return ach;
                 });
             }
@@ -432,10 +406,7 @@ module.exports = class DevGameService {
             let db = await mysql.db();
             var response;
 
-            console.log(
-                "Searching for dev game stats by game_slug: ",
-                game_slug
-            );
+            console.log("Searching for dev game stats by game_slug: ", game_slug);
             response = await db.sql(
                 `
                     SELECT * FROM stat_definition a
@@ -460,7 +431,7 @@ module.exports = class DevGameService {
                 algorithm_id: null,
                 game_slug: game_slug,
                 stat_name: "Time Played",
-                stat_abbreviation: "W",
+                stat_abbreviation: "PT",
                 stat_desc: "Total time played",
                 valueTYPE: 3,
                 isactive: 1,
@@ -477,6 +448,17 @@ module.exports = class DevGameService {
                 isactive: 1,
             });
 
+            response.results.push({
+                stat_slug: "ACOS_SCORE",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Match Score",
+                stat_abbreviation: "S",
+                stat_desc: "Score player earned during match",
+                valueTYPE: 0,
+                isactive: 1,
+            });
+
             return response.results;
         } catch (e) {
             if (e instanceof GeneralError) throw e;
@@ -488,10 +470,7 @@ module.exports = class DevGameService {
             let db = await mysql.db();
             var response;
 
-            console.log(
-                "Searching for dev game teams by game_slug: ",
-                game_slug
-            );
+            console.log("Searching for dev game teams by game_slug: ", game_slug);
             response = await db.sql(
                 `
                     SELECT * FROM game_team a
@@ -543,11 +522,10 @@ module.exports = class DevGameService {
 
             console.log("Adding/Updating teams: ", teams);
             if (teams.length > 0) {
-                const { results, fields } = await db.insertBatch(
-                    "game_team",
-                    teams,
-                    ["game_slug", "team_slug"]
-                );
+                const { results, fields } = await db.insertBatch("game_team", teams, [
+                    "game_slug",
+                    "team_slug",
+                ]);
                 return results;
             }
 
@@ -568,16 +546,7 @@ module.exports = class DevGameService {
         return "Draft";
     }
 
-    async createGameVersion(
-        db,
-        game,
-        hasDB,
-        hasCSS,
-        screentype,
-        resow,
-        resoh,
-        screenwidth
-    ) {
+    async createGameVersion(db, game, hasDB, hasCSS, screentype, resow, resoh, screenwidth) {
         try {
             db = db || (await mysql.db());
 
@@ -641,12 +610,7 @@ module.exports = class DevGameService {
             let dev = await this.findDevByGame(gameid, ownerid);
             if (!dev) throw new GeneralError("E_NOTAUTHORIZED");
             let db = await mysql.db();
-            let { results } = await db.update(
-                "game_info",
-                game,
-                "game_slug=?",
-                [game_slug]
-            );
+            let { results } = await db.update("game_info", game, "game_slug=?", [game_slug]);
             console.log(results);
 
             if (results.affectedRows > 0) {
@@ -657,9 +621,7 @@ module.exports = class DevGameService {
         } catch (e) {
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (
-                    e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1
-                ) {
+                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {
                     throw new GeneralError("E_GAME_DUPENAME", game.name);
                 }
             }
@@ -692,9 +654,7 @@ module.exports = class DevGameService {
                 [gameFull.game_slug]
             );
             let existingMap = {};
-            existingStatDefs.results.map(
-                (def) => (existingMap[def.stat_slug] = def)
-            );
+            existingStatDefs.results.map((def) => (existingMap[def.stat_slug] = def));
 
             for (let stat of stats) {
                 let row = {
@@ -789,24 +749,15 @@ module.exports = class DevGameService {
                 delete achievement.stat_name3;
             }
 
-            if (
-                achievement?.stat_slug1 == "-1" ||
-                achievement?.stat_slug1 == -1
-            ) {
+            if (achievement?.stat_slug1 == "-1" || achievement?.stat_slug1 == -1) {
                 achievement.stat_slug1 = null;
                 achievement.goal1_valueTYPE = null;
             }
-            if (
-                achievement?.stat_slug2 == "-1" ||
-                achievement?.stat_slug2 == -1
-            ) {
+            if (achievement?.stat_slug2 == "-1" || achievement?.stat_slug2 == -1) {
                 achievement.stat_slug2 = null;
                 achievement.goal2_valueTYPE = null;
             }
-            if (
-                achievement?.stat_slug3 == "-1" ||
-                achievement?.stat_slug3 == -1
-            ) {
+            if (achievement?.stat_slug3 == "-1" || achievement?.stat_slug3 == -1) {
                 achievement.stat_slug3 = null;
                 achievement.goal3_valueTYPE = null;
             }
@@ -826,10 +777,7 @@ module.exports = class DevGameService {
                 );
                 dbresult = results;
             } else {
-                let { results } = await db.insert(
-                    "achievement_definition",
-                    achievement
-                );
+                let { results } = await db.insert("achievement_definition", achievement);
                 dbresult = results;
             }
 
@@ -837,10 +785,7 @@ module.exports = class DevGameService {
 
             let exists = false;
             for (let i = 0; i < gameFull.achievements.length; i++) {
-                if (
-                    gameFull.achievements[i].achievement_slug ==
-                    achievement.achievement_slug
-                ) {
+                if (gameFull.achievements[i].achievement_slug == achievement.achievement_slug) {
                     gameFull.achievements[i] = achievement;
                     exists = true;
                 }
@@ -852,9 +797,7 @@ module.exports = class DevGameService {
             console.error(e);
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (
-                    e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1
-                ) {
+                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {
                     throw new GeneralError("E_GAME_DUPENAME", game.name);
                 }
             }
@@ -890,11 +833,7 @@ module.exports = class DevGameService {
             if (game.apikey) delete game["apikey"];
 
             let version = game.version;
-            if (
-                !Number.isInteger(version) ||
-                version < 0 ||
-                version > gameFull.latest_version
-            ) {
+            if (!Number.isInteger(version) || version < 0 || version > gameFull.latest_version) {
                 version = gameFull.version;
             }
             if (game.visible < 0 || game.visible > 2) game.visible = 1;
@@ -911,8 +850,7 @@ module.exports = class DevGameService {
             if ("minteams" in game) newGame.minteams = game.minteams;
             if ("visible" in game) newGame.visible = game.visible;
             if ("version" in game) newGame.version = game.version;
-            if ("opensource" in game)
-                newGame.opensource = game.opensource ? 1 : 0;
+            if ("opensource" in game) newGame.opensource = game.opensource ? 1 : 0;
 
             let dev;
             let dbresult;
@@ -933,12 +871,7 @@ module.exports = class DevGameService {
                 }
             }
 
-            let { results } = await db.update(
-                "game_info",
-                newGame,
-                "gameid=?",
-                [gameid]
-            );
+            let { results } = await db.update("game_info", newGame, "gameid=?", [gameid]);
             dbresult = results;
             console.log(dbresult);
             if (dbresult.affectedRows > 0) {
@@ -950,13 +883,9 @@ module.exports = class DevGameService {
                     teams = game.teams;
                     delete game.teams;
 
-                    for (const team of teams)
-                        team.game_slug = gameFull.game_slug;
+                    for (const team of teams) team.game_slug = gameFull.game_slug;
 
-                    let teamResult = await this.updateGameTeams(
-                        gameFull.game_slug,
-                        teams
-                    );
+                    let teamResult = await this.updateGameTeams(gameFull.game_slug, teams);
 
                     game.teams = teams;
                 }
@@ -967,9 +896,7 @@ module.exports = class DevGameService {
             console.error(e);
             //revert back to normal
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (
-                    e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1
-                ) {
+                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {
                     throw new GeneralError("E_GAME_DUPENAME", game.name);
                 }
             }
@@ -1001,12 +928,10 @@ module.exports = class DevGameService {
                 apikey: generateAPIKEY(),
             };
 
-            let { results } = await db.update(
-                "game_dev",
-                newGameDev,
-                "gameid=? AND ownerid = ?",
-                [gameFull.gameid, dev.ownerid]
-            );
+            let { results } = await db.update("game_dev", newGameDev, "gameid=? AND ownerid = ?", [
+                gameFull.gameid,
+                dev.ownerid,
+            ]);
             console.log(results);
 
             dev.apikey = newGameDev.apikey;
@@ -1044,12 +969,9 @@ module.exports = class DevGameService {
                 status: 3, //production
             };
 
-            let { results } = await db.update(
-                "game_info",
-                deployedGame,
-                "gameid=?",
-                [gameFull.gameid]
-            );
+            let { results } = await db.update("game_info", deployedGame, "gameid=?", [
+                gameFull.gameid,
+            ]);
             console.log(results);
 
             if (results.affectedRows > 0) return deployedGame;
@@ -1079,19 +1001,15 @@ module.exports = class DevGameService {
             }
 
             let dev = await this.findDevByGame(gameFull.gameid, user.id);
-            if (!dev || Number(dev.role) != 0)
-                throw new GeneralError("E_NOTAUTHORIZED");
+            if (!dev || Number(dev.role) != 0) throw new GeneralError("E_NOTAUTHORIZED");
 
-            let response = await db.delete(
-                "game_info",
-                "gameid = ? AND ownerid = ?",
-                [game.gameid, user.id]
-            );
+            let response = await db.delete("game_info", "gameid = ? AND ownerid = ?", [
+                game.gameid,
+                user.id,
+            ]);
             console.log(response.results);
 
-            let response2 = await db.delete("game_dev", "gameid = ?", [
-                game.gameid,
-            ]);
+            let response2 = await db.delete("game_dev", "gameid = ?", [game.gameid]);
             console.log(response2.results);
 
             await this.deleteGithubRepo(gameFull);
@@ -1122,8 +1040,7 @@ module.exports = class DevGameService {
             }
 
             let dev = await this.findDevByGame(gameFull.gameid, user.id);
-            if (!dev || Number(dev.role) != 0)
-                throw new GeneralError("E_NOTAUTHORIZED");
+            if (!dev || Number(dev.role) != 0) throw new GeneralError("E_NOTAUTHORIZED");
 
             let deployedGame = {
                 status: 4, //archived
@@ -1191,10 +1108,7 @@ module.exports = class DevGameService {
             // await this.createGitHubRepos(game, user, db);
             // await this.assignUserToRepo(game, user, db);
 
-            if (
-                response.results.affectedRows > 0 &&
-                response2.results.affectedRows > 0
-            ) {
+            if (response.results.affectedRows > 0 && response2.results.affectedRows > 0) {
                 game.gameid = game.gameid.toSqlString();
                 return game;
             }
@@ -1202,19 +1116,11 @@ module.exports = class DevGameService {
             //revert back to normal
 
             if (e instanceof SQLError && e.payload.errno == 1062) {
-                if (
-                    e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1
-                ) {
+                if (e.payload.sqlMessage.indexOf("game_info.name_UNIQUE") > -1) {
                     throw new GeneralError("E_GAME_DUPENAME", game.name);
                 }
-                if (
-                    e.payload.sqlMessage.indexOf("game_info.game_slug_UNIQUE") >
-                    -1
-                ) {
-                    throw new GeneralError(
-                        "E_GAME_DUPESHORTNAME",
-                        game.game_slug
-                    );
+                if (e.payload.sqlMessage.indexOf("game_info.game_slug_UNIQUE") > -1) {
+                    throw new GeneralError("E_GAME_DUPESHORTNAME", game.game_slug);
                 }
             }
             console.error(e);

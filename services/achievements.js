@@ -56,12 +56,9 @@ class AchievementService {
                 let statMap = {};
                 stats.map((stat) => (statMap[stat.stat_slug] = stat));
                 response.results = response.results.map((ach) => {
-                    if (ach.stat_slug1)
-                        ach.stat_name1 = statMap[ach.stat_slug1].stat_name;
-                    if (ach.stat_slug2)
-                        ach.stat_name2 = statMap[ach.stat_slug2].stat_name;
-                    if (ach.stat_slug3)
-                        ach.stat_name3 = statMap[ach.stat_slug3].stat_name;
+                    if (ach.stat_slug1) ach.stat_name1 = statMap[ach.stat_slug1].stat_name;
+                    if (ach.stat_slug2) ach.stat_name2 = statMap[ach.stat_slug2].stat_name;
+                    if (ach.stat_slug3) ach.stat_name3 = statMap[ach.stat_slug3].stat_name;
                     return ach;
                 });
             }
@@ -82,13 +79,10 @@ class AchievementService {
                 `SELECT ad.*, 
                     pa.stat1_valueINT,
                     pa.stat1_valueFLOAT,
-                    pa.stat1_valueSTRING,
                     pa.stat2_valueINT,
                     pa.stat2_valueFLOAT,
-                    pa.stat2_valueSTRING,
                     pa.stat3_valueINT,
                     pa.stat3_valueFLOAT,
-                    pa.stat3_valueSTRING,
                     pa.played,
                     pa.completed,
                     pa.claimed
@@ -110,12 +104,9 @@ class AchievementService {
                 let statMap = {};
                 stats.map((stat) => (statMap[stat.stat_slug] = stat));
                 response.results = response.results.map((ach) => {
-                    if (ach.stat_slug1)
-                        ach.stat_name1 = statMap[ach.stat_slug1].stat_name;
-                    if (ach.stat_slug2)
-                        ach.stat_name2 = statMap[ach.stat_slug2].stat_name;
-                    if (ach.stat_slug3)
-                        ach.stat_name3 = statMap[ach.stat_slug3].stat_name;
+                    if (ach.stat_slug1) ach.stat_name1 = statMap[ach.stat_slug1].stat_name;
+                    if (ach.stat_slug2) ach.stat_name2 = statMap[ach.stat_slug2].stat_name;
+                    if (ach.stat_slug3) ach.stat_name3 = statMap[ach.stat_slug3].stat_name;
                     return ach;
                 });
             }
@@ -155,20 +146,14 @@ class AchievementService {
 
             achievement = achievements[0];
 
-            let players = await db.query(
-                `SELECT * FROM person WHERE shortid = ?`,
-                [shortid]
-            );
+            let players = await db.query(`SELECT * FROM person WHERE shortid = ?`, [shortid]);
             let player = null;
-            if (players.length == 0)
-                throw new Error("Invalid player: " + shortid);
+            if (players.length == 0) throw new Error("Invalid player: " + shortid);
             player = players[0];
 
             if (achievement?.award_xp) {
                 let totalXP = achievement?.award_xp;
-                let previousPoints = Math.trunc(
-                    (player.level - Math.trunc(player.level)) * 1000
-                );
+                let previousPoints = Math.trunc((player.level - Math.trunc(player.level)) * 1000);
                 let previousLevel = Math.trunc(player.level);
                 let newPoints = previousPoints + totalXP;
                 let newLevel = previousLevel;
@@ -243,7 +228,7 @@ class AchievementService {
                 algorithm_id: null,
                 game_slug: game_slug,
                 stat_name: "Time Played",
-                stat_abbreviation: "W",
+                stat_abbreviation: "PT",
                 stat_desc: "Total time played",
                 valueTYPE: 3,
                 isactive: 1,
@@ -256,6 +241,17 @@ class AchievementService {
                 stat_name: "Matches Played",
                 stat_abbreviation: "PLY",
                 stat_desc: "Matches played",
+                valueTYPE: 0,
+                isactive: 1,
+            });
+
+            statDefs.push({
+                stat_slug: "ACOS_SCORE",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Match Score",
+                stat_abbreviation: "S",
+                stat_desc: "Score player earned during match",
                 valueTYPE: 0,
                 isactive: 1,
             });
@@ -295,10 +291,8 @@ class AchievementService {
                 for (let i = 0; i < achievements.length; i++) {
                     let achievement = achievements[i];
                     let shortid = achievement.shortid;
-                    if (!(shortid in playerAchievements))
-                        playerAchievements[shortid] = {};
-                    playerAchievements[shortid][achievement.achievement_slug] =
-                        achievement;
+                    if (!(shortid in playerAchievements)) playerAchievements[shortid] = {};
+                    playerAchievements[shortid][achievement.achievement_slug] = achievement;
                 }
             } catch (e2) {
                 console.error(e2);
@@ -315,14 +309,13 @@ class AchievementService {
                 player.stats["ACOS_PLAYTIME"] = Math.floor(
                     (gamestate.room.endtime - gamestate.room.starttime) / 1000
                 );
+                player.stats["ACOS_SCORE"] = player.score || 0;
 
                 //process each person achievement
                 for (let achievement of achievementDefs) {
                     let pAchievement =
                         (playerAchievements[shortid] &&
-                            playerAchievements[shortid][
-                                achievement.achievement_slug
-                            ]) ||
+                            playerAchievements[shortid][achievement.achievement_slug]) ||
                         {};
 
                     //already completed, skip
@@ -374,19 +367,17 @@ class AchievementService {
 
                     try {
                         //calculate progress
-                        let { value, maxValue, percent } =
-                            this.calculateAchievementProgress(
-                                achievement,
-                                pAchievement
-                            );
+                        let { value, maxValue, percent } = this.calculateAchievementProgress(
+                            achievement,
+                            pAchievement
+                        );
 
                         if (achievement.times_in_a_row == 0) {
                             //infinite attempts, keep incrementing each stat until we reach goal
                             if (value >= maxValue) {
                                 pAchievement.completed = mysql.utcTimestamp();
                             }
-                            if (value > 0)
-                                pAchievement.played = pAchievement.played + 1;
+                            if (value > 0) pAchievement.played = pAchievement.played + 1;
                         } else {
                             //reached achievement requirements, increment played
                             if (value >= maxValue) {
@@ -394,10 +385,7 @@ class AchievementService {
                             }
 
                             //have we repeated required amount?
-                            if (
-                                pAchievement.played >=
-                                achievement.times_in_a_row
-                            ) {
+                            if (pAchievement.played >= achievement.times_in_a_row) {
                                 pAchievement.completed = mysql.utcTimestamp();
                             } else {
                                 //reset progress for next attempt check
@@ -413,8 +401,7 @@ class AchievementService {
                         continue;
                     }
 
-                    pAchievement.achievement_slug =
-                        achievement.achievement_slug;
+                    pAchievement.achievement_slug = achievement.achievement_slug;
                     pAchievement.game_slug = achievement.game_slug;
                     pAchievement.shortid = shortid;
                     pAchievement.completed = pAchievement.completed || null;
@@ -425,13 +412,13 @@ class AchievementService {
                         pAchievement.played > 0 ||
                         pAchievement.stat1_valueINT ||
                         pAchievement.stat1_valueFLOAT ||
-                        pAchievement.stat1_valueSTRING ||
+                        // pAchievement.stat1_valueSTRING ||
                         pAchievement.stat2_valueINT ||
                         pAchievement.stat2_valueFLOAT ||
-                        pAchievement.stat2_valueSTRING ||
+                        // pAchievement.stat2_valueSTRING ||
                         pAchievement.stat3_valueINT ||
-                        pAchievement.stat3_valueFLOAT ||
-                        pAchievement.stat3_valueSTRING
+                        pAchievement.stat3_valueFLOAT // ||
+                        // pAchievement.stat3_valueSTRING
                     )
                         updateAchievements.push(pAchievement);
                 }
@@ -466,17 +453,11 @@ class AchievementService {
     resetAchievementStat(index, playerAchievement) {
         playerAchievement["stat" + index + "_valueINT"] = null;
         playerAchievement["stat" + index + "_valueFLOAT"] = null;
-        playerAchievement["stat" + index + "_valueSTRING"] = null;
+        // playerAchievement["stat" + index + "_valueSTRING"] = null;
     }
 
     //increment or add into the player achievement
-    updateAchievementStat(
-        index,
-        achievement,
-        statMap,
-        playerAchievement,
-        playerStats
-    ) {
+    updateAchievementStat(index, achievement, statMap, playerAchievement, playerStats) {
         let stat_slug = achievement["stat_slug" + index];
         let stat = statMap[stat_slug];
         if (!stat?.stat_abbreviation) {
@@ -495,78 +476,61 @@ class AchievementService {
         switch (stat.valueTYPE) {
             case 0: {
                 //integer
-                if (
-                    typeof playerAchievement["stat" + index + "_valueINT"] ===
-                    "undefined"
-                )
+                if (typeof playerAchievement["stat" + index + "_valueINT"] === "undefined")
                     playerAchievement["stat" + index + "_valueINT"] = 0;
 
                 playerAchievement["stat" + index + "_valueINT"] =
                     matchStat + playerAchievement["stat" + index + "_valueINT"];
                 playerAchievement["stat" + index + "_valueFLOAT"] = null;
-                playerAchievement["stat" + index + "_valueSTRING"] = null;
+                // playerAchievement["stat" + index + "_valueSTRING"] = null;
                 break;
             }
-            case 4: {
-                //string count
-                let valueSTRING = achievement["goal" + index + "_valueSTRING"];
-                if (valueSTRING in matchStat) {
-                    if (
-                        typeof playerAchievement[
-                            "stat" + index + "_valueINT"
-                        ] === "undefined"
-                    )
-                        playerAchievement["stat" + index + "_valueINT"] = 0;
+            // case 4: {
+            //     //string count
+            //     let valueSTRING = achievement["goal" + index + "_valueSTRING"];
+            //     if (valueSTRING in matchStat) {
+            //         if (typeof playerAchievement["stat" + index + "_valueINT"] === "undefined")
+            //             playerAchievement["stat" + index + "_valueINT"] = 0;
 
-                    playerAchievement["stat" + index + "_valueINT"] =
-                        matchStat[valueSTRING] +
-                        playerAchievement["stat" + index + "_valueINT"];
-                    playerAchievement["stat" + index + "_valueSTRING"] =
-                        valueSTRING;
-                    playerAchievement["stat" + index + "_valueFLOAT"] = null;
-                } else {
-                    playerAchievement["stat" + index + "_valueINT"] =
-                        playerAchievement["stat" + index + "_valueINT"] || null;
-                    playerAchievement["stat" + index + "_valueFLOAT"] = null;
-                    playerAchievement["stat" + index + "_valueSTRING"] =
-                        playerAchievement["stat" + index + "_valueSTRING"] ||
-                        null;
-                }
-                break;
-            }
+            //         playerAchievement["stat" + index + "_valueINT"] =
+            //             matchStat[valueSTRING] + playerAchievement["stat" + index + "_valueINT"];
+            //         playerAchievement["stat" + index + "_valueSTRING"] = valueSTRING;
+            //         playerAchievement["stat" + index + "_valueFLOAT"] = null;
+            //     } else {
+            //         playerAchievement["stat" + index + "_valueINT"] =
+            //             playerAchievement["stat" + index + "_valueINT"] || null;
+            //         playerAchievement["stat" + index + "_valueFLOAT"] = null;
+            //         playerAchievement["stat" + index + "_valueSTRING"] =
+            //             playerAchievement["stat" + index + "_valueSTRING"] || null;
+            //     }
+            //     break;
+            // }
             case 1: {
                 //float
-                if (
-                    typeof playerAchievement["stat" + index + "_valueFLOAT"] ===
-                    "undefined"
-                )
+                if (typeof playerAchievement["stat" + index + "_valueFLOAT"] === "undefined")
                     playerAchievement["stat" + index + "_valueFLOAT"] = 0;
 
                 playerAchievement["stat" + index + "_valueFLOAT"] =
-                    matchStat +
-                    playerAchievement["stat" + index + "_valueFLOAT"];
+                    matchStat + playerAchievement["stat" + index + "_valueFLOAT"];
                 playerAchievement["stat" + index + "_valueINT"] = null;
-                playerAchievement["stat" + index + "_valueSTRING"] = null;
+                // playerAchievement["stat" + index + "_valueSTRING"] = null;
                 break;
             }
             case 2: {
                 //average
                 playerAchievement["stat" + index + "_valueFLOAT"] = matchStat;
                 playerAchievement["stat" + index + "_valueINT"] = null;
-                playerAchievement["stat" + index + "_valueSTRING"] = null;
+                // playerAchievement["stat" + index + "_valueSTRING"] = null;
                 break;
             }
             case 3: {
                 //time
-                if (
-                    typeof playerAchievement["stat" + index + "_valueINT"] ===
-                    "undefined"
-                )
+                if (typeof playerAchievement["stat" + index + "_valueINT"] === "undefined")
                     playerAchievement["stat" + index + "_valueINT"] = 0;
                 playerAchievement["stat" + index + "_valueINT"] =
                     matchStat + playerAchievement["stat" + index + "_valueINT"];
                 playerAchievement["stat" + index + "_valueFLOAT"] = null;
-                playerAchievement["stat" + index + "_valueSTRING"] = null;
+                // playerAchievement["stat" + index + "_valueSTRING"] = null;
                 break;
             }
             default: {
@@ -584,17 +548,17 @@ class AchievementService {
             goal1_valueTYPE,
             goal1_valueINT,
             goal1_valueFLOAT,
-            goal1_valueSTRING,
+            // goal1_valueSTRING,
             stat_slug2,
             goal2_valueTYPE,
             goal2_valueINT,
             goal2_valueFLOAT,
-            goal2_valueSTRING,
+            // goal2_valueSTRING,
             stat_slug3,
             goal3_valueTYPE,
             goal3_valueINT,
             goal3_valueFLOAT,
-            goal3_valueSTRING,
+            // goal3_valueSTRING,
             all_required,
             times_in_a_row,
         } = achievement;
@@ -602,13 +566,13 @@ class AchievementService {
         let {
             stat1_valueINT,
             stat1_valueFLOAT,
-            stat1_valueSTRING,
+            // stat1_valueSTRING,
             stat2_valueINT,
             stat2_valueFLOAT,
-            stat2_valueSTRING,
+            // stat2_valueSTRING,
             stat3_valueINT,
             stat3_valueFLOAT,
-            stat3_valueSTRING,
+            // stat3_valueSTRING,
             played,
         } = progress;
 
@@ -633,10 +597,10 @@ class AchievementService {
                 goal1_valueTYPE,
                 goal1_valueINT,
                 goal1_valueFLOAT,
-                goal1_valueSTRING,
+                // goal1_valueSTRING,
                 stat1_valueINT,
                 stat1_valueFLOAT,
-                stat1_valueSTRING,
+                // stat1_valueSTRING,
                 times_in_a_row,
                 played
             );
@@ -648,10 +612,10 @@ class AchievementService {
                 goal2_valueTYPE,
                 goal2_valueINT,
                 goal2_valueFLOAT,
-                goal2_valueSTRING,
+                // goal2_valueSTRING,
                 stat2_valueINT,
                 stat2_valueFLOAT,
-                stat2_valueSTRING,
+                // stat2_valueSTRING,
                 times_in_a_row,
                 played
             );
@@ -663,10 +627,10 @@ class AchievementService {
                 goal3_valueTYPE,
                 goal3_valueINT,
                 goal3_valueFLOAT,
-                goal3_valueSTRING,
+                // goal3_valueSTRING,
                 stat3_valueINT,
                 stat3_valueFLOAT,
-                stat3_valueSTRING,
+                // stat3_valueSTRING,
                 times_in_a_row,
                 played
             );
@@ -681,15 +645,12 @@ class AchievementService {
             //sum all the stat values, they should be of same type
             value = status.reduce(
                 (total, curr) =>
-                    curr === false
-                        ? total
-                        : total + Math.min(curr.value, curr.maxValue),
+                    curr === false ? total : total + Math.min(curr.value, curr.maxValue),
                 0
             );
             //use the largest max goal of the stats
             maxValue = status.reduce(
-                (total, curr) =>
-                    curr.maxValue >= total ? curr.maxValue : total,
+                (total, curr) => (curr.maxValue >= total ? curr.maxValue : total),
                 0
             );
             if (Number.isNaN(value)) value = 0;
@@ -706,15 +667,12 @@ class AchievementService {
 
             value = status.reduce(
                 (total, curr) =>
-                    curr === false
-                        ? total
-                        : total + Math.min(curr.value, curr.maxValue),
+                    curr === false ? total : total + Math.min(curr.value, curr.maxValue),
                 0
             );
             //use the largest max goal of the stats
             maxValue = status.reduce(
-                (total, curr) =>
-                    curr === false ? total : total + curr.maxValue,
+                (total, curr) => (curr === false ? total : total + curr.maxValue),
                 0
             );
             if (Number.isNaN(value)) value = 0;
@@ -733,10 +691,10 @@ class AchievementService {
         goal_valueTYPE,
         goal_valueINT,
         goal_valueFLOAT,
-        goal_valueSTRING,
+        // goal_valueSTRING,
         stat_valueINT,
         stat_valueFLOAT,
-        stat_valueSTRING,
+        // stat_valueSTRING,
         times_in_a_row,
         played
     ) {

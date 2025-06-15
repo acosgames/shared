@@ -143,17 +143,22 @@ class RoomService {
                 console.error("[assignPlayerRoom] Room ID does not exist: " + room_slug);
                 return null;
             }
+
+            // if (meta.maxplayers == 1) {
+            //     return null;
+            // }
+
             game_slug = meta.game_slug;
 
             let mode = meta.mode; // this.getGameModeName(meta.mode);
             let version = meta.mode == "experimental" ? meta.latest_version : meta.version;
             let personRoom = {
                 shortid,
-                room_slug,
+                // room_slug,
                 room_slug: meta.room_slug,
-                game_slug,
-                mode,
-                version,
+                // game_slug,
+                // mode,
+                // version,
             };
             let response = await db.insert("person_room", personRoom);
 
@@ -362,8 +367,9 @@ class RoomService {
             let members = [];
             for (var id in players) {
                 let player = players[id];
+                if (!player?.displayname || typeof player?.highscore === "undefined") continue;
                 members.push({
-                    value: player.name,
+                    value: player.displayname,
                     score: player.highscore || 0,
                 });
             }
@@ -487,6 +493,7 @@ class RoomService {
             response = await db.sql(
                 `
                 SELECT 
+                    a.displayname,
                     a.shortid,
                     b.rating, 
                     b.mu, 
@@ -515,7 +522,7 @@ class RoomService {
 
                     //rating exists, cache it
                     if (personRank.rating == null) {
-                        let newRating = await this.createPersonRank(personRank.shortid, game_slug);
+                        let newRating = await this.createPersonRank(personRank, game_slug);
                         results[i] = newRating;
                         continue;
                     }
