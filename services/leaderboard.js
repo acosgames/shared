@@ -200,8 +200,7 @@ class LeaderboardService {
         let rankings = response.results;
         for (let ranker of rankings) {
             let total = ranker.win + ranker.tie + ranker.loss;
-            ranker.winrating =
-                ((ranker.win + 0.5 * ranker.tie) / total) * (ranker.win - ranker.loss * 2);
+            ranker.winrating = ranker.win * 2 + 0.5 * ranker.tie - ranker.loss;
         }
 
         //sort based on winrating
@@ -539,6 +538,12 @@ class LeaderboardService {
                 }
             }
         } else {
+            let values = [config?.game_slug, config?.stat_slug];
+
+            if (config?.countrycode) {
+                values.push(config.countrycode);
+            }
+            if (config?.season >= 0) values.push(config.season);
             let sql = `
             SELECT 
                 a.displayname, 
@@ -554,6 +559,7 @@ class LeaderboardService {
                 ON a.shortid = psg.shortid
             WHERE psg.game_slug = ?
             AND psg.stat_slug = ?
+             ${config?.countrycode ? "AND a.countrycode = ?" : ""}
             ${config?.season >= 0 ? "AND psg.season = ?" : ""}
             ${
                 config.aggregate
@@ -562,12 +568,18 @@ class LeaderboardService {
             }
             LIMIT ${config.limit || "100"} 
         `;
-            response = await db.sql(sql, [config?.game_slug, config?.stat_slug, config?.season]);
+            response = await db.sql(sql, values);
 
             rankings = response.results;
 
             let playerFound = rankings.find((p) => p.displayname == config?.displayname);
             if (!playerFound) {
+                values = [config?.game_slug, config?.stat_slug, config?.displayname];
+                if (config?.countrycode) {
+                    values.push(config.countrycode);
+                }
+                if (config?.season >= 0) values.push(config.season);
+
                 playerResponse = await db.sql(
                     `
                     SELECT 
@@ -585,6 +597,7 @@ class LeaderboardService {
                     WHERE psg.game_slug = ?
                     AND psg.stat_slug = ?
                     AND a.displayname = ?
+                     ${config?.countrycode ? "AND a.countrycode = ?" : ""}
                     ${typeof config?.season === "number" ? "AND psg.season = ?" : ""}
                     ${
                         config.aggregate
@@ -592,7 +605,7 @@ class LeaderboardService {
                             : `ORDER BY psg.best${valueType} DESC`
                     }
                 `,
-                    [config?.game_slug, config?.stat_slug, config?.displayname, config?.season]
+                    values
                 );
 
                 if (playerResponse?.results?.length > 0) {
