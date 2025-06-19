@@ -84,6 +84,19 @@ class LeaderboardService {
     }
 
     async getLeaderboard(config) {
+        if (config?.countrycode == "EARTH") {
+            delete config.countrycode;
+        }
+
+        // if (config?.season == -2) {
+        //     config.alltime = true;
+        //     delete config.season;
+        // } else if (config?.season == -1) {
+        //     config.monthly = true;
+        //     delete config.season;
+        // } else if (config?.season >= 0) {
+        // }
+
         this.createRedisKey(config);
 
         let leaderboard = { leaderboard: [], localboard: [], total: 0 };
@@ -211,6 +224,10 @@ class LeaderboardService {
 
     async getRankLeaderboard(config) {
         let db = await mysql.db();
+
+        let values = [config?.game_slug];
+        if (config?.countrycode) values.push(config.countrycode);
+        if (typeof config?.season === "number") values.push(config.season);
         let response = await db.sql(
             `
             SELECT 
@@ -233,7 +250,7 @@ class LeaderboardService {
             ORDER BY b.rating DESC
             LIMIT ${config.limit || "100"} 
         `,
-            [config?.game_slug, config?.countrycode, config?.season]
+            values
         );
 
         let rankings = response.results;
@@ -469,7 +486,7 @@ class LeaderboardService {
         let valueType = "INT";
         if (statDef.valueTYPE == 1 || statDef.valueTYPE == 2) valueType = "FLOAT";
 
-        if (!config.aggregate && config?.monthly) {
+        if (!config.aggregate && config?.season == -1) {
             const { startDate, endDate } = this.getMySQLMonthRange();
             let sql = `
             SELECT a.displayname, max(psm.value${valueType}) as value, a.portraitid, a.countrycode
@@ -477,12 +494,21 @@ class LeaderboardService {
                 INNER JOIN person a ON a.shortid = psm.shortid
                 WHERE psm.game_slug = ?
                 AND psm.stat_slug = ?
-                ${config?.monthly ? `AND psm.tsinsert BETWEEN '${startDate}' AND '${endDate}'` : ``}
+                ${
+                    config?.season == -1
+                        ? `AND psm.tsinsert BETWEEN '${startDate}' AND '${endDate}'`
+                        : ``
+                }
+                ${config?.countrycode ? "AND a.countrycode = ?" : ""}
                 GROUP BY a.displayname, a.portraitid, a.countrycode
                 ORDER BY value DESC
                 LIMIT ${config.limit || "100"} 
             `;
-            response = await db.sql(sql, [config?.game_slug, config?.stat_slug, config?.season]);
+            response = await db.sql(sql, [
+                config?.game_slug,
+                config?.stat_slug,
+                config?.countrycode,
+            ]);
 
             rankings = response.results;
 
@@ -496,11 +522,16 @@ class LeaderboardService {
                 WHERE psm.game_slug = ?
                 AND psm.stat_slug = ?
                 AND a.displayname = ?
-                ${config?.monthly ? `AND psm.tsinsert BETWEEN '${startDate}' AND '${endDate}'` : ``}
+                ${config?.countrycode ? "AND a.countrycode = ?" : ""}
+                ${
+                    config?.season == -1
+                        ? `AND psm.tsinsert BETWEEN '${startDate}' AND '${endDate}'`
+                        : ``
+                }
                 GROUP BY a.displayname, a.portraitid, a.countrycode
                 ORDER BY value DESC
         `,
-                    [config?.game_slug, config?.stat_slug, config?.displayname, config?.season]
+                    [config?.game_slug, config?.stat_slug, config?.displayname, config?.countrycode]
                 );
 
                 if (playerResponse?.results?.length > 0) {
@@ -523,7 +554,7 @@ class LeaderboardService {
                 ON a.shortid = psg.shortid
             WHERE psg.game_slug = ?
             AND psg.stat_slug = ?
-            ${typeof config?.season === "number" ? "AND psg.season = ?" : ""}
+            ${config?.season >= 0 ? "AND psg.season = ?" : ""}
             ${
                 config.aggregate
                     ? `ORDER BY psg.value${valueType} DESC`
