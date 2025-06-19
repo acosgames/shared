@@ -720,24 +720,29 @@ class RoomService {
 
             //build players list first
             let playerNames = {};
-            let players = {};
+            let playerRatings = {};
             let playerInfo = {};
             for (const result of response.results) {
-                if (!(result.shortid in players)) players[result.shortid] = {};
+                if (!(result.shortid in playerRatings)) playerRatings[result.shortid] = {};
 
                 playerNames[result.shortid] = result.displayname;
 
-                if (result.game_slug) players[result.shortid][result.game_slug] = result;
+                if (result.game_slug) playerRatings[result.shortid][result.game_slug] = result;
 
                 playerInfo[result.shortid] = result;
             }
 
+            let invalidPlayers = [];
             for (const shortid of shortids) {
-                let player = players[shortid] || { shortid };
+                let player = playerRatings[shortid];
+                if (!player) {
+                    invalidPlayers.push(shortid);
+                    continue;
+                }
                 for (const game_slug of game_slugs) {
                     let key = shortid + "/" + game_slug;
                     if (game_slug in player) {
-                        cache.set(key, player[game_slug], 600);
+                        cache.set(key, playerRatings[shortid][game_slug], 600);
                         continue;
                     }
 
@@ -746,11 +751,11 @@ class RoomService {
                     //make sure we add displayname into the rating object stored in cache/redis
                     newRating.displayname = playerNames[shortid].displayname;
 
-                    player[game_slug] = newRating;
+                    playerRatings[shortid][game_slug] = newRating;
                 }
             }
 
-            return players;
+            return { playerRatings, invalidPlayers };
         } catch (e) {
             console.error(e);
             return null;
