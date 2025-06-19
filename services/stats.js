@@ -26,63 +26,9 @@ class StatService {
             let game_slug = meta?.game_slug;
             let players = gamestate?.players;
 
-            //all stat definitions
-            let statDefResponse = await db.sql(
-                `SELECT 
-                *
-            FROM stat_definition a
-            WHERE a.game_slug = ?`,
-                [game_slug]
-            );
+            let statDefinitions = await this.getGameStats(game_slug, meta.maxplayers == 1);
 
-            if (!statDefResponse.results || statDefResponse.results.length == 0) return true;
-
-            let statDefinitions = statDefResponse.results;
-
-            statDefinitions.push({
-                stat_slug: "ACOS_WINS",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Matches Won",
-                stat_abbreviation: "W",
-                stat_desc: "Matches Won",
-                valueTYPE: 0,
-                isactive: 1,
-            });
-
-            statDefinitions.push({
-                stat_slug: "ACOS_PLAYTIME",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Time Played",
-                stat_abbreviation: "PT",
-                stat_desc: "Total time played",
-                valueTYPE: 3,
-                isactive: 1,
-            });
-
-            statDefinitions.push({
-                stat_slug: "ACOS_PLAYED",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Matches Played",
-                stat_abbreviation: "PLY",
-                stat_desc: "Matches played",
-                valueTYPE: 0,
-                isactive: 1,
-            });
-
-            statDefinitions.push({
-                stat_slug: "ACOS_SCORE",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Match Score",
-                stat_abbreviation: "S",
-                stat_desc: "Score player earned during match",
-                valueTYPE: 0,
-                isactive: 1,
-            });
-
+            //update ACOS tracked stats
             for (let shortid in gamestate.players) {
                 let player = gamestate.players[shortid];
                 if (!player.stats) player.stats = {};
@@ -91,7 +37,8 @@ class StatService {
                 player.stats["ACOS_PLAYTIME"] = Math.floor(
                     (gamestate.room.endtime - gamestate.room.starttime) / 1000
                 );
-                player.stats["ACOS_SCORE"] = player.score || 0;
+                player.stats["ACOS_SCORE"] = player.highscore || player.score || 0;
+                player.stats["ACOS_RATING"] = player.rating || 0;
             }
 
             //mappings for faster indexing
@@ -150,6 +97,7 @@ class StatService {
                 });
 
                 //process each stat individually
+                //update the global stat record and create a match stat record
                 for (let stat_abbreviation in player.stats) {
                     if (!(stat_abbreviation in defs)) continue;
 
@@ -174,7 +122,6 @@ class StatService {
                                 shortid,
                                 valueINT: stat,
                                 valueFLOAT: null,
-                                // valueSTRING: null,
                             });
 
                             globalStat = globalStatMap[def.stat_slug];
@@ -185,12 +132,12 @@ class StatService {
                                     shortid,
                                     season: meta.season,
                                     valueINT: stat,
+                                    bestINT: stat,
                                     valueFLOAT: null,
-                                    // valueSTRING: null,
-                                    // isUpdate: false,
                                 };
                             } else {
                                 globalStat.valueINT += stat;
+                                if (stat > globalStat.bestINT) globalStat.bestINT = stat;
                                 // globalStat.isUpdate = true;
                             }
                             globalStatMap[def.stat_slug] = globalStat;
@@ -210,7 +157,6 @@ class StatService {
                                 shortid,
                                 valueFLOAT: stat,
                                 valueINT: null,
-                                // valueSTRING: null,
                             });
 
                             globalStat = globalStatMap[def.stat_slug];
@@ -222,12 +168,11 @@ class StatService {
                                     season: meta.season,
                                     valueINT: null,
                                     valueFLOAT: stat,
-                                    // valueSTRING: null,
-                                    // isUpdate: false,
+                                    bestFLOAT: stat,
                                 };
                             } else {
                                 globalStat.valueFLOAT += stat;
-                                // globalStat.isUpdate = true;
+                                if (stat > globalStat.bestFLOAT) globalStat.bestFLOAT = stat;
                             }
                             globalStatMap[def.stat_slug] = globalStat;
 
@@ -247,7 +192,6 @@ class StatService {
                                 shortid,
                                 valueINT: 1,
                                 valueFLOAT: stat,
-                                // valueSTRING: null,
                             });
 
                             globalStat = globalStatMap[def.stat_slug];
@@ -259,8 +203,6 @@ class StatService {
                                     season: meta.season,
                                     valueINT: 1,
                                     valueFLOAT: stat,
-                                    // valueSTRING: null,
-                                    // isUpdate: false,
                                 };
                             } else {
                                 let avg =
@@ -268,51 +210,12 @@ class StatService {
                                     (globalStat.valueINT + 1);
                                 globalStat.valueINT += 1;
                                 globalStat.valueFLOAT = avg;
-                                // globalStat.isUpdate = true;
+
+                                if (stat > globalStat.bestFLOAT) globalStat.bestFLOAT = stat;
                             }
                             globalStatMap[def.stat_slug] = globalStat;
 
                             break;
-                        // case 4: //string count
-                        //     if (!isObject(stat)) {
-                        //         console.error(
-                        //             "StringStat is not an object",
-                        //             game_slug,
-                        //             stat_abbreviation,
-                        //             stat
-                        //         );
-                        //         continue;
-                        //     }
-                        //     for (let stringKey in stat) {
-                        //         playerStatRows.push({
-                        //             stat_slug: def.stat_slug,
-                        //             room_slug,
-                        //             shortid,
-                        //             valueINT: stat[stringKey],
-                        //             // valueSTRING: stringKey,
-                        //             valueFLOAT: null,
-                        //         });
-
-                        //         globalStat = globalStatMap[def.stat_slug + "/" + stringKey];
-                        //         if (!globalStat) {
-                        //             globalStat = {
-                        //                 stat_slug: def.stat_slug,
-                        //                 game_slug,
-                        //                 shortid,
-                        //                 season: meta.season,
-                        //                 valueINT: stat[stringKey],
-                        //                 // valueSTRING: stringKey,
-                        //                 valueFLOAT: null,
-                        //                 // isUpdate: false,
-                        //             };
-                        //         } else {
-                        //             globalStat.valueINT += stat[stringKey];
-                        //             // globalStat.valueSTRING = stringKey;
-                        //             // globalStat.isUpdate = true;
-                        //         }
-                        //         globalStatMap[def.stat_slug + "/" + stringKey] = globalStat;
-                        //     }
-                        //     break;
                     }
                 }
 
@@ -324,6 +227,7 @@ class StatService {
                 }
             }
 
+            //insert player match stat records
             if (playerStatRows.length > 0) {
                 let matchInsertResults = await db.insertBatch(
                     "person_stat_match",
@@ -334,6 +238,8 @@ class StatService {
                 );
                 console.log("Match Insert for", room_slug, game_slug, matchInsertResults);
             }
+
+            //insert or update the player global stat records
             if (globalStatRows.length > 0) {
                 let globalInsertResults = await db.insertBatch(
                     "person_stat_global",
@@ -351,7 +257,7 @@ class StatService {
         return true;
     }
 
-    async getGameStats(game_slug) {
+    async getGameStats(game_slug, is_solo) {
         try {
             let db = await mysql.db();
             var response;
@@ -364,33 +270,44 @@ class StatService {
                 [game_slug]
             );
 
-            if (response.results && response.results.length == 0) {
-                return [];
+            let statDefs = response?.results || [];
+
+            if (!is_solo) {
+                statDefs.push({
+                    stat_slug: "ACOS_RATING",
+                    algorithm_id: null,
+                    game_slug: game_slug,
+                    stat_name: "Player Rating",
+                    stat_abbreviation: "PR",
+                    stat_desc: "Player's overall rating for the game.",
+                    valueTYPE: 0,
+                    isactive: 1,
+                });
+
+                statDefs.push({
+                    stat_slug: "ACOS_WINS",
+                    algorithm_id: null,
+                    game_slug: game_slug,
+                    stat_name: "Matches Won",
+                    stat_abbreviation: "W",
+                    stat_desc: "Matches Won",
+                    valueTYPE: 0,
+                    isactive: 1,
+                });
             }
 
-            response.results.push({
-                stat_slug: "ACOS_WINS",
-                algorithm_id: null,
-                game_slug: game_slug,
-                stat_name: "Matches Won",
-                stat_abbreviation: "W",
-                stat_desc: "Matches Won",
-                valueTYPE: 0,
-                isactive: 1,
-            });
-
-            response.results.push({
+            statDefs.push({
                 stat_slug: "ACOS_PLAYTIME",
                 algorithm_id: null,
                 game_slug: game_slug,
-                stat_name: "Time Played",
+                stat_name: "Played Time",
                 stat_abbreviation: "PT",
                 stat_desc: "Total time played",
                 valueTYPE: 3,
                 isactive: 1,
             });
 
-            response.results.push({
+            statDefs.push({
                 stat_slug: "ACOS_PLAYED",
                 algorithm_id: null,
                 game_slug: game_slug,
@@ -401,7 +318,7 @@ class StatService {
                 isactive: 1,
             });
 
-            response.results.push({
+            statDefs.push({
                 stat_slug: "ACOS_SCORE",
                 algorithm_id: null,
                 game_slug: game_slug,
@@ -412,7 +329,7 @@ class StatService {
                 isactive: 1,
             });
 
-            return response.results;
+            return statDefs;
         } catch (e) {
             if (e instanceof GeneralError) throw e;
             throw new CodeError(e);

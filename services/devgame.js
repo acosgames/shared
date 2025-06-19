@@ -459,6 +459,17 @@ module.exports = class DevGameService {
                 isactive: 1,
             });
 
+            response.results.push({
+                stat_slug: "ACOS_RATING",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Player Rating",
+                stat_abbreviation: "S",
+                stat_desc: "Player's overall rating for the game.",
+                valueTYPE: 0,
+                isactive: 1,
+            });
+
             return response.results;
         } catch (e) {
             if (e instanceof GeneralError) throw e;

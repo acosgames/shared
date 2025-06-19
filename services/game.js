@@ -263,11 +263,8 @@ class GameService {
 
             game.votes = await this.findGameVotes(game_slug);
 
-            game.stats = await stats.getGameStats(game_slug);
-            game.achievements = await achievements.getAchievementDefinitions(
-                game_slug,
-                game.stats
-            );
+            game.stats = await stats.getGameStats(game_slug, game.maxplayers == 1);
+            game.achievements = await achievements.getAchievementDefinitions(game_slug, game.stats);
 
             cache.set("game/" + game_slug, game);
 
@@ -375,12 +372,7 @@ class GameService {
         try {
             let db = await mysql.db();
             // var response;
-            console.log(
-                "Getting game with person stats: ",
-                game_slug,
-                shortid,
-                displayname
-            );
+            console.log("Getting game with person stats: ", game_slug, shortid, displayname);
             // response = await db.sql(
             //     `
             //     SELECT
@@ -464,7 +456,7 @@ class GameService {
             // game.votes = await this.findGameVotes(game_slug);
             game.queueCount = (await this.getGameQueueCount(game_slug)) || 0;
 
-            game.stats = await stats.getGameStats(game_slug);
+            game.stats = await stats.getGameStats(game_slug, game.maxplayers == 1);
             game.achievements = await achievements.getAchievementProgress(
                 game_slug,
                 shortid,

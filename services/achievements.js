@@ -256,6 +256,17 @@ class AchievementService {
                 isactive: 1,
             });
 
+            statDefs.push({
+                stat_slug: "ACOS_RATING",
+                algorithm_id: null,
+                game_slug: game_slug,
+                stat_name: "Player Rating",
+                stat_abbreviation: "S",
+                stat_desc: "Player's overall rating for the game.",
+                valueTYPE: 0,
+                isactive: 1,
+            });
+
             //mappings for faster indexing
             let statMap = {};
             statDefs.map((def) => {
@@ -310,6 +321,7 @@ class AchievementService {
                     (gamestate.room.endtime - gamestate.room.starttime) / 1000
                 );
                 player.stats["ACOS_SCORE"] = player.score || 0;
+                player.stats["ACOS_RATING"] = player.rating || 0;
 
                 //process each person achievement
                 for (let achievement of achievementDefs) {
@@ -424,13 +436,15 @@ class AchievementService {
                 }
             }
 
-            let matchInsertResults = await db.insertBatch(
-                "person_achievement",
-                updateAchievements,
-                ["achievement_slug", "game_slug", "shortid"],
-                [],
-                ["tsupdate", "tsinsert"]
-            );
+            if (updateAchievements?.length > 0) {
+                let matchInsertResults = await db.insertBatch(
+                    "person_achievement",
+                    updateAchievements,
+                    ["achievement_slug", "game_slug", "shortid"],
+                    [],
+                    ["tsupdate", "tsinsert"]
+                );
+            }
 
             let playerList = {};
             for (let shortid of shortids) {

@@ -9,21 +9,43 @@ const { GeneralError, CodeError, SQLError } = require("../util/errorhandler");
 const cache = require("./cache");
 const redis = require("./redis");
 
+const stats = require("./stats");
+
+/**
+ * Lets build a leaderboard
+ * Types of leaderboards: Division, Global Rank, National Rank, Global Score, National Score, and Stats
+ * Modifiers for Division: none
+ * Modifiers for National Rank: Season
+ * Modifiers for Global Rank: Season
+ * Modifiers for High Score: Monthly, All Time
+ * Modifiers for Individual Stat: Monthly, All Time
+ * Modifiers for Global Stat: Monthly, All Time
+ *
+ * Leaderboards on Redis:
+ * - Global Rank -- Season
+ * - National Rank -- Season
+ * - High Score -- Monthly, All Time
+ */
+
 class LeaderboardService {
     constructor(credentials) {
         this.credentials = credentials || credutil();
     }
 
-    createLeaderboardKey(config) {
-        if (config?.redisKey) return config?.redisKey;
-        let key = ["rank"];
+    createRedisKey(config) {
+        // if (config?.redisKey) return config?.redisKey;
+        let key = ["lb"];
+        if (!config?.type) config.type = "rank";
+        key.push(config.type);
+
         if (config?.game_slug) key.push(config.game_slug);
-        if (config?.season) key.push(config.season);
-        if (config?.type) key.push(config.type);
+        if (config?.countrycode) key.push(config.countrycode);
+        if (typeof config?.season === "number") key.push("S" + config.season);
+        if (config?.stat_slug) key.push(config.stat_slug);
         if (config?.division_id) key.push(config.division_id);
         if (config?.monthly) {
             let now = new Date();
-            key.push(now.getUTCFullYear() + now.getUTCMonth());
+            key.push(now.getUTCFullYear() + "" + now.getUTCMonth());
         }
 
         config.redisKey = key.join("/");
@@ -31,11 +53,11 @@ class LeaderboardService {
     }
 
     async verifyRedisLeaderboard(config) {
-        this.createLeaderboardKey(config);
+        this.createRedisKey(config);
 
         let redisRankings = await redis.zrevrange(config.redisKey, 0, 1);
         if (redisRankings.length == 0) {
-            let total = await this.fullRedisLeaderboardUpdate(game_slug);
+            let total = await this.fullRedisLeaderboardUpdate(config);
             if (total > 0) {
                 redisRankings = await redis.zrevrange(config.redisKey, 0, 1);
                 if (redisRankings.length == 0) {
@@ -47,7 +69,7 @@ class LeaderboardService {
     }
 
     async fullRedisLeaderboardUpdate(config) {
-        this.createLeaderboardKey(config);
+        this.createRedisKey(config);
 
         switch (config.type) {
             case "rank":
@@ -59,6 +81,551 @@ class LeaderboardService {
         }
 
         return 0;
+    }
+
+    async getLeaderboard(config) {
+        this.createRedisKey(config);
+
+        let leaderboard = { leaderboard: [], localboard: [], total: 0 };
+        switch (config.type) {
+            case "divisionmulti":
+                leaderboard = await this.getDivisionLeaderboard(config);
+                break;
+            case "divisionsolo":
+                leaderboard = await this.getDivisionSoloLeaderboard(config);
+                break;
+            case "rank":
+                leaderboard = await this.getRankLeaderboard(config);
+                break;
+            case "score":
+                leaderboard = await this.getHighscoreLeaderboard(config);
+                break;
+            case "stat":
+                leaderboard = await this.getStatLeaderboard(config);
+                break;
+        }
+
+        return leaderboard;
+    }
+
+    async getDivisionSoloLeaderboard(config) {
+        let db = await mysql.db();
+        let response = await db.sql(
+            `
+            SELECT 
+            a.displayname, 
+            psg.bestINT as highscore,
+             a.portraitid, 
+             a.countrycode
+            FROM  person_stat_global psg
+            INNER JOIN game_info gi ON gi.game_slug = psg.game_slug
+            INNER JOIN person a ON a.shortid = psg.shortid
+            INNER JOIN person_rank pr ON a.shortid = pr.shortid AND pr.game_slug = psg.game_slug
+            WHERE psg.game_slug = ?
+            AND psg.season = gi.season
+            AND psg.stat_slug = 'ACOS_SCORE'
+            AND pr.division = ?
+            ORDER BY psg.bestINT DESC
+            LIMIT ${config.limit || "100"} 
+        `,
+            [config?.game_slug, config?.division_id]
+        );
+
+        //division rating algorithm, its made up
+        let rankings = response.results;
+        // for (let ranker of rankings) {
+        //     let total = ranker.win + ranker.tie + ranker.loss;
+        //     ranker.winrating =
+        //         ((ranker.win + 0.5 * ranker.tie) / total) * (ranker.win - ranker.loss * 2);
+        // }
+
+        //sort based on winrating
+        rankings.sort((a, b) => b.highscore - a.highscore);
+
+        //update to rank for ties
+        let prevRating = Number.MAX_VALUE;
+        let currentRank = 1;
+        for (var i = 0; i < rankings.length; i++) {
+            let rating = rankings[i].highscore;
+            if (prevRating > rating) {
+                currentRank = i + 1;
+                prevRating = rating;
+            }
+            rankings[i].rank = currentRank;
+        }
+
+        return { leaderboard: rankings, localboard: [], total: rankings.length };
+    }
+
+    async getDivisionLeaderboard(config) {
+        let db = await mysql.db();
+        let response = null;
+
+        response = await db.sql(
+            `
+            SELECT 
+                a.displayname, 
+                b.win,
+                b.tie,
+                b.loss,
+                a.portraitid, 
+                a.countrycode,
+                b.rating
+            FROM person_rank b 
+            INNER JOIN game_info gi ON gi.game_slug = b.game_slug
+            INNER JOIN person a ON a.shortid = b.shortid
+            WHERE b.game_slug = ?
+            AND b.season = gi.season
+            AND b.played > 0
+            AND b.division = ?
+            LIMIT ${config.limit || "100"} 
+        `,
+            [config?.game_slug, config?.division_id || 0]
+        );
+
+        //division rating algorithm, its made up
+        let rankings = response.results;
+        for (let ranker of rankings) {
+            let total = ranker.win + ranker.tie + ranker.loss;
+            ranker.winrating =
+                ((ranker.win + 0.5 * ranker.tie) / total) * (ranker.win - ranker.loss * 2);
+        }
+
+        //sort based on winrating
+        rankings.sort((a, b) => b.winrating - a.winrating);
+
+        //update to rank for ties
+        let prevRating = Number.MAX_VALUE;
+        let currentRank = 1;
+        for (var i = 0; i < rankings.length; i++) {
+            let rating = rankings[i].winrating;
+            if (prevRating > rating) {
+                currentRank = i + 1;
+                prevRating = rating;
+            }
+            rankings[i].rank = currentRank;
+        }
+
+        return { leaderboard: rankings, localboard: [], total: rankings.length };
+    }
+
+    async getRankLeaderboard(config) {
+        let db = await mysql.db();
+        let response = await db.sql(
+            `
+            SELECT 
+                a.displayname, 
+                b.win,
+                b.tie,
+                b.loss,
+                b.rating, 
+                a.portraitid, 
+                a.countrycode
+            FROM person_rank b
+            INNER JOIN game_info gi 
+                ON gi.game_slug = ?
+            INNER JOIN person a
+                ON a.shortid = b.shortid
+            WHERE b.game_slug = gi.game_slug 
+            ${config?.countrycode ? "AND a.countrycode = ?" : ""}
+            ${typeof config?.season === "number" ? "AND b.season = ?" : "AND b.season = gi.season"}
+            AND b.played > 0
+            ORDER BY b.rating DESC
+            LIMIT ${config.limit || "100"} 
+        `,
+            [config?.game_slug, config?.countrycode, config?.season]
+        );
+
+        let rankings = response.results;
+
+        //make sure we have redis leaderboard, for checking individual players
+        if (!(await this.verifyRedisLeaderboard(config))) {
+            return await this.getRankLeaderboard(config);
+        }
+
+        let prevRating = Number.MAX_VALUE;
+        let currentRank = 1;
+        for (var i = 0; i < rankings.length; i++) {
+            let rating = rankings[i].rating;
+            if (prevRating > rating) {
+                currentRank = i + 1;
+                prevRating = rating;
+            }
+            rankings[i].rank = currentRank;
+        }
+
+        let localboard = [];
+        if (config?.displayname) {
+            let player = rankings.find((p) => p.displayname == config.displayname);
+            if (!player && rankings < config?.limit) {
+                localboard = await this.getRedisPlayerRelativeLeaderboard(config, player);
+            }
+        }
+
+        let total = rankings.length;
+        if (rankings.length >= 100) total = await this.getRedisLeaderboardCount(config);
+
+        return { leaderboard: rankings, localboard: [], total };
+    }
+
+    async getRedisPlayerRelativeLeaderboard(config, player) {
+        this.createRedisKey(config);
+
+        let rank = await redis.zrevrank(config.redisKey, config?.displayname);
+        console.log("REDIS player rank: ", config?.game_slug, player, rank + 1);
+
+        if (typeof rank !== "number") return [];
+
+        config.startRank = Math.max(0, rank - 3);
+        config.endRank = rank + 1;
+
+        let rankings = await redis.zrevrange(config.redisKey, config.startRank, config.endRank);
+        console.log("REDIS range rank: ", config.startRank, config.endRank, rankings);
+
+        //create a list of the player names from redis
+        let playerPos = 1;
+        let playerNames = [];
+        for (var i = 0; i < rankings.length; i++) {
+            playerNames.push(rankings[i].value);
+        }
+        playerPos = rank - config.startRank;
+
+        try {
+            let db = await mysql.db();
+            let response = await db.sql(
+                `
+            SELECT a.displayname, b.rating, a.portraitid, a.countrycode
+            FROM person_rank b
+            LEFT JOIN person a
+                ON a.shortid = b.shortid
+            LEFT JOIN game_info gi
+                ON gi.game_slug = b.game_slug
+            WHERE b.game_slug = ?
+            AND b.season = gi.season
+            AND b.played > 0
+            ${playerNames && playerNames.length > 0 ? "AND a.displayname in (?)" : ""}
+            ORDER BY b.rating DESC
+            LIMIT 30
+        `,
+                [config?.game_slug, playerNames]
+            );
+
+            if (response.results && response.results.length == 0) {
+                return [];
+            }
+
+            //create a map of players data from mysql
+            let players = response.results;
+            let playersMap = {};
+            players.forEach((p) => (playersMap[p.displayname] = p));
+
+            //create the ranking profile for each player
+            for (var i = 0; i < rankings.length; i++) {
+                let ranker = rankings[i];
+                let p = playersMap[ranker.value];
+                if (!p) {
+                    //delete players who don't exist, don't await
+                    redis.zrem(redisKey, [ranker.value]);
+                    continue;
+                }
+                ranker.displayname = ranker.value;
+                ranker.rank = rank + (playerPos + i);
+                ranker.portraitid = p.portraitid;
+                ranker.countrycode = p.countrycode;
+                ranker.rating = p.rating;
+            }
+
+            //fix the ranking order
+            let prevRating = Number.MAX_VALUE;
+            let currentRank = config.startRank;
+            for (var i = 0; i < rankings.length; i++) {
+                let rating = rankings[i].rating;
+                if (prevRating > rating) {
+                    currentRank = config.startRank + i + 1;
+                    prevRating = rating;
+                }
+                rankings[i].rank = currentRank;
+            }
+
+            console.log("range: ", config?.game_slug, rankings);
+        } catch (e) {
+            console.error(e);
+        }
+
+        return rankings;
+    }
+
+    async getRedisLeaderboardCount(config) {
+        this.createRedisKey(config);
+        let count = await redis.zcount(config.redisKey, 0, 10000000);
+        console.log("REDIS leaderboard count: ", config.redisKey, count);
+        return count;
+    }
+
+    formatDateForMySQL(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    getMySQLMonthRange() {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const startDate = this.formatDateForMySQL(startOfMonth);
+        const endDate = this.formatDateForMySQL(endOfMonth);
+        return { startDate, endDate };
+    }
+
+    async getHighscoreLeaderboard(config) {
+        let db = await mysql.db();
+        let response = null;
+
+        if (!config.aggregate && config?.monthly) {
+            const { startDate, endDate } = this.getMySQLMonthRange();
+
+            let value = [config?.game_slug];
+            if (config?.countrycode) value.push(config.countrycode);
+            if (!config?.monthly && typeof config?.season === "number") value.push(config.season);
+            // if( config?.monthly ) value.push(config.countrycode);
+            response = await db.sql(
+                `
+              SELECT a.displayname, max(psm.valueINT) as highscore, a.portraitid, a.countrycode
+            FROM person_stat_match psm
+            INNER JOIN person a ON a.shortid = psm.shortid
+            WHERE psm.game_slug = ?
+            AND psm.stat_slug = 'ACOS_SCORE'
+            ${config?.countrycode ? "AND a.countrycode = ?" : ""}
+            ${!config?.monthly && typeof config?.season === "number" ? "AND psm.season = ?" : ""}
+            ${config?.monthly ? `AND psm.tsinsert BETWEEN '${startDate}' AND '${endDate}'` : ``}
+            GROUP BY a.displayname, a.portraitid, a.countrycode
+            ORDER BY max(psm.valueINT) DESC
+            LIMIT ${config.limit || "100"}  
+        `,
+                value
+            );
+        } else {
+            let value = [config?.game_slug];
+            if (config?.countrycode) value.push(config.countrycode);
+            if (typeof config?.season === "number") value.push(config.season);
+            response = await db.sql(
+                `
+            SELECT 
+            a.displayname, 
+            ${config.aggregate ? "psg.valueINT as highscore," : "psg.bestINT as highscore,"}
+             a.portraitid, 
+             a.countrycode
+            FROM person a
+            LEFT JOIN person_stat_global psg
+                ON a.shortid = psg.shortid
+            WHERE psg.game_slug = ?
+            ${config?.countrycode ? "AND a.countrycode = ?" : ""}
+            ${typeof config?.season === "number" ? "AND psg.season = ?" : ""}
+            AND psg.stat_slug = 'ACOS_SCORE'
+            ${config.aggregate ? "ORDER BY psg.valueINT DESC" : "ORDER BY psg.bestINT DESC"}
+            LIMIT ${config.limit || "100"} 
+        `,
+                value
+            );
+        }
+
+        let rankings = response.results;
+
+        if (!(await this.verifyRedisLeaderboard(config))) {
+            return await this.getHighscoreLeaderboard(config);
+        }
+
+        for (var i = 0; i < rankings.length; i++) {
+            rankings[i].rank = i + 1;
+        }
+
+        let localboard = [];
+        if (config?.displayname) {
+            let player = rankings.find((p) => p.displayname == config.displayname);
+            if (!player) {
+                localboard = await this.getRedisPlayerRelativeLeaderboard(config);
+            }
+        }
+
+        let total = await this.getRedisLeaderboardCount(config);
+
+        // console.log("getGameTop10PlayersHighscore: ", game_slug, rankings);
+
+        return { leaderboard: rankings, localboard: [], total };
+    }
+
+    async getStatLeaderboard(config) {
+        let db = await mysql.db();
+        let response = null;
+        let playerResponse = null;
+        let rankings = [];
+        let statDefs = await stats.getGameStats(config?.game_slug, config?.is_solo);
+        if (!config?.stat_slug || !statDefs || statDefs.length == 0) return [];
+
+        let statDef = statDefs.find((stat) => stat.stat_slug == config?.stat_slug);
+        if (!statDef) return [];
+
+        let valueType = "INT";
+        if (statDef.valueTYPE == 1 || statDef.valueTYPE == 2) valueType = "FLOAT";
+
+        if (!config.aggregate && config?.monthly) {
+            const { startDate, endDate } = this.getMySQLMonthRange();
+            let sql = `
+            SELECT a.displayname, max(psm.value${valueType}) as value, a.portraitid, a.countrycode
+                FROM person_stat_match psm
+                INNER JOIN person a ON a.shortid = psm.shortid
+                WHERE psm.game_slug = ?
+                AND psm.stat_slug = ?
+                ${config?.monthly ? `AND psm.tsinsert BETWEEN '${startDate}' AND '${endDate}'` : ``}
+                GROUP BY a.displayname, a.portraitid, a.countrycode
+                ORDER BY value DESC
+                LIMIT ${config.limit || "100"} 
+            `;
+            response = await db.sql(sql, [config?.game_slug, config?.stat_slug, config?.season]);
+
+            rankings = response.results;
+
+            let playerFound = rankings.find((p) => p.displayname == config?.displayname);
+            if (!playerFound) {
+                playerResponse = await db.sql(
+                    `
+                SELECT a.displayname, max(psm.value${valueType}) as value, a.portraitid, a.countrycode
+                FROM person_stat_match psm
+                INNER JOIN person a ON a.shortid = psm.shortid
+                WHERE psm.game_slug = ?
+                AND psm.stat_slug = ?
+                AND a.displayname = ?
+                ${config?.monthly ? `AND psm.tsinsert BETWEEN '${startDate}' AND '${endDate}'` : ``}
+                GROUP BY a.displayname, a.portraitid, a.countrycode
+                ORDER BY value DESC
+        `,
+                    [config?.game_slug, config?.stat_slug, config?.displayname, config?.season]
+                );
+
+                if (playerResponse?.results?.length > 0) {
+                    rankings = rankings.concat(playerResponse.results);
+                }
+            }
+        } else {
+            let sql = `
+            SELECT 
+                a.displayname, 
+                ${
+                    config.aggregate
+                        ? `psg.value${valueType} as value,`
+                        : `psg.best${valueType} as value,`
+                }
+                a.portraitid, 
+                a.countrycode
+            FROM person a
+            LEFT JOIN person_stat_global psg
+                ON a.shortid = psg.shortid
+            WHERE psg.game_slug = ?
+            AND psg.stat_slug = ?
+            ${typeof config?.season === "number" ? "AND psg.season = ?" : ""}
+            ${
+                config.aggregate
+                    ? `ORDER BY psg.value${valueType} DESC`
+                    : `ORDER BY psg.best${valueType} DESC`
+            }
+            LIMIT ${config.limit || "100"} 
+        `;
+            response = await db.sql(sql, [config?.game_slug, config?.stat_slug, config?.season]);
+
+            rankings = response.results;
+
+            let playerFound = rankings.find((p) => p.displayname == config?.displayname);
+            if (!playerFound) {
+                playerResponse = await db.sql(
+                    `
+                    SELECT 
+                        a.displayname, 
+                        ${
+                            config.aggregate
+                                ? `psg.value${valueType} as value,`
+                                : `psg.best${valueType} as value,`
+                        }
+                        a.portraitid, 
+                        a.countrycode
+                    FROM person a
+                    LEFT JOIN person_stat_global psg
+                        ON a.shortid = psg.shortid
+                    WHERE psg.game_slug = ?
+                    AND psg.stat_slug = ?
+                    AND a.displayname = ?
+                    ${typeof config?.season === "number" ? "AND psg.season = ?" : ""}
+                    ${
+                        config.aggregate
+                            ? `ORDER BY psg.value${valueType} DESC`
+                            : `ORDER BY psg.best${valueType} DESC`
+                    }
+                `,
+                    [config?.game_slug, config?.stat_slug, config?.displayname, config?.season]
+                );
+
+                if (playerResponse?.results?.length > 0) {
+                    rankings = rankings.concat(playerResponse.results);
+                }
+            }
+        }
+
+        // if (!(await this.verifyRedisLeaderboard(config))) {
+        //     return await this.getStatLeaderboard(config);
+        // }
+
+        for (var i = 0; i < rankings.length; i++) {
+            rankings[i].rank = i + 1;
+        }
+
+        console.log("Stat Leaderboard: ", config);
+
+        return { leaderboard: rankings, localboard: [], total: rankings.length };
+    }
+
+    async updateLeaderboard(config, players) {
+        try {
+            this.createRedisKey(config);
+
+            let members = [];
+            for (var id in players) {
+                let player = players[id];
+
+                let member = { value: player.displayname };
+                switch (config.type) {
+                    case "rank":
+                        member.score = player.rating;
+                        break;
+                    case "score":
+                        member.score = player.score;
+                        break;
+                }
+                members.push(member);
+
+                if (config.type == "rank") {
+                    let playerConfig = structuredClone(config);
+                    playerConfig.countrycode = player.countrycode;
+                    this.createRedisKey(playerConfig);
+
+                    redis.zadd(playerConfig.redisKey, [member]);
+                }
+            }
+
+            let result = await redis.zadd(config.redisKey, members);
+            console.log(result);
+
+            //add to monthly
+            if (config.type == "score") {
+                config.monthly = true;
+                this.createRedisKey(config);
+                result = await redis.zadd(config.redisKey, members);
+            }
+
+            return result;
+        } catch (e) {
+            console.error(e);
+        }
+        return false;
     }
 
     async getAllRanks(config, onResults) {
@@ -78,10 +645,9 @@ class LeaderboardService {
             ON gi.game_slug = b.game_slug
         WHERE b.game_slug = ? 
         and b.season = ?
-        ${config.division_id ? "and b.division = ?" : ""}
         and b.played > 0
         `,
-            [config.game_slug, config.season, config.division_id]
+            [config.game_slug, config.season]
         );
         if (responseCnt && responseCnt.results && responseCnt.results.length > 0) {
             total = Number(responseCnt.results[0]?.cnt) || 0;
@@ -98,7 +664,6 @@ class LeaderboardService {
 
             let values = [config.game_slug, config.season];
 
-            if (config.division_id) values.push(config.division_id);
             values.push(offset);
             values.push(count);
             response = await db.sql(
@@ -109,7 +674,6 @@ class LeaderboardService {
                 AND b.game_slug = ?
                 AND gi.game_slug = b.game_slug
                 AND b.season = ?
-                ${config.division_id ? "and b.division = ?" : ""}
                 AND b.played > 0
                 LIMIT ?,?
             `,
@@ -117,7 +681,7 @@ class LeaderboardService {
             );
 
             if (!response || !response.results || response.results.length == 0) break;
-            let result = await redis.zadd(config.redisKey, members);
+            let result = await redis.zadd(config.redisKey, response.results);
             offset += count;
         }
 
@@ -127,21 +691,51 @@ class LeaderboardService {
     async getAllHighScores(config) {
         let db = await mysql.db();
         var response;
-        console.log("updateAllHighscores ", game_slug);
+        console.log("updateAllHighscores ", config?.game_slug);
 
         let total = 0;
-        let responseCnt = await db.sql(
-            `SELECT count(*) as cnt 
-            FROM person_rank 
-            WHERE game_slug = ? 
-            and season = ? 
-            ${config.division_id ? "and division = ?" : ""}
-            and played > 0 
-            and highscore > 0`,
-            [config.game_slug, config.season, config.division_id]
-        );
-        if (responseCnt && responseCnt.results && responseCnt.results.length > 0) {
-            total = Number(responseCnt.results[0]?.cnt) || 0;
+        if (!config.aggregate && config?.monthly) {
+            const { startDate, endDate } = this.getMySQLMonthRange();
+            response = await db.sql(
+                `
+                SELECT count(*) as cnt FROM (
+              SELECT a.displayname, max(psm.valueINT) as highscore, a.portraitid, a.countrycode
+            FROM person_stat_match psm
+            INNER JOIN person a ON a.shortid = psm.shortid
+            WHERE psm.game_slug = ?
+            AND psm.stat_slug = 'ACOS_SCORE'
+            ${!config?.monthly && typeof config?.season === "number" ? "AND psm.season = ?" : ""}
+            ${config?.monthly ? `AND psm.tsinsert BETWEEN '${startDate}' AND '${endDate}'` : ``}
+            GROUP BY a.displayname, a.portraitid, a.countrycode
+            ORDER BY max(psm.valueINT) DESC
+            ) count
+        `,
+                [config?.game_slug, config?.season]
+            );
+        } else {
+            response = await db.sql(
+                `
+                SELECT COUNT(*) as cnt FROM (
+            SELECT 
+            a.displayname, 
+            ${config.aggregate ? "psg.valueINT as highscore," : "psg.bestINT as highscore,"}
+             a.portraitid, 
+             a.countrycode
+            FROM person a
+            LEFT JOIN person_stat_global psg
+                ON a.shortid = psg.shortid
+            WHERE psg.game_slug = ?
+            ${typeof config?.season === "number" ? "AND psg.season = ?" : ""}
+            AND psg.stat_slug = 'ACOS_SCORE'
+            ${config.aggregate ? "ORDER BY psg.valueINT DESC" : "ORDER BY psg.bestINT DESC"}
+            ) count
+        `,
+                [config?.game_slug, config?.season]
+            );
+        }
+
+        if (response?.results?.length > 0) {
+            total = Number(response.results[0]?.cnt) || 0;
         }
 
         if (total == 0) return 0;
@@ -156,194 +750,106 @@ class LeaderboardService {
 
             let values = [config.game_slug, config.season];
 
-            if (config.division_id) values.push(config.division_id);
             values.push(offset);
             values.push(count);
 
-            response = await db.sql(
-                `
-                SELECT a.displayname as value, b.highscore as score
-                FROM person a, person_rank b
-                WHERE a.shortid = b.shortid
-                AND b.game_slug = ?
-                AND b.season = ?
-                ${config.division_id ? "and b.division = ?" : ""}
-                AND b.played > 0
-                AND b.highscore > 0
-                LIMIT ?,?
+            if (!config.aggregate && config?.monthly) {
+                const { startDate, endDate } = this.getMySQLMonthRange();
+                response = await db.sql(
+                    `
+                  SELECT a.displayname as value, max(psm.valueINT) as score
+                FROM person_stat_match psm
+                INNER JOIN person a ON a.shortid = psm.shortid
+                WHERE psm.game_slug = ?
+                AND psm.stat_slug = 'ACOS_SCORE'
+                ${
+                    !config?.monthly && typeof config?.season === "number"
+                        ? "AND psm.season = ?"
+                        : ""
+                }
+                ${config?.monthly ? `AND psm.tsinsert BETWEEN '${startDate}' AND '${endDate}'` : ``}
+                GROUP BY a.displayname, a.portraitid, a.countrycode
+                ORDER BY max(psm.valueINT) DESC
+                LIMIT ${config.limit || "100"}  
             `,
-                values
-            );
+                    [config?.game_slug, config?.season]
+                );
+            } else {
+                response = await db.sql(
+                    `
+                SELECT 
+                a.displayname as value, 
+                ${config.aggregate ? "psg.valueINT as score" : "psg.bestINT as score"}
+                FROM person a
+                LEFT JOIN person_stat_global psg
+                    ON a.shortid = psg.shortid
+                WHERE psg.game_slug = ?
+                ${typeof config?.season === "number" ? "AND psg.season = ?" : ""}
+                AND psg.stat_slug = 'ACOS_SCORE'
+                ${config.aggregate ? "ORDER BY psg.valueINT DESC" : "ORDER BY psg.bestINT DESC"}
+                LIMIT ${config.limit || "100"} 
+            `,
+                    [config?.game_slug, config?.season]
+                );
+            }
 
             if (!response || !response.results || response.results.length == 0) break;
 
-            let result = await redis.zadd(config.redisKey, members);
+            let result = await redis.zadd(config.redisKey, response.results);
             offset += count;
         }
 
         return total;
     }
 
-    async getDivisionLeaderboard(game_slug, division_id) {
-        let db = await mysql.db();
-        let sqlTop10 = await db.sql(
-            `
-            SELECT 
-                a.displayname, 
-                b.win,
-                b.tie,
-                b.loss,
-                a.portraitid, 
-                a.countrycode,
-                b.rating
-            FROM person_rank b 
-            INNER JOIN game_info gi 
-                ON gi.game_slug = ?
-            INNER JOIN person a
-                ON a.shortid = b.shortid
-                WHERE b.game_slug = gi.game_slug
-                AND b.season = gi.season
-                AND b.division = ?
-                AND b.played > 0
-            LIMIT 100;
-        `,
-            [game_slug, division_id]
-        );
+    // async getRatingLeaderboardRedis({ game_slug, countrycode, season }) {
+    //     season = season || 0;
 
-        let rankings = sqlTop10.results;
-        for (let ranker of rankings) {
-            let total = ranker.win + ranker.tie + ranker.loss;
-            ranker.winrating =
-                ((ranker.win + 0.5 * ranker.tie) / total) * (ranker.win - ranker.loss * 2);
-        }
+    //     let redisKey = game_slug + "/rankings";
 
-        rankings.sort((a, b) => b.winrating - a.winrating);
-        // for (var i = 0; i < rankings.length; i++) {
-        //     rankings[i].rank = (i + 1);
-        // }
+    //     // redisKey += '/' + season;
+    //     if (countrycode) redisKey += "/" + countrycode;
 
-        let prevRating = Number.MAX_VALUE;
-        let currentRank = 1;
-        for (var i = 0; i < rankings.length; i++) {
-            let rating = rankings[i].winrating;
-            if (prevRating > rating) {
-                currentRank = i + 1;
-                prevRating = rating;
-            }
-            rankings[i].rank = currentRank;
-            // rankings[i].rank = (i + 1);
-        }
+    //     let redisRankings = await redis.zrevrange(redisKey, 0, 100);
 
-        return rankings;
-    }
+    //     let displaynames = redisRankings.map((r) => r.value);
 
-    async getRatingLeaderboardRedis({ game_slug, countrycode, season }) {
-        season = season || 0;
+    //     let db = await mysql.db();
+    //     let sqlTop10 = await db.sql(
+    //         `
+    //         SELECT
+    //             a.displayname,
+    //             b.win,
+    //             b.tie,
+    //             b.loss,
+    //             b.rating,
+    //             a.portraitid,
+    //             a.countrycode
+    //         FROM person_rank b
+    //         INNER JOIN game_info gi
+    //             ON gi.game_slug = ?
+    //         INNER JOIN person a
+    //             ON a.shortid = b.shortid
+    //         WHERE b.game_slug = gi.game_slug
+    //         ${countrycode ? "AND a.countrycode = ?" : ""}
+    //         AND b.season = ?
+    //         AND b.played > 0
+    //         AND a.displayname IN (?)
+    //     `,
+    //         [game_slug, countrycode, season, displaynames]
+    //     );
 
-        let redisKey = game_slug + "/rankings";
+    //     let playerMapping = {};
+    //     sqlTop10.results.map((p) => (playerMapping[p.displayname] = p));
 
-        // redisKey += '/' + season;
-        if (countrycode) redisKey += "/" + countrycode;
+    //     let leaderboard = [];
+    //     redisRankings.map((r, index) => {
+    //         playerMapping[r.value].rank = index + 1;
+    //         leaderboard.push(playerMapping[r.value]);
+    //     });
 
-        let redisRankings = await redis.zrevrange(redisKey, 0, 100);
-
-        let displaynames = redisRankings.map((r) => r.value);
-
-        let db = await mysql.db();
-        let sqlTop10 = await db.sql(
-            `
-            SELECT 
-                a.displayname, 
-                b.win,
-                b.tie,
-                b.loss,
-                b.rating, 
-                a.portraitid, 
-                a.countrycode
-            FROM person_rank b
-            INNER JOIN game_info gi 
-                ON gi.game_slug = ?
-            INNER JOIN person a
-                ON a.shortid = b.shortid
-            WHERE b.game_slug = gi.game_slug 
-            ${countrycode ? "AND a.countrycode = ?" : ""}
-            AND b.season = ?
-            AND b.played > 0
-            AND a.displayname IN (?)
-        `,
-            [game_slug, countrycode, season, displaynames]
-        );
-
-        let playerMapping = {};
-        sqlTop10.results.map((p) => (playerMapping[p.displayname] = p));
-
-        let leaderboard = [];
-        redisRankings.map((r, index) => {
-            playerMapping[r.value].rank = index + 1;
-            leaderboard.push(playerMapping[r.value]);
-        });
-
-        return leaderboard;
-    }
-
-    async getRatingLeaderboard(game_slug, config) {
-        let db = await mysql.db();
-        let sqlTop10 = await db.sql(
-            `
-            SELECT 
-                a.displayname, 
-                b.win,
-                b.tie,
-                b.loss,
-                b.rating, 
-                a.portraitid, 
-                a.countrycode
-            FROM person_rank b
-            INNER JOIN game_info gi 
-                ON gi.game_slug = ?
-            INNER JOIN person a
-                ON a.shortid = b.shortid
-            WHERE b.game_slug = gi.game_slug 
-            ${config?.countrycode ? "AND a.countrycode = ?" : ""}
-            AND b.season = gi.season
-            AND b.played > 0
-            ORDER BY b.rating DESC
-            LIMIT 100
-        `,
-            [game_slug, config?.countrycode]
-        );
-
-        let rankings = sqlTop10.results;
-
-        let redisKey = game_slug + "/rankings";
-        if (config?.countrycode) redisKey += "/" + config?.countrycode;
-
-        let redisRankings = await redis.zrevrange(redisKey, 0, 1);
-        if (redisRankings.length == 0) {
-            let total = await this.updateAllRankings(game_slug);
-            if (total > 0) {
-                redisRankings = await redis.zrevrange(redisKey, 0, 1);
-                if (redisRankings.length == 0) {
-                    return [];
-                }
-                return this.getRatingLeaderboard(game_slug, config);
-            }
-        }
-
-        let prevRating = Number.MAX_VALUE;
-        let currentRank = 1;
-        for (var i = 0; i < rankings.length; i++) {
-            let rating = rankings[i].rating;
-            if (prevRating > rating) {
-                currentRank = i + 1;
-                prevRating = rating;
-            }
-            rankings[i].rank = currentRank;
-            // rankings[i].rank = (i + 1);
-        }
-
-        return rankings;
-    }
+    //     return leaderboard;
+    // }
 
     // async updateAllRankings(game_slug) {
     //     let db = await mysql.db();
@@ -461,7 +967,7 @@ class LeaderboardService {
         return rank + 1;
     }
 
-    async getPlayerGameLeaderboard(game_slug, player, rank, config) {
+    async getPlayerGameLeaderboard(config) {
         if (!rank) return [];
 
         let startingRank = Math.max(0, rank - 3);
@@ -557,7 +1063,7 @@ class LeaderboardService {
             console.log("findGameRankGlobal: ", game_slug, shortid, displayname, config);
 
             let game = {};
-            game.leaderboard = (await this.getRatingLeaderboard(game_slug, config)) || [];
+            game.leaderboard = (await this.getRankLeaderboard(game_slug, config)) || [];
             if (displayname) {
                 let playerRank = await this.getPlayerGameRank(game_slug, displayname, config);
                 game.localboard =
@@ -586,7 +1092,7 @@ class LeaderboardService {
             console.log("findGameRankGlobal: ", game_slug, shortid, displayname, countrycode);
 
             let game = {};
-            game.leaderboard = (await this.getRatingLeaderboard(game_slug, countrycode)) || [];
+            game.leaderboard = (await this.getRankLeaderboard(game_slug, countrycode)) || [];
             if (displayname) {
                 let playerRank = await this.getPlayerGameRank(game_slug, displayname, countrycode);
                 game.localboard =
@@ -615,7 +1121,7 @@ class LeaderboardService {
             console.log("findGameRankGlobal: ", game_slug, shortid, displayname);
 
             let game = {};
-            game.leaderboard = (await this.getRatingLeaderboard(game_slug)) || [];
+            game.leaderboard = (await this.getRankLeaderboard(game_slug)) || [];
             if (displayname) {
                 let playerRank = await this.getPlayerGameRank(game_slug, displayname);
                 game.localboard =
@@ -645,47 +1151,6 @@ class LeaderboardService {
             if (e instanceof GeneralError) throw e;
             throw new CodeError(e);
         }
-    }
-
-    async getHighscoreLeaderboard(game_slug) {
-        //let rankings = await redis.get(game_slug + '/top10hs');
-        //if (!rankings) {
-        // let rankings = await redis.zrevrange(game_slug + '/lbhs', 0, 19);
-
-        let db = await mysql.db();
-        let sqlTop10 = await db.sql(
-            `
-            SELECT a.displayname, b.highscore, a.portraitid, a.countrycode
-            FROM person a
-            LEFT JOIN person_rank b
-                ON a.shortid = b.shortid
-            WHERE b.game_slug = ?
-            AND b.season = ?
-            AND b.played > 0
-            ORDER BY b.highscore DESC
-            LIMIT 100
-        `,
-            [game_slug, 0]
-        );
-
-        let rankings = sqlTop10.results;
-
-        if (rankings.length == 0) {
-            let total = await this.updateAllHighscores(game_slug);
-            if (total > 0) {
-                return this.getHighscoreLeaderboard(game_slug);
-            }
-        }
-
-        for (var i = 0; i < rankings.length; i++) {
-            rankings[i].rank = i + 1;
-        }
-
-        //redis.set(game_slug + '/top10hs', rankings, 60);
-        //}
-
-        // console.log("getGameTop10PlayersHighscore: ", game_slug, rankings);
-        return rankings;
     }
 
     async updateAllHighscores(game_slug) {
