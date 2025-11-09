@@ -598,7 +598,7 @@ class LeaderboardService {
                     AND psg.stat_slug = ?
                     AND a.displayname = ?
                      ${config?.countrycode ? "AND a.countrycode = ?" : ""}
-                    ${typeof config?.season === "number" ? "AND psg.season = ?" : ""}
+                    ${config?.season >= 0 ? "AND psg.season = ?" : ""}
                     ${
                         config.aggregate
                             ? `ORDER BY psg.value${valueType} DESC`
