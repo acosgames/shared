@@ -108,7 +108,7 @@ class StatService {
                     switch (def.valueTYPE) {
                         case 0: //integer
                         case 3: //time
-                            if (typeof stat !== "number" || !Number.isInteger(stat)) {
+                            if (typeof stat !== "number" && !Number.isInteger(stat)) {
                                 console.error(
                                     "Stat is not an integer number",
                                     game_slug,

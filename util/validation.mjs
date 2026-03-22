@@ -1,4 +1,5 @@
-import * as schema from '../model/schema.json' assert  { type: "json" };
+// import * as schema from '../model/schema.json' assert  { type: "json" };
+import schema from '../model/schema.json' with { type: 'json' };
 
 export function validateSimple(tableName, fields) {
     return _validateSimple(tableName, fields)
@@ -96,13 +97,16 @@ const validationRules = {
         }
     },
     integer: (fields, table, rules, value, errors) => {
-        if (typeof value === "string" && Number.parseInt(value) === NaN) {
-            errors.push(
-                ValidateError(
-                    "E_NOT_INTEGER",
-                    rules.label + " is a string, must be an integer."
-                )
-            );
+        if (typeof value === "string") {
+            if( Number.parseInt(value) === NaN) {
+                errors.push(
+                    ValidateError(
+                        "E_NOT_INTEGER",
+                        rules.label + " is a string, must be an integer."
+                    )
+                );
+            }
+            return;
         }
 
         if (!Number.isInteger(value)) {
