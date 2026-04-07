@@ -39,7 +39,9 @@ module.exports = class MySQL {
                 loginCreds.user +
                 loginCreds.password +
                 loginCreds.database;
+
             if (!(id in pools)) {
+                console.log("Connection loginCreds: ", loginCreds);
                 this.pool = mysql.createPool(loginCreds);
                 pools[id] = this.pool;
             } else {

@@ -113,10 +113,11 @@ class RabbitMQService {
         this.active = true;
 
         for (var name in this.inChannel.exchanges) {
+            let exchange = this.inChannel.exchanges[name];
             let parts = name.split('/');
-            let exchange = parts[0];
+            let exchangeName = parts[0];
             let pattern = parts[1];
-            this.subscribe(exchange, pattern, exchange.callback, exchange.queue);
+            this.subscribe(exchangeName, pattern, exchange.callback, exchange.queue);
         }
 
         for (var name in this.inChannel.queues) {
@@ -173,72 +174,35 @@ class RabbitMQService {
         this.callbacks[exchange + '/' + pattern] = callback || null;
 
         try {
+            // console.log("Subscribing exchange: ", exchange, pattern, queue);
             if (!this.subscriber) {
                 this.subscriber = await rabbitmq.connect(this.credentials.host);
                 this.in = await this.subscriber.createChannel();
             }
 
-            let queueNum = 1;
-            // queue = queue;
-            let queueAlias = exchange + '-' + queueNum;
-            if (queue) {
-                queueAlias = queue;
-            }
-
-            let queueCreated = await this.in.assertQueue(queueAlias, { autoDelete: false });
-            if (!queue) {
-                while (queueCreated && queueCreated.consumerCount != 0) {
-                    queueNum++;
-                    queueAlias = exchange + '-' + queueNum;
-                    queueCreated = await this.in.assertQueue(queueAlias, { autoDelete: false });
-                }
-            }
-            //let queueNum = 1;
-
-
-
-
-            if (!queueCreated)
+            let queueAlias = await this.findExistingQueue(queue);
+            if (!queueAlias) {
+                console.error("Failed to find existing queue for ", queue);
                 return false;
+            }
+            // console.log("Subscribing exchange2: ", exchange, pattern, queue, queueAlias);
+            // if (!queueCreated)
+            //     return false;
 
             let exchangeCreated = await this.in.assertExchange(exchange, 'direct', { autoDelete: false });
             if (!exchangeCreated) {
                 return false;
             }
-
+            // console.log("Subscribing exchange3: ", exchange, pattern, queue, queueAlias);
             let bindCreated = await this.in.bindQueue(queueAlias, exchange, pattern);
 
             console.log("[AMQP] Subscribed to exchange: ", exchange, pattern, ' queueAlias=', queueAlias);
             this.inChannel.exchanges[exchange + '/' + pattern] = { pattern, callback, queue, queueAlias };
 
-
-            // await this.in.consume(queueAlias, (msg) => {
-            //     let msgStr = msg.content.toString().trim();
-            //     let msgJSON;
-            //     if (msgStr[0] == '{' || msgStr[0] == '[') {
-            //         msgJSON = JSON.parse(msgStr);
-            //         if (!callback(msgJSON)) {
-            //             this.nackMsg(msg);
-            //         }
-            //         else {
-            //             this.ackMsg(msg);
-            //         }
-            //     }
-            //     else {
-            //         if (!callback(msg.content)) {
-            //             this.nackMsg(msg);
-            //         }
-            //         else {
-            //             this.ackMsg(msg);
-            //         }
-            //     }
-            // }, {
-            //     noAck: true,
-            // });
-
             return queueAlias;
         }
         catch (e) {
+            console.log("Subscribe Error: ", exchange, pattern, queue);
             console.error(e);
         }
 
@@ -422,6 +386,7 @@ class RabbitMQService {
                 rs(queueCreated);
             }
             catch (e) {
+                console.log("SubscribeQueue Error: ", queue);
                 rj(e);
             }
 

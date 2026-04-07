@@ -14,6 +14,9 @@ else
 
 module.exports = () => {
 
+    if( process.env.DEBUG == 1 ) {
+        return require('../credential/localhost.json');
+    }
     if (NODE_ENV == 'prod' || NODE_ENV == 'production') {
         // console.log("LOADING PRODUCTION CREDENTIALS");
         return require('../credential/production.json');

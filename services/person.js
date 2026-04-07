@@ -13,6 +13,7 @@ const jwt = require("jsonwebtoken");
 const credutil = require("../util/credentials");
 const fs = require("fs");
 const redis = require("./redis");
+const path = require('path');
 
 class PersonService {
     constructor(credentials) {
@@ -40,13 +41,19 @@ class PersonService {
         return new Promise((rs, rj) => {
             if (!publicKey) {
                 try {
-                    if (!this.publicKey)
+                    if (!this.publicKey) {
+                        let cwd = __dirname;
+                        let publicKeyPath = path.resolve(cwd, "../credential/jwtRS256.key.pub");
+                        // console.log("Reading JWT public key from: ", publicKeyPath);
                         this.publicKey = fs.readFileSync(
-                            "../shared/credential/jwtRS256.key.pub"
+                            publicKeyPath,
+                            "utf8"
                         );
+                        // console.log('public key:', this.publicKey);
+                    }
                     publicKey = this.publicKey;
                 } catch (e) {
-                    rj("Invalid JWT Public Key");
+                    rj("Invalid JWT Public Key", e);
                 }
             }
 
@@ -83,8 +90,8 @@ class PersonService {
                 level: user.level,
                 points: user.points,
                 isdev: user.isdev,
-                ranks: user.ranks,
-                devgames: user.devgames,
+                // ranks: user.ranks,
+                // devgames: user.devgames,
             };
 
             return filteredUser;

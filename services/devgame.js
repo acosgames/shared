@@ -5,6 +5,12 @@ const { genUnique64string, generateAPIKEY } = require("../util/idgen");
 const { utcDATETIME } = require("../util/datefns");
 const { GeneralError, CodeError, SQLError } = require("../util/errorhandler");
 
+
+const {
+    validate,
+    validateField,
+    validateSimple,
+} = require('../util/validation.cjs');
 // const { validateSimple } = require("../util/validation");
 // const { validateSimple } = require('../util/validation');
 
@@ -736,7 +742,7 @@ module.exports = class DevGameService {
                 throw new GeneralError("E_NOTAUTHORIZED");
             }
 
-            let { validateSimple } = await import("../util/validation.mjs");
+            // let { validateSimple } = await import("../util/validation.mjs");
             let errors = validateSimple("manage-achievement", achievement);
             if (errors.length > 0) {
                 throw new GeneralError("E_VALIDATION_FAILED", errors);
@@ -1097,7 +1103,7 @@ module.exports = class DevGameService {
             game.version = 0;
             game.latest_version = 0;
 
-            let { validateSimple } = await import("../util/validation.mjs");
+            // let { validateSimple } = await import("../util/validation.mjs");
             let errors = validateSimple("game_info", game);
             if (errors.length > 0) {
                 throw new GeneralError("E_GAME_INVALID");
