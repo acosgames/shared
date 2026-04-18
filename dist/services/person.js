@@ -1,0 +1,504 @@
+import MySQL from "./mysql.js";
+const mysql = new MySQL();
+import { genUnique64string, generateAPIKEY, genFullShortId, } from "../util/idgen.js";
+import { utcDATETIME } from "../util/datefns.js";
+import { GeneralError } from "../util/errorhandler.js";
+import gh from "./github.js";
+import jwt from "jsonwebtoken";
+// const gh = GitHub;
+import credutil from "../util/credentials.js";
+import fs from "fs";
+import redis from "./redis.js";
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+class PersonService {
+    constructor(credentials) {
+        this.credentials = credentials || credutil();
+        this.publicKey = null;
+    }
+    encodeUserToken(user, privateKey) {
+        return new Promise((rs, rj) => {
+            jwt.sign(user, this.credentials.jwt.secret, { algorithm: "HS256", expiresIn: "30d", noTimestamp: true }, function (err, token) {
+                if (err) {
+                    rj(err);
+                    return;
+                }
+                rs(token);
+            });
+        });
+    }
+    decodeUserToken(token, publicKey) {
+        return new Promise((rs, rj) => {
+            if (!publicKey) {
+                try {
+                    if (!this.publicKey) {
+                        let cwd = __dirname;
+                        let publicKeyPath = path.resolve(cwd, "../../credential/jwtRS256.key.pub");
+                        // console.log("Reading JWT public key from: ", publicKeyPath);
+                        this.publicKey = fs.readFileSync(publicKeyPath, "utf8");
+                        // console.log('public key:', this.publicKey);
+                    }
+                    publicKey = this.publicKey;
+                }
+                catch (e) {
+                    rj("Invalid JWT Public Key", e);
+                    return;
+                }
+            }
+            jwt.verify(token, this.credentials.jwt.secret, function (err, user) {
+                if (err) {
+                    rj(err);
+                    return;
+                }
+                rs(user);
+            });
+        });
+    }
+    async findPlayer(displayname) {
+        try {
+            let user = await this.findUser({ displayname });
+            if (!user) {
+                throw new GeneralError("E_PLAYER_NOTFOUND", { displayname });
+            }
+            // let ranks = await this.findPlayerRanks(user.shortid);
+            // let devgames = await this.findPlayerDevGames(user.id);
+            let filteredUser = {
+                displayname: displayname,
+                countrycode: user.countrycode,
+                portraitid: user.portraitid,
+                github: user.github,
+                membersince: user.membersince,
+                level: user.level,
+                points: user.points,
+                isdev: user.isdev,
+                // ranks: user.ranks,
+                // devgames: user.devgames,
+            };
+            return filteredUser;
+        }
+        catch (e) {
+            //console.error(e);
+            throw e;
+        }
+    }
+    async findPlayerRanks(shortid) {
+        try {
+            let db = await mysql.db();
+            let response = await db.sql(`
+                SELECT 
+                    a.shortid,
+                    a.game_slug,
+                    a.season,
+                    a.rating,
+                    a.win,
+                    a.loss,
+                    a.tie,
+                    a.played,
+                    a.highscore,
+                    a.tsinsert,
+                    b.name,
+                    b.preview_images
+                FROM person_rank a, game_info b
+                WHERE a.shortid = ?
+                AND a.season = b.season
+                AND b.game_slug = a.game_slug
+                AND a.played > 0
+            `, [shortid]);
+            if (response && response?.results.length > 0) {
+                let ranks = response.results;
+                ranks.sort((a, b) => {
+                    return b.played - a.played;
+                });
+                return ranks;
+            }
+            return [];
+        }
+        catch (e) {
+            //console.error(e);
+            throw e;
+        }
+    }
+    async findPlayerDevGames(shortid) {
+        try {
+            let db = await mysql.db();
+            let response = await db.sql(`
+                SELECT 
+                    c.game_slug,
+                    c.name,
+                    c.opensource,
+                    c.preview_images,
+                    c.tsinsert
+                FROM person a, game_dev b, game_info c
+                WHERE a.id = ?
+                AND a.id = b.ownerid
+                AND b.gameid = c.gameid
+                AND (c.status = 2 OR c.status = 3)
+            `, [shortid]);
+            if (response && response?.results.length > 0) {
+                let devgames = response.results;
+                return devgames;
+            }
+            return [];
+        }
+        catch (e) {
+            //console.error(e);
+            throw e;
+        }
+    }
+    async friendRequest(personid, friendid, db) {
+        try {
+            db = db || (await mysql.db());
+            let person_friend = {
+                personid,
+                friendid,
+                initiated: 1,
+                statusid: 0,
+            };
+            let person_friend2 = {
+                friendid,
+                personid,
+                initiated: 0,
+                statusid: 0,
+            };
+            let { results } = await db.insert("person_friend", person_friend);
+            console.log(results);
+            let { results2 } = await db.insert("person_friend", person_friend2);
+            console.log(results2);
+            return { results, results2 };
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return null;
+    }
+    async deleteFriend(personid, friendid, db) {
+        try {
+            db = db || (await mysql.db());
+            let { results } = await db.delete("person_friend", "WHERE personid = ? and friendid = ?", [personid, friendid]);
+            console.log(results);
+            let { results2 } = await db.delete("person_friend", "WHERE personid = ? and friendid = ?", [friendid, personid]);
+            console.log(results2);
+            return { results, results2 };
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return null;
+    }
+    async friendResponse(personid, friendid, statusid, db) {
+        try {
+            db = db || (await mysql.db());
+            let { results } = await db.update("person_friend", { statusid }, "WHERE personid = ? and friendid = ?", [personid, friendid]);
+            console.log(results);
+            let { results2 } = await db.update("person_friend", { statusid }, "WHERE personid = ? and friendid = ?", [friendid, personid]);
+            console.log(results2);
+            return { results, results2 };
+        }
+        catch (e) {
+            console.error(e);
+        }
+        return null;
+    }
+    async getFriends(shortid) {
+        try {
+            let db = await mysql.db();
+            let user = null;
+            if (!shortid)
+                return null;
+            let response = await db.sql(`select b.shortid, b.displayname, b.portraitid, b.countrycode
+                from person_friend a, person b
+                where a.personid = ?
+                AND b.shortid = a.friendid`, [shortid]);
+            if (response && response.results.length == 0) {
+                return [];
+            }
+            else {
+                user = response.results[0];
+            }
+            return user;
+        }
+        catch (e) {
+            //console.error(e);
+            throw e;
+        }
+    }
+    async findUser(user, isSimple) {
+        try {
+            let db = await mysql.db();
+            let response;
+            if (user.id) {
+                response = await db.sql("select *, YEAR(tsinsert) as membersince from person where id = ?", [user.id]);
+            }
+            else if (user.shortid) {
+                response = await db.sql("select *, YEAR(tsinsert) as membersince from person where shortid = ?", [user.shortid]);
+            }
+            else if (user.displayname) {
+                response = await db.sql("select *, YEAR(tsinsert) as membersince from person where LOWER(displayname) = ?", [user?.displayname?.toLowerCase()]);
+            }
+            else if (user.email) {
+                response = await db.sql("select *, YEAR(tsinsert) as membersince from person where email = ?", [user.email]);
+            }
+            else if (user.apikey) {
+                response = await db.sql("select *, YEAR(tsinsert) as membersince from person where apikey = ?", [user.apikey]);
+            }
+            else if (user.github) {
+                response = await db.sql("select *, YEAR(tsinsert) as membersince from person where github = ?", [user.github]);
+            }
+            else if (user.github_id) {
+                response = await db.sql("select *, YEAR(tsinsert) as membersince from person where github_id = ?", [user.github_id]);
+            }
+            else {
+                throw new GeneralError("E_PERSON_MISSINGINFO", user);
+            }
+            if (response && response.results.length == 0) {
+                return null;
+            }
+            else {
+                user = response.results[0];
+            }
+            if (isSimple) {
+                return user;
+            }
+            // user.ranks = await this.findPlayerRanks(user.shortid);
+            // if (user.isdev)
+            // user.devgames = await this.findPlayerDevGames(user.id);
+            // else user.devgames = [];
+            return user;
+        }
+        catch (e) {
+            //console.error(e);
+            throw e;
+        }
+    }
+    async findOrCreateUser(user) {
+        try {
+            let db = await mysql.begin("findOrCreateUser");
+            try {
+                let existingUser = await this.findUser(user, true);
+                if ("github" in user &&
+                    (existingUser.github != user.github ||
+                        existingUser.github_id != user.github_id)) {
+                    user.shortid = existingUser.shortid;
+                    user.isdev = false;
+                    user = await this.updateUser({ shortid: user.shortid, isdev: user.isdev }, db);
+                    user = Object.assign({}, existingUser, user);
+                    console.log(user);
+                }
+                else {
+                    if (!existingUser)
+                        throw "Creating user";
+                    user = existingUser;
+                }
+            }
+            catch (e2) {
+                user = await this.createUser(user, db);
+            }
+            await mysql.end("findOrCreateUser");
+            //console.log(user);
+            return user;
+        }
+        catch (e) {
+            //console.error(e);
+            await mysql.end("findOrCreateUser");
+            throw e;
+        }
+    }
+    async createDisplayName(user, db) {
+        try {
+            db = db || (await mysql.db());
+            // user.displayname = user.displayname.replace(/[^A-Za-z0-9\_]/ig, "");
+            // let updatedUser = { displayname: user.displayname }
+            let existingUser = await this.findUser({
+                displayname: user.displayname,
+            });
+            if (existingUser?.displayname) {
+                throw new GeneralError("E_PERSON_EXISTSNAME", user.displayname);
+            }
+            existingUser = await this.findUser({ shortid: user.shortid });
+            if (existingUser && existingUser.displayname != null) {
+                throw new GeneralError("E_PERSON_ALREADYCREATED", existingUser);
+            }
+            let { results } = await db.update("person", user, "WHERE shortid = ?", [user.shortid]);
+            console.log(results);
+            if (results.affectedRows == 0)
+                throw new GeneralError("E_PERSON_UPDATEFAILED", user);
+            // if (!existingUser.isdev) {
+            //     await this.inviteToGithub(existingUser);
+            // }
+            return user;
+        }
+        catch (e) {
+            if (e.payload && e.payload.errno == 1062) {
+                throw new GeneralError("E_PERSON_DUPENAME", user);
+            }
+            throw e;
+        }
+    }
+    async deleteUser(user, db) {
+        try {
+            db = db || (await mysql.db());
+            let shortid = user.shortid;
+            let { results } = await db.delete("person", "WHERE shortid = ?", [
+                shortid,
+            ]);
+            let rankResults = await db.sql(`
+                SELECT a.displayname, b.game_slug
+                FROM person a, person_rank b
+                WHERE a.shortid = b.shortid
+                and a.shortid = ?
+            `, [user.shortid]);
+            for (var i = 0; i < rankResults.length; i++) {
+                let rank = rankResults[i];
+                redis.zrem(rank.game_slug + "/rankings", [rank.displayname]);
+            }
+            for (var i = 0; i < rankResults.length; i++) {
+                let rank = rankResults[i];
+                redis.zrem(rank.game_slug + "/lbhs", [rank.displayname]);
+            }
+            let { results2 } = await db.delete("person_rank", "WHERE shortid = ?", [user.shortid]);
+            let { results3 } = await db.delete("person_room", "WHERE shortid = ?", [user.shortid]);
+            let { results4 } = await db.delete("game_review", "WHERE shortid = ?", [user.shortid]);
+            let key = `rooms/${user.shortid}`;
+            redis.del(key);
+            console.log("Deleted user: ", user.id, user.shortid, user.displayname);
+            return true;
+        }
+        catch (e) {
+            if (e.errno == 1062) {
+                throw new GeneralError("E_PERSON_DUPENAME", user);
+            }
+            throw e;
+        }
+    }
+    async updateUser(user, db) {
+        try {
+            db = db || (await mysql.db());
+            let shortid = user.shortid;
+            delete user["shortid"];
+            if (user.membersince)
+                delete user.membersince;
+            if (user.iat)
+                delete user.iat;
+            if (user.exp)
+                delete user.exp;
+            let { results } = await db.update("person", user, "WHERE shortid = ?", [shortid]);
+            user.shortid = shortid;
+            console.log(results);
+            if (results.affectedRows == 0)
+                throw new GeneralError("E_PERSON_UPDATEFAILED", user);
+            return user;
+        }
+        catch (e) {
+            if (e.errno == 1062) {
+                throw new GeneralError("E_PERSON_DUPENAME", user);
+            }
+            throw e;
+        }
+    }
+    async createUser(user, db) {
+        try {
+            db = db || (await mysql.db());
+            let newid = genUnique64string({
+                datacenter: this.credentials.datacenter.index || 0,
+                worker: this.credentials.datacenter.worker || 0,
+            });
+            user.id = { toSqlString: () => newid };
+            //user.email = email;
+            user.shortid = genFullShortId();
+            user.apikey = generateAPIKEY();
+            // user.displayname = user.id;
+            user.isdev = false;
+            user.tsapikey = utcDATETIME();
+            user.points = 0;
+            user.level = 1.0;
+            try {
+                let { results } = await db.insert("person", user);
+                console.log(results);
+            }
+            catch (e) {
+                console.error(e);
+                if (e?.payload?.errno == 1062) {
+                    if (e.payload?.sqlMessage.indexOf("person.PRIMARY") > -1) {
+                        //user id already exists, try creating again
+                        return this.createUser(user);
+                    }
+                    else if (e.payload?.sqlMessage.indexOf("shortid_UNIQUE") > -1) {
+                        //shortid already exists, try creating again
+                        return this.createUser(user);
+                    }
+                }
+            }
+            // await this.inviteToGithub(user);
+            // if (results.affectedRows == 0)
+            //     throw new GeneralError('E_PERSON_CREATEFAILED', user);
+            user.id = newid;
+            user.membersince = new Date().getFullYear();
+            return user;
+        }
+        catch (e) {
+            throw e;
+        }
+    }
+    async inviteToGithub(user) {
+        if (!("github" in user) || !user.github) {
+            return;
+        }
+        if (user.isdev)
+            return;
+        try {
+            let orgInviteResult = await gh.orgs.createInvitation({
+                org: "acosgames",
+                email: user.email,
+                role: "direct_member",
+            });
+            console.log(orgInviteResult);
+        }
+        catch (e3) {
+            console.error(e3);
+        }
+    }
+    async createGithubUserTeam(user) {
+        if (!("github" in user) || !user.github) {
+            return;
+        }
+        let id_5SG = 79618222;
+        let org = "acosgames";
+        let displayname = user.displayname;
+        let username = user.github;
+        let maintainers = [];
+        let privacy = "closed";
+        try {
+            //attempt to create the team using acosg username as the team name
+            let teamResult = await gh.teams.create({
+                org,
+                name: displayname,
+                maintainers,
+                privacy,
+            });
+            console.log(teamResult);
+            return teamResult;
+        }
+        catch (e) {
+            //team existed, try to add them back, incase they were removed
+            console.error(e);
+            let team_slug = displayname.toLowerCase();
+            team_slug = team_slug.replace(/[^a-z0-9\_\- \t]/gi, "");
+            team_slug = team_slug.replace(/[ \t]/gi, "-");
+            try {
+                let membershipResult = await gh.teams.addOrUpdateMembershipForUserInOrg({
+                    org,
+                    team_slug,
+                    username,
+                });
+                console.log(membershipResult);
+            }
+            catch (e2) {
+                console.error(e2);
+            }
+        }
+        return null;
+    }
+}
+export default new PersonService();
+//# sourceMappingURL=person.js.map

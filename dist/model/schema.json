@@ -1,0 +1,324 @@
+{
+    "manage-achievement": {
+        "achievement_slug": {
+            "label": "Slug",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "achievement_name": {
+            "label": "Name",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "achievement_description": {
+            "label": "Description",
+            "type": "string",
+            "required": false,
+            "max": 120,
+            "min": 3
+        },
+        "all_required": {
+            "label": "Require all?",
+            "required": false,
+            "max": 1,
+            "min": 0
+        },
+        "stat_slug1": {
+            "label": "Stat 1",
+            "type": "string",
+            "required": true
+        },
+        "stat_slug2": {
+            "label": "Stat 2",
+            "type": "string",
+            "required": false
+        },
+        "stat_slug3": {
+            "label": "Stat 3",
+            "type": "string",
+            "required": false
+        },
+        "goal1_valueINT": {
+            "label": "Goal 1 Int",
+            "type": "number",
+            "required": false
+        },
+        "goal2_valueINT": {
+            "label": "Goal 2 Int",
+            "type": "number",
+            "required": false
+        },
+        "goal3_valueINT": {
+            "label": "Goal 3 Int",
+            "type": "number",
+            "required": false
+        },
+        "goal1_valueFLOAT": {
+            "label": "Goal 1 Float",
+            "type": "number",
+            "required": false
+        },
+        "goal2_valueFLOAT": {
+            "label": "Goal 2 Float",
+            "type": "number",
+            "required": false
+        },
+        "goal3_valueFLOAT": {
+            "label": "Goal 3 Float",
+            "type": "number",
+            "required": false
+        },
+        "times_in_a_row": {
+            "label": "Repeated per X matches",
+            "type": "number",
+            "required": false
+        },
+        "within_one_match": {
+            "label": "Within one match?",
+            "required": false,
+            "max": 1,
+            "min": 0
+        },
+        "award_item": {
+            "label": "Award Item",
+            "type": "string",
+            "required": false
+        },
+        "award_xp": {
+            "label": "Award XP",
+            "type": "number",
+            "required": true,
+            "integer": true
+        },
+        "award_gamepoints": {
+            "label": "Award Game Points",
+            "type": "number",
+            "required": false
+        },
+        "award_badge": {
+            "label": "Award Badge",
+            "type": "string",
+            "required": false
+        }
+    },
+    "create-game_info": {
+        "name": {
+            "label": "Game Name",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "game_slug": {
+            "label": "Slug Name",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "shortdesc": {
+            "label": "Short Description",
+            "type": "string",
+            "required": true,
+            "max": 120,
+            "min": 3
+        },
+        "template": {
+            "label": "Game Template",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 1
+        }
+    },
+    "update-game_team": {
+        "team_name": {
+            "label": "Team Name",
+            "type": "string",
+            "required": true,
+            "max": 64,
+            "min": 3
+        },
+        "team_slug": {
+            "label": "Team Slug",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "maxplayers": {
+            "label": "Max players",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 1,
+            "greaterthanequal": "minplayers"
+        },
+        "team_order": {
+            "label": "Team Number",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 0
+        },
+        "minplayers": {
+            "label": "Min players",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 1,
+            "lessthanequal": "maxplayers"
+        },
+        "color": {
+            "label": "Team Color",
+            "type": "string",
+            "required": true,
+            "max": 7,
+            "min": 4,
+            "iscolor": "hex"
+        }
+    },
+    "update-game_info": {
+        "name": {
+            "label": "Game Name",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "game_slug": {
+            "label": "Slug Name",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "shortdesc": {
+            "label": "Short Description",
+            "type": "string",
+            "required": true,
+            "max": 120,
+            "min": 3
+        },
+        "longdesc": {
+            "label": "Long Description",
+            "type": "string",
+            "required": true,
+            "max": 5000,
+            "min": 3
+        },
+        "maxplayers": {
+            "label": "Max players",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 1,
+            "greaterthanequal": "minplayers"
+        },
+        "maxteams": {
+            "label": "Max Teams",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 0,
+            "greaterthanequal": "minteams"
+        },
+        "minteams": {
+            "label": "Min Teams",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 0,
+            "lessthanequal": "maxteams"
+        },
+        "lbscore": {
+            "label": "Enable Highscore Leaderboard",
+            "required": true,
+            "max": 1,
+            "min": 0
+        },
+        "minplayers": {
+            "label": "Min players",
+            "type": "number",
+            "required": true,
+            "max": 100,
+            "min": 1,
+            "lessthanequal": "maxplayers"
+        },
+        "teams": {
+            "label": "Team Names",
+            "type": "string",
+            "required": false,
+            "max": 255
+        },
+        "version": {
+            "label": "Version",
+            "type": "number",
+            "required": false
+        },
+        "visible": {
+            "label": "Visible",
+            "type": "number",
+            "required": false
+        }
+    },
+    "game_client": {
+        "build_client": {
+            "label": "Client JS Bundle",
+            "type": "file",
+            "required": true,
+            "max": 255,
+            "min": 3
+        }
+    },
+    "game_client_mod": {
+        "name": {
+            "label": "Theme Name",
+            "type": "string",
+            "required": true,
+            "max": 32,
+            "min": 3
+        },
+        "description": {
+            "label": "Theme Description",
+            "type": "string",
+            "required": true,
+            "max": 80,
+            "min": 3
+        },
+        "preview_images": {
+            "label": "Preview Image",
+            "type": "file",
+            "required": false,
+            "max": 255,
+            "min": 3
+        },
+        "git_client": {
+            "label": "Client Git URL",
+            "type": "string",
+            "required": true,
+            "max": 1200,
+            "min": 3
+        },
+        "build_client": {
+            "label": "Client JS Bundle",
+            "type": "file",
+            "required": true,
+            "max": 255,
+            "min": 3
+        }
+    },
+    "game_server": {
+        "build_server": {
+            "label": "Server JS Bundle",
+            "type": "file",
+            "required": true,
+            "max": 255,
+            "min": 3
+        }
+    }
+}
