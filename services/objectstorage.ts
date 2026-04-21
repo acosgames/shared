@@ -205,6 +205,60 @@ export default class ObjectStorage {
 
     }
 
+    downloadPublicScript(Key) {
+        const $this = this;
+        return new Promise(async (rs, rj) => {
+            try {
+                var params = {
+                    Key,
+                    Bucket: 'acospub'
+                }
+
+                let rootPath = path.resolve(process.cwd(), './serverScripts');
+                let folderPath = '/' + Key.split('/')[1]; // g/game_slug/client/file.json
+                let filename = Key.split('/').slice(-1)[0];
+                let localPath = path.join(rootPath, folderPath);
+                let localFilePath = path.join(localPath, filename);
+                console.log('Checking if Server Script exists at path: ', localFilePath);
+                let fileExists = false;
+                try {
+                    fileExists = fs.existsSync(localFilePath);
+                } catch (e) {
+                    console.error(e);
+                }
+                if (fileExists) {
+                    let data = fs.readFileSync(localFilePath, 'utf8');
+
+                    let js = data;// data.Body.toString('utf8');
+                    // let js = await $this.unzipServerFile(data);
+                    rs(js);
+                    console.log('file loaded from filesystem successfully')
+                    return;
+                }
+                this.s3.getObject(params, async function (err, data) {
+                    if (err) {
+                        rj(err);
+                        return;
+                    }
+
+                    fs.mkdirSync(localPath, { recursive: true });
+                    fs.writeFileSync(localFilePath, data.Body)
+
+                    let js = data.Body.toString('utf8');
+                    // let js = await $this.unzipServerFile(data.Body);
+                    console.log('file downloaded successfully: ', Key)
+
+                    rs(js);
+
+                })
+            }
+            catch (e) {
+                console.error(e);
+                rj(e);
+            }
+        });
+    }
+
     downloadServerScript(Key) {
         const $this = this;
         return new Promise(async (rs, rj) => {

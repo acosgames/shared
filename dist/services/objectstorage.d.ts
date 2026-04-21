@@ -9,6 +9,7 @@ export default class ObjectStorage {
     downloadClientFile(Key: any): Promise<unknown>;
     downloadServerDatabase(Key: any): Promise<unknown>;
     unzipServerFile(body: any): Promise<unknown>;
+    downloadPublicScript(Key: any): Promise<unknown>;
     downloadServerScript(Key: any): Promise<unknown>;
 }
 //# sourceMappingURL=objectstorage.d.ts.map

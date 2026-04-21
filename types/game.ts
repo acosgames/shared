@@ -14,7 +14,99 @@ export interface StatDefinition {
     stat_order?: number;
     tsinsert?: string;
     tsupdate?: string;
-} 
+}
+
+export interface GameInfo {
+    gameid: string;
+    game_slug: string;
+    name: string;
+    version: string;
+    db: boolean;
+    season: string;
+    visible: boolean;
+    latest_version: string;
+    ownerid: string;
+    minplayers: number;
+    maxplayers: number;
+    lbscore: number;
+    maxteams: number;
+    minteams: number;
+    shortdesc: string;
+    longdesc: string;
+    opensource: boolean;
+    template: string;
+    preview_images: string;
+    videourl: string;
+    genre: string;
+    votes: number;
+    status: string;
+    tsupdate: string;
+    tsinsert: string;
+    teamlist?: GameTeam[];
+    expires?: number;
+    gameSettings?: GameSettings;
+}
+
+export interface GameSettingsTeam {
+    team_name: string;
+    team_slug: string;
+    minplayers: number;
+    maxplayers: number;
+    team_order: number;
+    color: string;
+}
+
+export interface GameSettingsStat {
+    stat_name: string;
+    stat_desc: string;
+    stat_abbreviation: string;
+    valueTYPE: number;
+    scoreboard: boolean;
+    stat_order: number;
+}
+
+export interface GameSettingsItem {
+
+    item_name: string;
+    item_desc: string;
+    item_slug: string;
+    max_uses: number;
+    expire_days: number;
+    item_order: number;
+    item_category: string;
+
+}
+export interface GameSettings {
+    minplayers: number;
+    maxplayers: number;
+    minteams: number;
+    maxteams: number;
+    teams: GameSettingsTeam[],
+    screentype: ScreenType,
+    resow: number,
+    resoh: number,
+    screenwidth: number,
+    stats: {
+        [stat_slug: string]: GameSettingsStat
+    },
+    items: GameSettingsItem[],
+    lastupdate?: Date | string;
+}
+
+export interface GameVersion {
+    gameid: string;
+    version: string;
+    db: boolean;
+    css: boolean;
+    scaled: boolean;
+    screentype: ScreenType;
+    resow: number;
+    resoh: number;
+    screenwidth: number;
+    status: string;
+    tsupdate: string;
+    tsinsert: string;
+}
 
 export interface Game {
     gameid: string;

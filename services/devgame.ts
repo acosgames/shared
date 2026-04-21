@@ -47,6 +47,7 @@ function toMysqlFormat(date) {
 }
 
 import gh from "./github.js";
+import { slugifyUpper } from "../util/utils.js";
 const StatusByName = {
     Draft: 1,
     Test: 2,
@@ -561,28 +562,36 @@ export default class DevGameService {
         return "Draft";
     }
 
-    async createGameVersion(db, game, hasDB, hasCSS, screentype, resow, resoh, screenwidth): Promise<GameVersion> {
+    async createGameVersion(db, gameVersion): Promise<GameVersion> {
         try {
             db = db || (await mysql.db());
 
-            let gameVersion = {
-                gameid: {
-                    toSqlString: () => game.gameid,
-                },
-                version: game.latest_version + 1,
-                status: 2,
-                screentype,
-                resow,
-                resoh,
-                screenwidth,
-                db: hasDB ? 1 : 0,
-                css: hasCSS ? 1 : 0,
-            };
+            // let gameVersion = {
+            //     gameid: {
+            //         toSqlString: () => game.gameid,
+            //     },
+            //     version: game.latest_version + 1,
+            //     status: 2,
+            //     screentype,
+            //     resow,
+            //     resoh,
+            //     screenwidth,
+            //     db: hasDB ? 1 : 0,
+            //     css: hasCSS ? 1 : 0,
+            // };
+
+            let maxVersion = await db.query(
+                "SELECT MAX(version) as maxVersion FROM game_version WHERE gameid = ?",
+                [gameVersion.gameid]
+            );
+            maxVersion = maxVersion[0].maxVersion || 0;
+            gameVersion.version = maxVersion + 1;
+
             let { results } = await db.insert("game_version", gameVersion);
             console.log(results);
 
             //if we are draft status, change to experimental status
-            let published_status = game.status;
+            let published_status = gameVersion.status;
             if (published_status == 1) {
                 published_status = 2;
             }
@@ -593,7 +602,7 @@ export default class DevGameService {
                     latest_version: gameVersion.version,
                 },
                 "gameid = ?",
-                [game.gameid]
+                [gameVersion.gameid]
             );
 
             console.log(results2);
@@ -665,31 +674,39 @@ export default class DevGameService {
             if (!stats) throw new GeneralError("E_MISSING_STATS");
 
             let existingStatDefs = await db.sql(
-                `SELECT * FROM stat_definition WHERE game_slug = ?`,
+                `SELECT * FROM stat_definition WHERE game_slug = ? AND isactive = 1`,
                 [gameFull.game_slug]
             );
             let existingMap = {};
             existingStatDefs.results.map((def) => (existingMap[def.stat_slug] = def));
 
-            for (let stat of stats) {
+            
+            for (let abbr in stats) {
+                let stat = stats[abbr]; 
+                let stat_slug = slugifyUpper(stat.stat_name);
                 let row = {
+                    stat_slug,
                     game_slug: gameFull.game_slug,
-                    ...stat,
-                    isactive: 1,
+                    stat_abbreviation: abbr,
+                    stat_name: stat.stat_name,
+                    stat_desc: stat.stat_desc,
+                    valueTYPE: stat.valueTYPE,
+                    stat_order: stat.stat_order,
                     scoreboard: stat.scoreboard === 1 ? 1 : 0,
+                    isactive: 1,
                     icon: "",
-                };
+                }; 
 
                 try {
-                    if (stat.stat_slug in existingMap) {
+                    if (stat_slug in existingMap) {
                         delete row.game_slug;
                         delete row.stat_slug;
-                        existingMap[stat.stat_slug].updated = true;
+                        existingMap[stat_slug].updated = true;
                         let result = await db.update(
                             "stat_definition",
                             row,
                             "game_slug=? AND stat_slug=?",
-                            [gameFull.game_slug, stat.stat_slug],
+                            [gameFull.game_slug, stat_slug],
                             ["tsupdate"]
                         );
                     } else {

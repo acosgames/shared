@@ -19,5 +19,25 @@ const uniqueName = () => {
     }
     return displayname;
 };
-export { isObject, uniqueName };
+const slugify = (str) => {
+    return str
+        .toLowerCase()
+        .trim()
+        .normalize('NFD') // Splits accented letters (e.g., "á" to "a" + accent)
+        .replace(/[\u0300-\u036f]/g, '') // Removes the accent marks
+        .replace(/[^a-z0-9 -]/g, '') // Removes all non-alphanumeric characters
+        .replace(/\s+/g, '-') // Replaces spaces with hyphens
+        .replace(/-+/g, '-'); // Replaces multiple hyphens with a single one
+};
+const slugifyUpper = (str) => {
+    return str
+        .toUpperCase()
+        .trim()
+        .normalize('NFD') // Splits accented letters (e.g., "á" to "a" + accent)
+        .replace(/[\u0300-\u036f]/g, '') // Removes the accent marks
+        .replace(/[^A-Z0-9 _]/g, '') // Removes all non-alphanumeric characters
+        .replace(/\s+/g, '_') // Replaces spaces with underscores
+        .replace(/_+/g, '_'); // Replaces multiple underscores with a single underscore
+};
+export { isObject, uniqueName, slugify, slugifyUpper };
 //# sourceMappingURL=utils.js.map

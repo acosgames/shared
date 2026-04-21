@@ -58,6 +58,8 @@ export interface RoomMeta {
     rating: number;
     mode: number;
     db: number;
+    protocol: number;
+    settings: number;
     css: number;
     scaled: boolean;
     screentype: number;

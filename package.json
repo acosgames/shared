@@ -24,8 +24,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@acosgames/framework": "^1.0.1",
+    "@acosgames/framework": "^1.0.8",
     "@octokit/rest": "^20.1.1",
+    "acos-json-encoder": "^2.0.15",
     "amqplib": "^0.10.9",
     "aws-sdk": "^2.839.0",
     "axios": "^1.6.2",

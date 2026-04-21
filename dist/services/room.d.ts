@@ -1,3 +1,4 @@
+import { GameInfo } from "../types/game.js";
 import { PlayerGameRoom, PlayerGameRoomExtended, RoomMeta } from "../types/room.js";
 declare class RoomService {
     constructor(credentials?: any);
@@ -20,7 +21,7 @@ declare class RoomService {
     checkRoomFull(room: any): Promise<boolean>;
     findAnyRoom(user: any, game_slug: any, mode: any, rooms: any, attempt: any): Promise<any>;
     getModes(): Promise<any>;
-    getGameInfo(game_slug: any): Promise<unknown>;
+    getGameInfo(game_slug: any): Promise<GameInfo | null>;
     findRoomUserSubscriptions(room_slug: any): Promise<any>;
     createRoom(shortid: any, rating: any, game_slug: any, mode: any, private_key: any): Promise<any[] | {
         room_slug: string;
@@ -30,6 +31,8 @@ declare class RoomService {
         version: string;
         css: boolean;
         db: boolean;
+        settings: any;
+        protocol: any;
         latest_tsupdate: Date;
         minplayers: any;
         maxplayers: number;

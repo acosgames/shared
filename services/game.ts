@@ -240,6 +240,8 @@ class GameService {
                     current.screenwidth as screenwidth,
                     current.db as db,
                     current.css AS css,
+                    current.settings as settings,
+                    current.protocol as protocol,
                     latest.screentype as latest_screentype,
                     latest.resow as latest_resow,
                     latest.resoh as latest_resoh,

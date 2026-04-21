@@ -214,7 +214,7 @@ class RatingService {
                 // delete newRating.shortid;
                 // delete newRating.game_slug;
     
-                return rating;
+                return newRating;
             } catch (e) {
                 console.error(e);
                 return null;
@@ -301,7 +301,7 @@ class RatingService {
                         ratings,
                         ["shortid", "game_slug"],
                         ["played"],
-                        ["winloss"]
+                        ["winloss", "rank", "score"]
                     );
                     if (response && response.results.affectedRows > 0) {
                         return true;

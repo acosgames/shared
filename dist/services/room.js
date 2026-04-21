@@ -252,6 +252,8 @@ class RoomService {
                     b.mode, 
                     b.status, 
                     v.css,
+                    v.protocol,
+                    v.settings,
                     v.scaled,
                     v.screentype,
                     v.resow,
@@ -306,6 +308,8 @@ class RoomService {
                     r.mode,
                     v.db,
                     v.css,
+                    v.protocol,
+                    v.settings,
                     v.scaled,
                     v.screentype,
                     v.resow,
@@ -327,14 +331,14 @@ class RoomService {
             if (response.results && response.results.length > 0) {
                 let room = response.results[0];
                 //convert from id to name
-                if (room.maxteams > 0) {
-                    let teamResponse = await db.sql("SELECT * from game_team WHERE game_slug = ?", [
-                        room.game_slug,
-                    ]);
-                    if (teamResponse.results && teamResponse.results.length > 0) {
-                        room.teams = teamResponse.results;
-                    }
-                }
+                // if (room.maxteams > 0) {
+                //     let teamResponse = await db.sql("SELECT * from game_team WHERE game_slug = ?", [
+                //         room.game_slug,
+                //     ]);
+                //     if (teamResponse.results && teamResponse.results.length > 0) {
+                //         room.teams = teamResponse.results;
+                //     }
+                // }
                 room.mode = this.getGameModeName(room.mode);
                 delete room["tsupdate"];
                 delete room["tsinsert"];
@@ -474,12 +478,24 @@ class RoomService {
             let db = await mysql.db();
             var response;
             console.log("Getting game info: ", game_slug);
-            response = await db.sql(`SELECT * FROM game_info a WHERE a.game_slug = ?`, [game_slug]);
+            response = await db.sql(`SELECT * 
+                FROM game_info a 
+                WHERE a.game_slug = ?`, [game_slug]);
             if (!response.results || response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
             gameinfo = response.results[0];
             if (gameinfo.maxteams > 0) {
-                let response2 = await db.sql(`SELECT a.game_slug, a.team_slug, a.team_name, a.minplayers, a.maxplayers, a.color, a.icon FROM game_team a WHERE a.game_slug = ?`, [game_slug]);
+                let response2 = await db.sql(`SELECT 
+                        a.game_slug, 
+                        a.team_slug, 
+                        a.team_name, 
+                        a.team_order, 
+                        a.minplayers, 
+                        a.maxplayers, 
+                        a.color, 
+                        a.icon 
+                    FROM game_team a 
+                    WHERE a.game_slug = ?`, [game_slug]);
                 if (response2.results && response2.results.length > 0) {
                     gameinfo.teamlist = response2.results;
                 }
@@ -604,6 +620,8 @@ class RoomService {
                 version,
                 css,
                 db: database,
+                settings: published.settings,
+                protocol: published.protocol,
                 latest_tsupdate,
                 minplayers,
                 maxplayers,
@@ -673,14 +691,13 @@ class RoomService {
             let db = await mysql.db();
             if (ratings) {
                 for (let rating of ratings) {
-                    let { shortid, winloss } = rating;
-                    let player = gamestate?.players[shortid];
-                    let { rank, score } = player;
+                    let { shortid, winloss, rank, score } = rating;
+                    // let player = gamestate?.players.find((p) => p.shortid == shortid);
+                    // let { rank, score } = player;
                     console.log("Player Room completed: ", shortid, room_slug);
                     let response2 = await db.update("person_room", { place: rank, score, winloss }, "shortid=? AND room_slug=?", [shortid, room_slug]);
-                    let stats = player?.stats;
-                    if (!stats)
-                        continue;
+                    // let stats = player?.stats;
+                    // if (!stats) continue;
                 }
             }
         }

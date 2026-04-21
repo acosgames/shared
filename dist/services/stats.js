@@ -20,7 +20,7 @@ class StatService {
                     player.stats = {};
                 player.stats["ACOS_WINS"] = player.winloss == 1 ? 1 : 0;
                 player.stats["ACOS_PLAYED"] = 1;
-                player.stats["ACOS_PLAYTIME"] = Math.floor((gamestate.room.endtime - gamestate.room.starttime) / 1000);
+                player.stats["ACOS_PLAYTIME"] = Math.floor((gamestate.room.endtime) / 1000);
                 player.stats["ACOS_SCORE"] = player.highscore || player.score || 0;
                 player.stats["ACOS_RATING"] = player.rating || 0;
             }

@@ -13,7 +13,7 @@ export default class DevGameService {
     updateGameTeams(game_slug: any, teams: any): Promise<any>;
     statusId(name: any): any;
     statusName(id: any): string;
-    createGameVersion(db: any, game: any, hasDB: any, hasCSS: any, screentype: any, resow: any, resoh: any, screenwidth: any): Promise<GameVersion>;
+    createGameVersion(db: any, gameVersion: any): Promise<GameVersion>;
     updatePreviewImages(gameid: any, game_slug: any, user: any, images: any): Promise<{}>;
     updateStats(db: any, gameFull: any, apiKey: any, gameSettings: any): Promise<boolean>;
     updateAchievement(game: any, achievement: any, user: any, db: any): Promise<any>;

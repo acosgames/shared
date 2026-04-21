@@ -166,7 +166,7 @@ class RatingService {
             newRating.displayname = rating.displayname;
             // delete newRating.shortid;
             // delete newRating.game_slug;
-            return rating;
+            return newRating;
         }
         catch (e) {
             console.error(e);
@@ -239,7 +239,7 @@ class RatingService {
             let db = await mysql.db();
             let incrementList = ["played"];
             console.log("Updating ratings to person_rank: ", incrementList, ratings);
-            var response = await db.insertBatch("person_rank", ratings, ["shortid", "game_slug"], ["played"], ["winloss"]);
+            var response = await db.insertBatch("person_rank", ratings, ["shortid", "game_slug"], ["played"], ["winloss", "rank", "score"]);
             if (response && response.results.affectedRows > 0) {
                 return true;
             }

@@ -9,7 +9,7 @@ import { uniqueName, isObject  } from "../util/utils.js";
 import redis from "./redis.js";
 import game from "./game.js";// const game = new GameService();
 
-import { Game, GameVersion, GameReplay, GameTeam } from "../types/game.js";
+import { Game, GameVersion, GameReplay, GameTeam, GameInfo } from "../types/game.js";
 import { MySQLConfig, MySQL_DB } from "../types/mysql.js";
 import { GameRoom, PlayerGameRoom, PlayerGameRoomExtended, GameRoomMeta, RoomMeta } from "../types/room.js";
 import { PlayerGameRating } from "../types/rating.js";
@@ -294,6 +294,8 @@ class RoomService {
                     b.mode, 
                     b.status, 
                     v.css,
+                    v.protocol,
+                    v.settings,
                     v.scaled,
                     v.screentype,
                     v.resow,
@@ -333,7 +335,8 @@ class RoomService {
         try {
             let key = room_slug + "/meta";
             let room = await cache.get(key);
-            if (room) return room;
+            if (room) 
+                return room;
 
             // room = await redis.get(key);
             // if( room ) return room;
@@ -353,6 +356,8 @@ class RoomService {
                     r.mode,
                     v.db,
                     v.css,
+                    v.protocol,
+                    v.settings,
                     v.scaled,
                     v.screentype,
                     v.resow,
@@ -378,14 +383,14 @@ class RoomService {
                 let room = response.results[0];
                 //convert from id to name
 
-                if (room.maxteams > 0) {
-                    let teamResponse = await db.sql("SELECT * from game_team WHERE game_slug = ?", [
-                        room.game_slug,
-                    ]);
-                    if (teamResponse.results && teamResponse.results.length > 0) {
-                        room.teams = teamResponse.results;
-                    }
-                }
+                // if (room.maxteams > 0) {
+                //     let teamResponse = await db.sql("SELECT * from game_team WHERE game_slug = ?", [
+                //         room.game_slug,
+                //     ]);
+                //     if (teamResponse.results && teamResponse.results.length > 0) {
+                //         room.teams = teamResponse.results;
+                //     }
+                // }
 
                 room.mode = this.getGameModeName(room.mode);
                 delete room["tsupdate"];
@@ -529,7 +534,7 @@ class RoomService {
     }
 
 
-    async getGameInfo(game_slug) {
+    async getGameInfo(game_slug):   Promise<GameInfo | null> {
         try {
             let gameinfo = await cache.get("gameinfo/" + game_slug);
             if (gameinfo) {
@@ -542,7 +547,10 @@ class RoomService {
             var response;
             console.log("Getting game info: ", game_slug);
 
-            response = await db.sql(`SELECT * FROM game_info a WHERE a.game_slug = ?`, [game_slug]);
+            response = await db.sql(
+                `SELECT * 
+                FROM game_info a 
+                WHERE a.game_slug = ?`, [game_slug]);
 
             if (!response.results || response.results.length == 0)
                 throw new GeneralError("E_GAMENOTEXIST");
@@ -551,7 +559,17 @@ class RoomService {
 
             if (gameinfo.maxteams > 0) {
                 let response2 = await db.sql(
-                    `SELECT a.game_slug, a.team_slug, a.team_name, a.minplayers, a.maxplayers, a.color, a.icon FROM game_team a WHERE a.game_slug = ?`,
+                    `SELECT 
+                        a.game_slug, 
+                        a.team_slug, 
+                        a.team_name, 
+                        a.team_order, 
+                        a.minplayers, 
+                        a.maxplayers, 
+                        a.color, 
+                        a.icon 
+                    FROM game_team a 
+                    WHERE a.game_slug = ?`,
                     [game_slug]
                 );
                 if (response2.results && response2.results.length > 0) {
@@ -694,6 +712,8 @@ class RoomService {
                 version,
                 css,
                 db: database,
+                settings: published.settings,
+                protocol: published.protocol,
                 latest_tsupdate,
                 minplayers,
                 maxplayers,
@@ -767,9 +787,9 @@ class RoomService {
             let db = await mysql.db();
             if (ratings) {
                 for (let rating of ratings) {
-                    let { shortid, winloss } = rating;
-                    let player = gamestate?.players[shortid];
-                    let { rank, score } = player;
+                    let { shortid, winloss, rank, score } = rating;
+                    // let player = gamestate?.players.find((p) => p.shortid == shortid);
+                    // let { rank, score } = player;
 
                     console.log("Player Room completed: ", shortid, room_slug);
 
@@ -780,13 +800,13 @@ class RoomService {
                         [shortid, room_slug]
                     );
 
-                    let stats = player?.stats;
-                    if (!stats) continue;
+                    // let stats = player?.stats;
+                    // if (!stats) continue;
                 }
             }
         } catch (e) {
             if (e instanceof GeneralError) throw e;
-            throw new CodeError(e);
+            throw new CodeError(e); 
         }
         return true;
     }
