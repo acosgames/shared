@@ -9,7 +9,7 @@ declare class GameService {
         game_slug: string;
     }[]>;
     findGames(): Promise<Game[]>;
-    findGameReplays(game_slug: string): Promise<GameReplay[]>;
+    findGameReplays(game_slug: string, shortid?: string): Promise<GameReplay[]>;
     findGame(game_slug: string, ignoreExtra?: boolean): Promise<Game | null>;
     findGameVotes(game_slug: string): Promise<number>;
     findGameTeams(game_slug: string): Promise<GameTeam[]>;

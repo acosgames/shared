@@ -195,7 +195,8 @@ class LeaderboardService {
             values.push(config.countrycode);
         if (typeof config?.season === "number")
             values.push(config.season);
-        let response = await db.sql(`
+        const { startDate, endDate } = this.getMySQLMonthRange();
+        let sql = `
             SELECT 
                 a.displayname, 
                 b.win,
@@ -211,11 +212,15 @@ class LeaderboardService {
                 ON a.shortid = b.shortid
             WHERE b.game_slug = gi.game_slug 
             ${config?.countrycode ? "AND a.countrycode = ?" : ""}
-            ${typeof config?.season === "number" ? "AND b.season = ?" : "AND b.season = gi.season"}
+             
+            ${config?.monthly ? "" : typeof config?.season === "number" ? "AND b.season = ?" : "AND b.season = gi.season"}
+            ${config?.monthly ? `AND b.tsupdate BETWEEN '${startDate}' AND '${endDate}'` : ``}
+
             AND b.played > 0
             ORDER BY b.rating DESC
             LIMIT ${config.limit || "100"} 
-        `, values);
+        `;
+        let response = await db.sql(sql, values);
         let rankings = response.results;
         //make sure we have redis leaderboard, for checking individual players
         if (!(await this.verifyRedisLeaderboard(config))) {
@@ -527,7 +532,7 @@ class LeaderboardService {
         for (var i = 0; i < rankings.length; i++) {
             rankings[i].rank = i + 1;
         }
-        console.log("Stat Leaderboard: ", config);
+        console.log("Stat Leaderboard: ", config, rankings.length);
         return { leaderboard: rankings, localboard: [], total: rankings.length };
     }
     async updateLeaderboard(config, players) {

@@ -14,8 +14,12 @@ class StatService {
             let players = gamestate?.players;
             let statDefinitions = await this.getGameStats(game_slug, meta.maxplayers == 1);
             //update ACOS tracked stats
-            for (let shortid in gamestate.players) {
-                let player = gamestate.players[shortid];
+            for (let player of gamestate.players) {
+                let shortid = player.shortid;
+                if (!player.shortid) {
+                    console.error("Player missing shortid", player);
+                    continue;
+                }
                 if (!player.stats)
                     player.stats = {};
                 player.stats["ACOS_WINS"] = player.winloss == 1 ? 1 : 0;
@@ -34,7 +38,7 @@ class StatService {
             let globalStatRows = [];
             let playerStatRows = [];
             //pull every player and their stats
-            let shortids = Object.keys(players);
+            let shortids = players.map((p) => p.shortid);
             let playerStats = {};
             try {
                 let statsResponse = await db.sql(`SELECT 
@@ -61,7 +65,10 @@ class StatService {
             }
             //process each player individually
             for (let shortid of shortids) {
-                let player = players[shortid];
+                let playerid = gamestate?.room?._players[shortid];
+                let player = players[playerid];
+                if (!player)
+                    continue;
                 let globalStatMap = {};
                 //map the player global stats into a stat map
                 playerStats[shortid]?.map((gs) => {
@@ -87,6 +94,7 @@ class StatService {
                             }
                             playerStatRows.push({
                                 stat_slug: def.stat_slug,
+                                game_slug,
                                 room_slug,
                                 shortid,
                                 valueINT: stat,
@@ -118,6 +126,7 @@ class StatService {
                             }
                             playerStatRows.push({
                                 stat_slug: def.stat_slug,
+                                game_slug,
                                 room_slug,
                                 shortid,
                                 valueFLOAT: stat,
@@ -149,6 +158,7 @@ class StatService {
                             playerStatRows.push({
                                 stat_slug: def.stat_slug,
                                 room_slug,
+                                game_slug,
                                 shortid,
                                 valueINT: 1,
                                 valueFLOAT: stat,
@@ -200,6 +210,57 @@ class StatService {
         }
         return true;
     }
+    async getPlayerGlobalStats({ shortid, game_slug }) {
+        try {
+            let db = await mysql.db();
+            const result = await db.sql(`SELECT
+                    stat_slug,
+                    season,
+                    valueINT,
+                    valueFLOAT,
+                    valueSTRING,
+                    bestINT,
+                    bestFLOAT,
+                    bestSTRING,
+                    tsinsert,
+                    tsupdate
+                FROM person_stat_global
+                WHERE shortid = ?
+                  AND game_slug = ?
+                ORDER BY season DESC, stat_slug ASC`, [shortid, game_slug]);
+            return result?.results || [];
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
+    async getUserStatHistory({ shortid, game_slug, stat_slug, days = 30 }) {
+        try {
+            let db = await mysql.db();
+            // Query the last `days` of stat records for this user/stat/game
+            const sql = `
+            SELECT 
+                tsinsert,
+                COALESCE(valueINT, valueFLOAT) AS value
+            FROM person_stat_match
+            WHERE shortid = ?
+              AND game_slug = ?
+              AND stat_slug = ?
+              AND tsinsert >= DATE_SUB(NOW(), INTERVAL ? DAY)
+            ORDER BY tsinsert ASC
+        `;
+            const params = [shortid, game_slug, stat_slug, days];
+            const result = await db.sql(sql, params);
+            return result?.results || [];
+        }
+        catch (e) {
+            if (e instanceof GeneralError)
+                throw e;
+            throw new CodeError(e);
+        }
+    }
     async getGameStats(game_slug, is_solo) {
         try {
             let db = await mysql.db();
@@ -218,6 +279,7 @@ class StatService {
                     stat_name: "Player Rating",
                     stat_abbreviation: "PR",
                     stat_desc: "Player's overall rating for the game.",
+                    sort: 0,
                     valueTYPE: 0,
                     isactive: 1,
                 });
@@ -228,6 +290,7 @@ class StatService {
                     stat_name: "Matches Won",
                     stat_abbreviation: "W",
                     stat_desc: "Matches Won",
+                    sort: 0,
                     valueTYPE: 0,
                     isactive: 1,
                 });
@@ -239,6 +302,7 @@ class StatService {
                 stat_name: "Played Time",
                 stat_abbreviation: "PT",
                 stat_desc: "Total time played",
+                sort: 0,
                 valueTYPE: 3,
                 isactive: 1,
             });
@@ -249,6 +313,7 @@ class StatService {
                 stat_name: "Matches Played",
                 stat_abbreviation: "PLY",
                 stat_desc: "Matches played",
+                sort: 0,
                 valueTYPE: 0,
                 isactive: 1,
             });
@@ -259,6 +324,7 @@ class StatService {
                 stat_name: "Match Score",
                 stat_abbreviation: "S",
                 stat_desc: "Score player earned during match",
+                sort: 0,
                 valueTYPE: 0,
                 isactive: 1,
             });

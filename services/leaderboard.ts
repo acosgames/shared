@@ -224,8 +224,10 @@ class LeaderboardService {
         let values = [config?.game_slug];
         if (config?.countrycode) values.push(config.countrycode);
         if (typeof config?.season === "number") values.push(config.season);
-        let response = await db.sql(
-            `
+
+        const { startDate, endDate } = this.getMySQLMonthRange();
+
+        let sql = `
             SELECT 
                 a.displayname, 
                 b.win,
@@ -241,11 +243,17 @@ class LeaderboardService {
                 ON a.shortid = b.shortid
             WHERE b.game_slug = gi.game_slug 
             ${config?.countrycode ? "AND a.countrycode = ?" : ""}
-            ${typeof config?.season === "number" ? "AND b.season = ?" : "AND b.season = gi.season"}
+             
+            ${config?.monthly ? "" : typeof config?.season === "number" ? "AND b.season = ?" : "AND b.season = gi.season"}
+            ${config?.monthly ? `AND b.tsupdate BETWEEN '${startDate}' AND '${endDate}'` : ``}
+
             AND b.played > 0
             ORDER BY b.rating DESC
             LIMIT ${config.limit || "100"} 
-        `,
+        `
+
+        let response = await db.sql(
+            sql,
             values
         );
 
@@ -474,10 +482,12 @@ class LeaderboardService {
         let playerResponse = null;
         let rankings = [];
         let statDefs = await stats.getGameStats(config?.game_slug, config?.is_solo);
-        if (!config?.stat_slug || !statDefs || statDefs.length == 0) return [];
+        if (!config?.stat_slug || !statDefs || statDefs.length == 0) 
+            return [];
 
         let statDef = statDefs.find((stat) => stat.stat_slug == config?.stat_slug);
-        if (!statDef) return [];
+        if (!statDef) 
+            return [];
 
         let valueType = "INT";
         if (statDef.valueTYPE == 1 || statDef.valueTYPE == 2) valueType = "FLOAT";
@@ -619,7 +629,7 @@ class LeaderboardService {
             rankings[i].rank = i + 1;
         }
 
-        console.log("Stat Leaderboard: ", config);
+        console.log("Stat Leaderboard: ", config, rankings.length);
 
         return { leaderboard: rankings, localboard: [], total: rankings.length };
     }

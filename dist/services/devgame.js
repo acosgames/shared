@@ -367,6 +367,7 @@ export default class DevGameService {
                 stat_name: "Matches Won",
                 stat_abbreviation: "W",
                 stat_desc: "Matches Won",
+                sort: 0,
                 valueTYPE: 0,
                 isactive: 1,
             });
@@ -377,6 +378,7 @@ export default class DevGameService {
                 stat_name: "Time Played",
                 stat_abbreviation: "PT",
                 stat_desc: "Total time played",
+                sort: 0,
                 valueTYPE: 3,
                 isactive: 1,
             });
@@ -387,6 +389,7 @@ export default class DevGameService {
                 stat_name: "Matches Played",
                 stat_abbreviation: "PLY",
                 stat_desc: "Matches played",
+                sort: 0,
                 valueTYPE: 0,
                 isactive: 1,
             });
@@ -397,6 +400,7 @@ export default class DevGameService {
                 stat_name: "Match Score",
                 stat_abbreviation: "S",
                 stat_desc: "Score player earned during match",
+                sort: 0,
                 valueTYPE: 0,
                 isactive: 1,
             });
@@ -407,6 +411,7 @@ export default class DevGameService {
                 stat_name: "Player Rating",
                 stat_abbreviation: "S",
                 stat_desc: "Player's overall rating for the game.",
+                sort: 0,
                 valueTYPE: 0,
                 isactive: 1,
             });

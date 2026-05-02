@@ -167,21 +167,31 @@ class GameService {
         }
         return [];
     }
-    async findGameReplays(game_slug) {
+    async findGameReplays(game_slug, shortid) {
         try {
             let db = await mysql.db();
             var response;
             console.log("Getting game replay: ", game_slug);
             response = await db.sql(`
-                SELECT a.version, a.mode, a.room_slug, c.screentype, c.resow, c.resoh, c.screenwidth, c.css
+                SELECT 
+                    a.version, 
+                    a.mode, 
+                    a.rating, 
+                    a.room_slug, 
+                    c.screentype, 
+                    c.resow, 
+                    c.resoh, 
+                    c.screenwidth, 
+                    c.css
                 FROM game_room a, game_info b, game_version c
                 WHERE a.game_slug = ?
                 AND b.game_slug = a.game_slug
                 AND b.gameid = c.gameid 
                 AND c.version = a.version
+                ${shortid ? "AND a.shortid = ?" : ""}
                 ORDER BY a.tsupdate DESC
                 LIMIT 100
-            `, [game_slug]);
+            `, shortid ? [game_slug, shortid] : [game_slug]);
             if (!response.results) {
                 return [];
             }
