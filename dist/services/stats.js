@@ -23,10 +23,11 @@ class StatService {
                 if (!player.stats)
                     player.stats = {};
                 player.stats["ACOS_WINS"] = player.winloss == 1 ? 1 : 0;
+                player.stats["ACOS_WINRATING"] = player.winloss == 1 ? 1 : 0;
                 player.stats["ACOS_PLAYED"] = 1;
                 player.stats["ACOS_PLAYTIME"] = Math.floor((gamestate.room.endtime) / 1000);
-                player.stats["ACOS_SCORE"] = player.highscore || player.score || 0;
-                player.stats["ACOS_RATING"] = player.rating || 0;
+                player.stats["ACOS_SCORE"] = player.highscore ?? player.score ?? 0;
+                player.stats["ACOS_RATING"] = player.rating ?? 0;
             }
             //mappings for faster indexing
             let defs = {};
@@ -85,106 +86,139 @@ class StatService {
                         continue;
                     let def = defs[stat_abbreviation];
                     let stat = player.stats[stat_abbreviation];
-                    let globalStat = null;
+                    let globalStat = globalStatMap[def.stat_slug] || null;
+                    // --- Per-match stat row: store raw value with correct type, no algorithm ---
+                    let matchRow = {
+                        stat_slug: def.stat_slug,
+                        game_slug,
+                        room_slug,
+                        shortid,
+                        valueINT: null,
+                        valueFLOAT: null,
+                        valueSTRING: null,
+                    };
                     switch (def.valueTYPE) {
-                        case 0: //integer
-                        case 3: //time
-                            if (typeof stat !== "number" && !Number.isInteger(stat)) {
-                                console.error("Stat is not an integer number", game_slug, stat_abbreviation, stat);
+                        case 0: // integer
+                        case 3: // time
+                            if (typeof stat !== "number" || isNaN(stat)) {
+                                console.error("Stat is not a valid integer/time", game_slug, stat_abbreviation, stat);
+                                continue;
                             }
-                            playerStatRows.push({
-                                stat_slug: def.stat_slug,
-                                game_slug,
-                                room_slug,
-                                shortid,
-                                valueINT: stat,
-                                valueFLOAT: null,
-                            });
-                            globalStat = globalStatMap[def.stat_slug];
-                            if (!globalStat) {
-                                globalStat = {
-                                    stat_slug: def.stat_slug,
-                                    game_slug,
-                                    shortid,
-                                    season: meta.season,
-                                    valueINT: stat,
-                                    bestINT: stat,
-                                    valueFLOAT: null,
-                                };
-                            }
-                            else {
-                                globalStat.valueINT += stat;
-                                if (stat > globalStat.bestINT)
-                                    globalStat.bestINT = stat;
-                                // globalStat.isUpdate = true;
-                            }
-                            globalStatMap[def.stat_slug] = globalStat;
+                            matchRow.valueINT = Math.round(stat);
                             break;
-                        case 1: //float
-                            if (typeof stat !== "number" || Number.isInteger(stat)) {
-                                console.error("Stat is not a float number", game_slug, stat_abbreviation, stat);
+                        case 1: // float
+                        case 2: // average (float)
+                            if (typeof stat !== "number" || isNaN(stat)) {
+                                console.error("Stat is not a valid float/average", game_slug, stat_abbreviation, stat);
+                                continue;
                             }
-                            playerStatRows.push({
-                                stat_slug: def.stat_slug,
-                                game_slug,
-                                room_slug,
-                                shortid,
-                                valueFLOAT: stat,
-                                valueINT: null,
-                            });
-                            globalStat = globalStatMap[def.stat_slug];
-                            if (!globalStat) {
-                                globalStat = {
-                                    stat_slug: def.stat_slug,
-                                    game_slug,
-                                    shortid,
-                                    season: meta.season,
-                                    valueINT: null,
-                                    valueFLOAT: stat,
-                                    bestFLOAT: stat,
-                                };
-                            }
-                            else {
-                                globalStat.valueFLOAT += stat;
-                                if (stat > globalStat.bestFLOAT)
-                                    globalStat.bestFLOAT = stat;
-                            }
-                            globalStatMap[def.stat_slug] = globalStat;
+                            matchRow.valueFLOAT = stat;
                             break;
-                        case 2: //average
-                            if (typeof stat !== "number") {
-                                console.error("IntStat is not a number", game_slug, stat_abbreviation, stat);
-                            }
-                            playerStatRows.push({
-                                stat_slug: def.stat_slug,
-                                room_slug,
-                                game_slug,
-                                shortid,
-                                valueINT: 1,
-                                valueFLOAT: stat,
-                            });
-                            globalStat = globalStatMap[def.stat_slug];
-                            if (!globalStat) {
-                                globalStat = {
-                                    stat_slug: def.stat_slug,
-                                    game_slug,
-                                    shortid,
-                                    season: meta.season,
-                                    valueINT: 1,
-                                    valueFLOAT: stat,
-                                };
-                            }
-                            else {
-                                let avg = (globalStat.valueFLOAT * globalStat.valueINT + stat) /
-                                    (globalStat.valueINT + 1);
-                                globalStat.valueINT += 1;
-                                globalStat.valueFLOAT = avg;
-                                if (stat > globalStat.bestFLOAT)
-                                    globalStat.bestFLOAT = stat;
-                            }
-                            globalStatMap[def.stat_slug] = globalStat;
+                        case 4: // string
+                            matchRow.valueSTRING = String(stat);
                             break;
+                        default:
+                            continue;
                     }
+                    playerStatRows.push(matchRow);
+                    // --- Global stat aggregation ---
+                    // def.algorithm  -> how to accumulate globalStat.value
+                    // def.global_algorithm -> how to track globalStat.best
+                    if (!globalStat) {
+                        globalStat = {
+                            stat_slug: def.stat_slug,
+                            game_slug,
+                            shortid,
+                            season: meta.season,
+                            valueINT: null,
+                            valueFLOAT: null,
+                            valueSTRING: null,
+                            bestINT: null,
+                            bestFLOAT: null,
+                            bestSTRING: null,
+                        };
+                    }
+                    if (def.valueTYPE === 0 || def.valueTYPE === 3) {
+                        // integer / time
+                        // value: use def.algorithm
+                        // For avg, valueINT holds sample count and valueFLOAT holds the running average
+                        switch (def.algorithm) {
+                            case 1: // sum
+                                globalStat.valueINT = (globalStat.valueINT || 0) + Math.round(stat);
+                                break;
+                            case 2: { // avg (count in valueINT, avg in valueFLOAT)
+                                const n = (globalStat.valueINT || 0) + 1;
+                                globalStat.valueFLOAT = (globalStat.valueFLOAT || 0) + stat;
+                                globalStat.valueINT = n;
+                                break;
+                            }
+                            case 3: // max
+                                globalStat.valueINT = globalStat.valueINT == null ? Math.round(stat) : Math.max(globalStat.valueINT, Math.round(stat));
+                                break;
+                            case 4: // min
+                                globalStat.valueINT = globalStat.valueINT == null ? Math.round(stat) : Math.min(globalStat.valueINT, Math.round(stat));
+                                break;
+                            default: // 0: latest
+                                globalStat.valueINT = Math.round(stat);
+                        }
+                        // best: use def.global_algorithm
+                        switch (def.global_algorithm) {
+                            case 1: // sum
+                                globalStat.bestINT = (globalStat.bestINT || 0) + Math.round(stat);
+                                break;
+                            case 4: // min
+                                globalStat.bestINT = globalStat.bestINT == null ? Math.round(stat) : Math.min(globalStat.bestINT, Math.round(stat));
+                                break;
+                            case 0: // latest
+                                globalStat.bestINT = Math.round(stat);
+                                break;
+                            default: // 3: max (default for best)
+                                globalStat.bestINT = globalStat.bestINT == null ? Math.round(stat) : Math.max(globalStat.bestINT, Math.round(stat));
+                        }
+                    }
+                    else if (def.valueTYPE === 1 || def.valueTYPE === 2) {
+                        // float / average
+                        // value: use def.algorithm; for avg, valueINT is sample count
+                        switch (def.algorithm) {
+                            case 1: // sum
+                                globalStat.valueFLOAT = (globalStat.valueFLOAT || 0) + stat;
+                                break;
+                            case 2: { // avg
+                                const n = (globalStat.valueINT || 0) + 1;
+                                globalStat.valueFLOAT = ((globalStat.valueFLOAT || 0) + stat);
+                                globalStat.valueINT = n;
+                                break;
+                            }
+                            case 3: // max
+                                globalStat.valueFLOAT = globalStat.valueFLOAT == null ? stat : Math.max(globalStat.valueFLOAT, stat);
+                                break;
+                            case 4: // min
+                                globalStat.valueFLOAT = globalStat.valueFLOAT == null ? stat : Math.min(globalStat.valueFLOAT, stat);
+                                break;
+                            default: // 0: latest
+                                globalStat.valueFLOAT = stat;
+                        }
+                        // best: use def.global_algorithm
+                        switch (def.global_algorithm) {
+                            case 1: // sum
+                                globalStat.bestFLOAT = (globalStat.bestFLOAT || 0) + stat;
+                                break;
+                            case 4: // min
+                                globalStat.bestFLOAT = globalStat.bestFLOAT == null ? stat : Math.min(globalStat.bestFLOAT, stat);
+                                break;
+                            case 0: // latest
+                                globalStat.bestFLOAT = stat;
+                                break;
+                            default: // 3: max (default for best)
+                                globalStat.bestFLOAT = globalStat.bestFLOAT == null ? stat : Math.max(globalStat.bestFLOAT, stat);
+                        }
+                    }
+                    else if (def.valueTYPE === 4) {
+                        // string: latest only
+                        globalStat.valueSTRING = String(stat);
+                        globalStat.bestSTRING = String(stat);
+                    }
+                    globalStatMap[def.stat_slug] = globalStat;
                 }
                 //aggregate all stats into a single array to batch
                 for (let key in globalStatMap) {
@@ -274,57 +308,74 @@ class StatService {
             if (!is_solo) {
                 statDefs.push({
                     stat_slug: "ACOS_RATING",
-                    algorithm_id: null,
+                    algorithm: 2,
+                    global_algorithm: 3,
                     game_slug: game_slug,
-                    stat_name: "Player Rating",
+                    stat_name: "Rating",
                     stat_abbreviation: "PR",
                     stat_desc: "Player's overall rating for the game.",
-                    sort: 0,
+                    display_format: 0,
                     valueTYPE: 0,
                     isactive: 1,
                 });
                 statDefs.push({
                     stat_slug: "ACOS_WINS",
-                    algorithm_id: null,
+                    algorithm: 1,
+                    global_algorithm: 1,
                     game_slug: game_slug,
                     stat_name: "Matches Won",
                     stat_abbreviation: "W",
                     stat_desc: "Matches Won",
-                    sort: 0,
+                    display_format: 0,
                     valueTYPE: 0,
+                    isactive: 1,
+                });
+                statDefs.push({
+                    stat_slug: "ACOS_WINRATING",
+                    algorithm: 2,
+                    global_algorithm: 3,
+                    game_slug: game_slug,
+                    stat_name: "Win Rating",
+                    stat_abbreviation: "WR",
+                    stat_desc: "Win Rating (Wins/Played)",
+                    display_format: 1,
+                    valueTYPE: 2,
                     isactive: 1,
                 });
             }
             statDefs.push({
                 stat_slug: "ACOS_PLAYTIME",
-                algorithm_id: null,
+                algorithm: 1,
+                global_algorithm: 1,
                 game_slug: game_slug,
                 stat_name: "Played Time",
                 stat_abbreviation: "PT",
                 stat_desc: "Total time played",
-                sort: 0,
+                display_format: 2,
                 valueTYPE: 3,
                 isactive: 1,
             });
             statDefs.push({
                 stat_slug: "ACOS_PLAYED",
-                algorithm_id: null,
+                algorithm: 1,
+                global_algorithm: 1,
                 game_slug: game_slug,
                 stat_name: "Matches Played",
                 stat_abbreviation: "PLY",
                 stat_desc: "Matches played",
-                sort: 0,
+                display_format: 0,
                 valueTYPE: 0,
                 isactive: 1,
             });
             statDefs.push({
                 stat_slug: "ACOS_SCORE",
-                algorithm_id: null,
+                algorithm: 1,
+                global_algorithm: 1,
                 game_slug: game_slug,
                 stat_name: "Match Score",
                 stat_abbreviation: "S",
                 stat_desc: "Score player earned during match",
-                sort: 0,
+                display_format: 0,
                 valueTYPE: 0,
                 isactive: 1,
             });

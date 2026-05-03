@@ -1,3 +1,4 @@
+import { StatDefinition } from "../types/game.js";
 declare class StatService {
     constructor(credentials?: any);
     updatePlayerStats(meta: any, gamestate: any): Promise<boolean>;

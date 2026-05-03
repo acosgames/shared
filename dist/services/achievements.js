@@ -176,7 +176,8 @@ class AchievementService {
                 WHERE a.game_slug = ?`, [game_slug]);
             statDefs.push({
                 stat_slug: "ACOS_WINS",
-                algorithm_id: null,
+                algorithm: 0,
+                global_algorithm: 0,
                 game_slug: game_slug,
                 stat_name: "Matches Won",
                 stat_abbreviation: "W",
@@ -187,7 +188,8 @@ class AchievementService {
             });
             statDefs.push({
                 stat_slug: "ACOS_PLAYTIME",
-                algorithm_id: null,
+                algorithm: 0,
+                global_algorithm: 0,
                 game_slug: game_slug,
                 stat_name: "Time Played",
                 stat_abbreviation: "PT",
@@ -198,7 +200,8 @@ class AchievementService {
             });
             statDefs.push({
                 stat_slug: "ACOS_PLAYED",
-                algorithm_id: null,
+                algorithm: 0,
+                global_algorithm: 0,
                 game_slug: game_slug,
                 stat_name: "Matches Played",
                 stat_abbreviation: "PLY",
@@ -209,7 +212,8 @@ class AchievementService {
             });
             statDefs.push({
                 stat_slug: "ACOS_SCORE",
-                algorithm_id: null,
+                algorithm: 0,
+                global_algorithm: 0,
                 game_slug: game_slug,
                 stat_name: "Match Score",
                 stat_abbreviation: "S",
@@ -220,7 +224,8 @@ class AchievementService {
             });
             statDefs.push({
                 stat_slug: "ACOS_RATING",
-                algorithm_id: null,
+                algorithm: 0,
+                global_algorithm: 0,
                 game_slug: game_slug,
                 stat_name: "Player Rating",
                 stat_abbreviation: "S",

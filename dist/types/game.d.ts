@@ -1,7 +1,42 @@
 export type ScreenType = 1 | 2 | 3;
+/**
+ * StatDefinition represents the definition of a statistic for a game, including its slug, display name, description, and how it should be calculated and displayed. This is used to define the various stats that can be tracked for players in a game, such as score, rating, wins, losses, etc.
+ * The fields include:
+ * - stat_slug: A unique identifier for the stat, used in code and API calls.
+ * - algorithm: The algorithm used to calculate the stat (e.g., sum, average, max).
+ *      - 0 = latest value
+ *      - 1 = sum
+ *      - 2 = average
+ *      - 3 = max
+ *      - 4 = min
+ * - global_algorithm: The algorithm used to calculate the global version of the stat, if applicable (e.g., for global leaderboards).
+ *      - 0 = latest value
+ *      - 1 = sum
+ *      - 2 = average
+ *      - 3 = max
+ *      - 4 = min
+ * - display_format: An optional field that specifies how the stat should be formatted when displayed (e.g., as a number, percentage, time).
+ *      - 0 = number
+ *      - 1 = percentage (0-100%)
+ *      - 2 = time (displayed as mm:ss)
+ *      - 3 = duration (displayed as hh:mm:ss)
+ *      - 4 = date (displayed as YYYY-MM-DD)
+ * - game_slug: The slug of the game this stat is associated with.
+ * - stat_name: The human-readable name of the stat to be displayed in the UI.
+ * - stat_abbreviation: A short abbreviation for the stat, used in compact displays.
+ * - stat_desc: A description of the stat, explaining what it represents.
+ * - valueTYPE: The type of value the stat holds (e.g., integer, float, time).
+ * - isactive: A boolean indicating whether the stat is currently active and should be tracked.
+ * - scoreboard: An optional field indicating if the stat should be shown on the scoreboard.
+ * - stat_order: An optional field that determines the order in which stats are displayed in the UI.
+ * - tsinsert: Timestamp of when the stat definition was created.
+ * - tsupdate: Timestamp of when the stat definition was last updated.
+ */
 export interface StatDefinition {
     stat_slug: string;
-    algorithm_id: string | null;
+    algorithm: number | null;
+    global_algorithm: number | null;
+    display_format?: number | null;
     game_slug: string;
     stat_name: string;
     stat_abbreviation: string;
