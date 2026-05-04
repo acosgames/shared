@@ -305,7 +305,13 @@ class StatService {
                 WHERE s.game_slug = ? 
                 `, [game_slug]);
             let statDefs = response?.results || [];
+            let statMap = {};
+            statDefs.map((def) => {
+                statMap[def.stat_slug] = def;
+                statMap[def.stat_abbreviation] = def;
+            });
             if (!is_solo) {
+                // if( !("ACOS_RATING" in statMap) )
                 statDefs.push({
                     stat_slug: "ACOS_RATING",
                     algorithm: 2,
@@ -318,6 +324,7 @@ class StatService {
                     valueTYPE: 0,
                     isactive: 1,
                 });
+                // if( !("ACOS_WINS" in statMap) )
                 statDefs.push({
                     stat_slug: "ACOS_WINS",
                     algorithm: 1,
@@ -330,6 +337,7 @@ class StatService {
                     valueTYPE: 0,
                     isactive: 1,
                 });
+                // if( !("ACOS_WINRATING" in statMap) )
                 statDefs.push({
                     stat_slug: "ACOS_WINRATING",
                     algorithm: 2,
@@ -343,6 +351,7 @@ class StatService {
                     isactive: 1,
                 });
             }
+            // if( !("ACOS_PLAYTIME" in statMap) )
             statDefs.push({
                 stat_slug: "ACOS_PLAYTIME",
                 algorithm: 1,
@@ -355,6 +364,7 @@ class StatService {
                 valueTYPE: 3,
                 isactive: 1,
             });
+            // if( !("ACOS_PLAYED" in statMap) )
             statDefs.push({
                 stat_slug: "ACOS_PLAYED",
                 algorithm: 1,
@@ -367,18 +377,19 @@ class StatService {
                 valueTYPE: 0,
                 isactive: 1,
             });
-            statDefs.push({
-                stat_slug: "ACOS_SCORE",
-                algorithm: 1,
-                global_algorithm: 1,
-                game_slug: game_slug,
-                stat_name: "Match Score",
-                stat_abbreviation: "S",
-                stat_desc: "Score player earned during match",
-                display_format: 0,
-                valueTYPE: 0,
-                isactive: 1,
-            });
+            if (!("ACOS_SCORE" in statMap))
+                statDefs.push({
+                    stat_slug: "ACOS_SCORE",
+                    algorithm: 1,
+                    global_algorithm: 1,
+                    game_slug: game_slug,
+                    stat_name: "Match Score",
+                    stat_abbreviation: "S",
+                    stat_desc: "Score player earned during match",
+                    display_format: 0,
+                    valueTYPE: 0,
+                    isactive: 1,
+                });
             return statDefs;
         }
         catch (e) {

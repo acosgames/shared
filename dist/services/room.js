@@ -245,25 +245,8 @@ class RoomService {
             var response;
             console.log("Getting list of player rooms", shortid);
             response = await db.sql(`SELECT 
-                    a.shortid, 
                     b.room_slug, 
-                    b.game_slug, 
-                    b.version, 
-                    b.mode, 
-                    b.status, 
-                    v.css,
-                    v.protocol,
-                    v.settings,
-                    v.scaled,
-                    v.screentype,
-                    v.resow,
-                    v.resoh,
-                    v.screenwidth,
-                    c.minplayers,
-                    c.maxplayers,
-                    c.maxteams,
-                    c.minteams,
-                    c.lbscore
+                    b.game_slug
                 FROM person_room a 
                 INNER JOIN game_room b 
                     ON a.room_slug = b.room_slug 
@@ -275,7 +258,13 @@ class RoomService {
                 AND b.room_slug IS NOT NULL
                 AND b.status <= 1`, [shortid]);
             if (response.results && response.results.length > 0) {
-                let filtered = response.results.filter((room) => room.room_slug);
+                let filtered = [];
+                for (let i = 0; i < response.results.length; i++) {
+                    let room = response.results[i];
+                    let key = room.room_slug + "/meta";
+                    let meta = await this.findRoom(room.room_slug);
+                    filtered.push(meta);
+                }
                 return filtered;
             }
             return [];
@@ -317,6 +306,7 @@ class RoomService {
                     v.screenwidth,
                     i.name,
                     i.minplayers,
+                    i.preview_images,
                     i.maxplayers,
                     i.maxteams,
                     i.minteams,
